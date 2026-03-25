@@ -5,8 +5,9 @@ import { useAuditLog } from './hooks/useAuditLog';
 import { fetchMetrics } from './services/api';
 import AppShell from './components/layout/AppShell';
 import NiyantaChatModal from './components/modals/NiyantaChatModal';
+import { AgentId, Metrics, Toast, AgentRunResponse } from './types';
 
-function App() {
+const App: React.FC = () => {
   const { theme, toggleTheme } = useTheme();
   const {
     agentStates,
@@ -17,11 +18,11 @@ function App() {
   } = useAgents();
   const { log: auditLog, addEntry } = useAuditLog();
 
-  const [selectedAgent, setSelectedAgent] = useState(null);
-  const [showNiyantaChat, setShowNiyantaChat] = useState(false);
-  const [runAllProgress, setRunAllProgress] = useState(null);
-  const [metrics, setMetrics] = useState(null);
-  const [toast, setToast] = useState(null);
+  const [selectedAgent, setSelectedAgent] = useState<AgentId | null>(null);
+  const [showNiyantaChat, setShowNiyantaChat] = useState<boolean>(false);
+  const [runAllProgress, setRunAllProgress] = useState<string | null>(null);
+  const [metrics, setMetrics] = useState<Metrics | null>(null);
+  const [toast, setToast] = useState<Toast | null>(null);
 
   // Fetch metrics periodically
   useEffect(() => {
@@ -40,7 +41,7 @@ function App() {
   }, []);
 
   // Show toast
-  const showToast = useCallback((message, type = 'info') => {
+  const showToast = useCallback((message: string, type: 'info' | 'success' | 'error' = 'info') => {
     setToast({ message, type, visible: true });
     setTimeout(() => {
       setToast(prev => prev ? { ...prev, visible: false } : null);
@@ -49,25 +50,30 @@ function App() {
 
   // Handle agent run
   const handleRunAgent = useCallback(
-    async (agentId, inputText) => {
+    async (agentId: AgentId, inputText: string): Promise<AgentRunResponse> => {
       try {
         const response = await runAgent(agentId, inputText);
 
         // Add to audit log
         if (response?.result) {
+          const result = response.result as { summary?: string; decision?: string; severity?: string };
           addEntry(
             agentId,
-            response.result.summary || 'Agent processed input',
-            response.result.decision || response.result.severity || null
+            result.summary || 'Agent processed input',
+            result.decision || result.severity || null
           );
         }
 
         // Refresh metrics
         const data = await fetchMetrics();
         setMetrics(data);
+
+        return response;
       } catch (error) {
-        showToast(`Error: ${error.message}`, 'error');
-        addEntry(agentId, `Error: ${error.message}`, 'ERROR');
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        showToast(`Error: ${errorMessage}`, 'error');
+        addEntry(agentId, `Error: ${errorMessage}`, 'ERROR');
+        throw error;
       }
     },
     [runAgent, addEntry, showToast]
@@ -76,17 +82,12 @@ function App() {
   // Handle run all agents
   const handleRunAllAgents = useCallback(async () => {
     try {
-      await runAllAgents((progress, agentId) => {
+      await runAllAgents((progress: string, agentId?: AgentId) => {
         setRunAllProgress(progress);
         if (agentId) {
           setSelectedAgent(agentId);
         }
       });
-
-      // Add summary to audit log
-      const completedCount = Object.values(agentStates).filter(
-        s => s.status === 'complete'
-      ).length;
 
       showToast(`All agents processed successfully!`, 'success');
 
@@ -94,12 +95,15 @@ function App() {
       const data = await fetchMetrics();
       setMetrics(data);
     } catch (error) {
-      showToast(`Error running agents: ${error.message}`, 'error');
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      showToast(`Error running agents: ${errorMessage}`, 'error');
+    } finally {
+      setRunAllProgress(null);
     }
-  }, [runAllAgents, agentStates, showToast]);
+  }, [runAllAgents, showToast]);
 
   // Handle select agent
-  const handleSelectAgent = useCallback((agentId) => {
+  const handleSelectAgent = useCallback((agentId: AgentId) => {
     setSelectedAgent(agentId);
   }, []);
 
@@ -139,6 +143,6 @@ function App() {
       )}
     </>
   );
-}
+};
 
 export default App;
