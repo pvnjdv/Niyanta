@@ -5,15 +5,15 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
-const Anthropic = require('@anthropic-ai/sdk').default;
+const Groq = require('groq-sdk');
 const { v4: uuid } = require('uuid');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Initialize Anthropic client
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
+// Initialize Groq client
+const groq = new Groq({
+  apiKey: process.env.GROQ_API_KEY,
 });
 
 // In-memory data stores
@@ -550,27 +550,29 @@ app.post('/api/agent/run', async (req: any, res: any) => {
   });
 
   try {
-    const response = await anthropic.messages.create({
-      model: 'claude-3-5-haiku',
+    const response = await groq.chat.completions.create({
+      model: 'llama-3.1-8b-instant',
       max_tokens: 1500,
-      system: AGENT_PROMPTS[agentId],
-      messages: [{ role: 'user', content: input }],
+      messages: [
+        { role: 'system', content: AGENT_PROMPTS[agentId] },
+        { role: 'user', content: input },
+      ],
     });
 
     const processingTime = Date.now() - startTime;
 
-    if (!response.content || response.content.length === 0) {
-      throw new Error('Empty response from Anthropic API');
+    if (!response.choices || response.choices.length === 0) {
+      throw new Error('Empty response from Groq API');
     }
 
-    const firstContent = response.content[0];
-    if (!firstContent || firstContent.type !== 'text' || !firstContent.text) {
-      throw new Error('Invalid response format from Anthropic API');
+    const firstChoice = response.choices[0];
+    if (!firstChoice || !firstChoice.message || !firstChoice.message.content) {
+      throw new Error('Invalid response format from Groq API');
     }
 
-    const responseText = firstContent.text.trim();
+    const responseText = firstChoice.message.content.trim();
     if (!responseText) {
-      throw new Error('Empty text response from Anthropic API');
+      throw new Error('Empty text response from Groq API');
     }
 
     const result = parseAgentResponse(responseText);
@@ -672,25 +674,27 @@ When answering:
   ];
 
   try {
-    const response = await anthropic.messages.create({
-      model: 'claude-3-5-haiku-20241022',
+    const response = await groq.chat.completions.create({
+      model: 'llama-3.1-8b-instant',
       max_tokens: 1000,
-      system: niyantaSystemPrompt,
-      messages,
+      messages: [
+        { role: 'system', content: niyantaSystemPrompt },
+        ...messages,
+      ],
     });
 
-    if (!response.content || response.content.length === 0) {
-      throw new Error('Empty response from Anthropic API');
+    if (!response.choices || response.choices.length === 0) {
+      throw new Error('Empty response from Groq API');
     }
 
-    const firstContent = response.content[0];
-    if (!firstContent || firstContent.type !== 'text' || !firstContent.text) {
-      throw new Error('Invalid response format from Anthropic API');
+    const firstChoice = response.choices[0];
+    if (!firstChoice || !firstChoice.message || !firstChoice.message.content) {
+      throw new Error('Invalid response format from Groq API');
     }
 
-    const reply = firstContent.text.trim();
+    const reply = firstChoice.message.content.trim();
     if (!reply) {
-      throw new Error('Empty text response from Anthropic API');
+      throw new Error('Empty text response from Groq API');
     }
 
     return res.json({
