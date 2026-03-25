@@ -12,15 +12,25 @@ interface UseThemeReturn {
 export function useTheme(): UseThemeReturn {
   const [theme, setTheme] = useState<Theme>(() => {
     if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem(STORAGE_KEY) as Theme | null;
-      return stored || 'dark';
+      try {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored === 'dark' || stored === 'light') {
+          return stored;
+        }
+      } catch {
+        // localStorage may be unavailable in some environments
+      }
     }
     return 'dark';
   });
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem(STORAGE_KEY, theme);
+    try {
+      localStorage.setItem(STORAGE_KEY, theme);
+    } catch {
+      // localStorage may be unavailable in some environments
+    }
   }, [theme]);
 
   const toggleTheme = useCallback(() => {

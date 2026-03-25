@@ -14,7 +14,7 @@ export function useAuditLog(): UseAuditLogReturn {
 
   const addEntry = useCallback((agentId: AgentId, message: string, decision: string | null = null): AuditEntry => {
     const entry: AuditEntry = {
-      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+      id: Date.now().toString() + Math.random().toString(36).substring(2, 11),
       agentId,
       message,
       decision,

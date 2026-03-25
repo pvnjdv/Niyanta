@@ -82,7 +82,7 @@ const App: React.FC = () => {
   // Handle run all agents
   const handleRunAllAgents = useCallback(async () => {
     try {
-      await runAllAgents((progress: string, agentId?: AgentId) => {
+      await runAllAgents((progress: string | null, agentId: AgentId | null) => {
         setRunAllProgress(progress);
         if (agentId) {
           setSelectedAgent(agentId);
