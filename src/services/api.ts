@@ -1,6 +1,17 @@
+import {
+  AgentId,
+  AgentResult,
+  AgentRunResponse,
+  NiyantaChatResponse,
+  AuditResponse,
+  Metrics,
+  HealthResponse,
+  ChatMessage,
+} from '../types';
+
 const API_BASE = '/api';
 
-export async function runAgent(agentId, inputText) {
+export async function runAgent(agentId: AgentId, inputText: string): Promise<AgentRunResponse> {
   const response = await fetch(`${API_BASE}/agent/run`, {
     method: 'POST',
     headers: {
@@ -18,10 +29,14 @@ export async function runAgent(agentId, inputText) {
     throw new Error(data.message || 'Agent processing failed');
   }
 
-  return data;
+  return data as AgentRunResponse;
 }
 
-export async function sendNiyantaMessage(message, conversationHistory, agentResults) {
+export async function sendNiyantaMessage(
+  message: string,
+  conversationHistory: Pick<ChatMessage, 'role' | 'content'>[],
+  agentResults: Partial<Record<AgentId, AgentResult | null>>
+): Promise<NiyantaChatResponse> {
   const response = await fetch(`${API_BASE}/niyanta/chat`, {
     method: 'POST',
     headers: {
@@ -40,10 +55,10 @@ export async function sendNiyantaMessage(message, conversationHistory, agentResu
     throw new Error(data.message || 'Niyanta chat failed');
   }
 
-  return data;
+  return data as NiyantaChatResponse;
 }
 
-export async function fetchAuditLog() {
+export async function fetchAuditLog(): Promise<AuditResponse> {
   const response = await fetch(`${API_BASE}/audit`);
   const data = await response.json();
 
@@ -51,10 +66,10 @@ export async function fetchAuditLog() {
     throw new Error(data.message || 'Failed to fetch audit log');
   }
 
-  return data;
+  return data as AuditResponse;
 }
 
-export async function fetchMetrics() {
+export async function fetchMetrics(): Promise<Metrics> {
   const response = await fetch(`${API_BASE}/metrics`);
   const data = await response.json();
 
@@ -62,10 +77,10 @@ export async function fetchMetrics() {
     throw new Error(data.message || 'Failed to fetch metrics');
   }
 
-  return data;
+  return data as Metrics;
 }
 
-export async function fetchHealth() {
+export async function fetchHealth(): Promise<HealthResponse> {
   const response = await fetch(`${API_BASE}/health`);
   const data = await response.json();
 
@@ -73,5 +88,5 @@ export async function fetchHealth() {
     throw new Error(data.message || 'Health check failed');
   }
 
-  return data;
+  return data as HealthResponse;
 }

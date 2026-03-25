@@ -1,4 +1,6 @@
-export const AGENTS = {
+import { Agent, AgentId } from '../types';
+
+export const AGENTS: Record<AgentId, Agent> = {
   meeting: {
     id: 'meeting',
     name: 'Meeting Intelligence',
@@ -46,9 +48,9 @@ export const AGENTS = {
   },
 };
 
-export const AGENT_LIST = Object.values(AGENTS);
+export const AGENT_LIST: Agent[] = Object.values(AGENTS);
 
-export const AGENT_PLACEHOLDERS = {
+export const AGENT_PLACEHOLDERS: Record<AgentId, string> = {
   meeting: 'Paste a meeting transcript or notes here — attendees, decisions, action items...',
   invoice: 'Paste invoice text here — vendor, line items, amounts, due dates, PO number...',
   hr: 'Paste new hire details here — name, role, start date, manager, special requirements...',

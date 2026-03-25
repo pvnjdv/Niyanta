@@ -1,4 +1,6 @@
-export const SAMPLES = {
+import { AgentId } from '../types';
+
+export const SAMPLES: Record<AgentId, string> = {
   meeting: `MEETING TRANSCRIPT — Q4 Budget and Headcount Planning
 Date: November 12, 2024 | Duration: 47 minutes | Location: Board Room B + Zoom
 Attendees: Sarah Chen (CFO), Mark Thompson (VP Engineering), Lisa Rodriguez (HR Director),

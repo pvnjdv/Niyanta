@@ -1,11 +1,18 @@
 import { useState, useEffect, useCallback } from 'react';
+import { Theme } from '../types';
 
 const STORAGE_KEY = 'niyanta-theme';
 
-export function useTheme() {
-  const [theme, setTheme] = useState(() => {
+interface UseThemeReturn {
+  theme: Theme;
+  toggleTheme: () => void;
+  isDark: boolean;
+}
+
+export function useTheme(): UseThemeReturn {
+  const [theme, setTheme] = useState<Theme>(() => {
     if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem(STORAGE_KEY);
+      const stored = localStorage.getItem(STORAGE_KEY) as Theme | null;
       return stored || 'dark';
     }
     return 'dark';
@@ -17,7 +24,7 @@ export function useTheme() {
   }, [theme]);
 
   const toggleTheme = useCallback(() => {
-    setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
+    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
   }, []);
 
   const isDark = theme === 'dark';
