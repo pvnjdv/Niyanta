@@ -2,8 +2,26 @@ import React from 'react';
 import LeftPanel from './LeftPanel';
 import CenterPanel from './CenterPanel';
 import RightPanel from './RightPanel';
+import { Theme, AgentStates, AgentId, AuditEntry, Metrics, Toast, AgentRunResponse } from '../../types';
 
-export default function AppShell({
+interface AppShellProps {
+  theme: Theme;
+  onThemeToggle: () => void;
+  agentStates: AgentStates;
+  selectedAgent: AgentId | null;
+  onSelectAgent: (agentId: AgentId) => void;
+  onRunAgent: (agentId: AgentId, inputText: string) => Promise<AgentRunResponse>;
+  onRunAllAgents: () => Promise<void>;
+  runAllProgress: string | null;
+  auditLog: AuditEntry[];
+  metrics: Metrics | null;
+  isAnyProcessing: boolean;
+  getProcessingAgentName: () => string | null;
+  onOpenNiyantaChat: () => void;
+  toast: Toast | null;
+}
+
+const AppShell: React.FC<AppShellProps> = ({
   theme,
   onThemeToggle,
   agentStates,
@@ -18,15 +36,15 @@ export default function AppShell({
   getProcessingAgentName,
   onOpenNiyantaChat,
   toast,
-}) {
-  const containerStyle = {
+}) => {
+  const containerStyle: React.CSSProperties = {
     display: 'flex',
     height: '100vh',
     overflow: 'hidden',
     backgroundColor: 'var(--bg-base)',
   };
 
-  const toastStyle = {
+  const toastStyle: React.CSSProperties = {
     position: 'fixed',
     bottom: 20,
     right: 20,
@@ -77,9 +95,9 @@ export default function AppShell({
         onOpenNiyantaChat={onOpenNiyantaChat}
         agentStates={agentStates}
       />
-      {toast && (
-        <div style={toastStyle}>{toast.message}</div>
-      )}
+      {toast && <div style={toastStyle}>{toast.message}</div>}
     </div>
   );
-}
+};
+
+export default AppShell;
