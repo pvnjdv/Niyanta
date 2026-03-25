@@ -1,13 +1,12 @@
-import dotenv from 'dotenv';
-import express, { Request, Response, NextFunction } from 'express';
-import cors from 'cors';
-import helmet from 'helmet';
-import morgan from 'morgan';
-import rateLimit from 'express-rate-limit';
-import Anthropic from '@anthropic-ai/sdk';
-import { v4 as uuid } from 'uuid';
+require('dotenv').config();
 
-dotenv.config();
+const express = require('express');
+const cors = require('cors');
+const helmet = require('helmet');
+const morgan = require('morgan');
+const rateLimit = require('express-rate-limit');
+const Anthropic = require('@anthropic-ai/sdk').default;
+const { v4: uuid } = require('uuid');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -17,72 +16,10 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
-// Types
-type AgentId = 'meeting' | 'invoice' | 'hr' | 'procurement' | 'security';
-
-interface AuditEntry {
-  id: string;
-  agentId: AgentId;
-  event: string;
-  decision: string | null;
-  inputPreview: string;
-  processingTime: number;
-  timestamp: string;
-}
-
-interface Session {
-  agentId: AgentId;
-  startTime: number;
-  status: 'processing' | 'complete' | 'error';
-  input: string;
-  processingTime?: number;
-  error?: string;
-}
-
-interface MetricsStore {
-  totalWorkflowsRun: number;
-  totalTasksCreated: number;
-  totalDecisionsMade: number;
-  escalationsTriggered: number;
-  processingTimes: number[];
-  agentRunCounts: Record<AgentId, number>;
-  decisionBreakdown: {
-    approved: number;
-    flagged: number;
-    rejected: number;
-    critical: number;
-    proceeded: number;
-    escalated: number;
-  };
-  serverStartTime: number;
-}
-
-interface AgentResult {
-  summary?: string;
-  decision?: string;
-  severity?: string;
-  tasks?: unknown[];
-  checklist?: {
-    before_day_one?: unknown[];
-    day_one?: unknown[];
-    week_one?: unknown[];
-    month_one?: unknown[];
-  };
-  next_steps?: unknown[];
-  immediate_actions?: unknown[];
-  escalate_to_human?: boolean;
-  [key: string]: unknown;
-}
-
-interface ChatMessage {
-  role: 'user' | 'assistant';
-  content: string;
-}
-
 // In-memory data stores
-const auditStore: AuditEntry[] = [];
-const sessionStore = new Map<string, Session>();
-const metricsStore: MetricsStore = {
+const auditStore: any[] = [];
+const sessionStore = new Map();
+const metricsStore: any = {
   totalWorkflowsRun: 0,
   totalTasksCreated: 0,
   totalDecisionsMade: 0,
@@ -107,7 +44,7 @@ const metricsStore: MetricsStore = {
 };
 
 // Agent system prompts
-const AGENT_PROMPTS: Record<AgentId, string> = {
+const AGENT_PROMPTS: any = {
   meeting: `You are the Meeting Intelligence Agent inside Niyanta AI, an autonomous enterprise
 governance system. Your role is to extract complete actionable intelligence from
 meeting transcripts and notes.
@@ -458,14 +395,8 @@ Required JSON structure:
 };
 
 // Helper functions
-function addAuditEntry(
-  agentId: AgentId,
-  event: string,
-  decision: string | null,
-  inputPreview: string,
-  processingTime: number
-): AuditEntry {
-  const entry: AuditEntry = {
+function addAuditEntry(agentId: any, event: any, decision: any, inputPreview: any, processingTime: any) {
+  const entry = {
     id: uuid(),
     agentId,
     event,
@@ -481,12 +412,11 @@ function addAuditEntry(
   return entry;
 }
 
-function updateMetrics(agentId: AgentId, result: AgentResult, processingTimeMs: number): void {
+function updateMetrics(agentId: any, result: any, processingTimeMs: any) {
   metricsStore.totalWorkflowsRun++;
   metricsStore.processingTimes.push(processingTimeMs);
   metricsStore.agentRunCounts[agentId]++;
 
-  // Count tasks from various result fields
   let taskCount = 0;
   if (result.tasks) taskCount += result.tasks.length;
   if (result.checklist) {
@@ -499,7 +429,6 @@ function updateMetrics(agentId: AgentId, result: AgentResult, processingTimeMs: 
   if (result.immediate_actions) taskCount += result.immediate_actions.length;
   metricsStore.totalTasksCreated += taskCount;
 
-  // Count decisions
   if (result.decision) {
     metricsStore.totalDecisionsMade++;
     const decision = result.decision.toUpperCase();
@@ -516,16 +445,14 @@ function updateMetrics(agentId: AgentId, result: AgentResult, processingTimeMs: 
     }
   }
 
-  // Check for escalations
   if (result.severity === 'CRITICAL' || result.escalate_to_human === true) {
     metricsStore.escalationsTriggered++;
     metricsStore.decisionBreakdown.critical++;
   }
 }
 
-function parseAgentResponse(text: string): AgentResult {
+function parseAgentResponse(text: any) {
   try {
-    // Strip markdown code fences if present
     let cleaned = text.trim();
     if (cleaned.startsWith('```json')) {
       cleaned = cleaned.slice(7);
@@ -536,7 +463,7 @@ function parseAgentResponse(text: string): AgentResult {
       cleaned = cleaned.slice(0, -3);
     }
     cleaned = cleaned.trim();
-    return JSON.parse(cleaned) as AgentResult;
+    return JSON.parse(cleaned);
   } catch {
     return {
       summary: text,
@@ -569,16 +496,11 @@ app.use('/api/agent', agentLimiter);
 app.use('/api/niyanta', agentLimiter);
 
 // POST /api/agent/run
-interface AgentRunRequest {
-  agentId: string;
-  input: string;
-}
-
-app.post('/api/agent/run', async (req: Request<object, object, AgentRunRequest>, res: Response) => {
+app.post('/api/agent/run', async (req: any, res: any) => {
   const { agentId, input } = req.body;
-  const validAgents: AgentId[] = ['meeting', 'invoice', 'hr', 'procurement', 'security'];
+  const validAgents = ['meeting', 'invoice', 'hr', 'procurement', 'security'];
 
-  if (!agentId || !validAgents.includes(agentId as AgentId)) {
+  if (!agentId || !validAgents.includes(agentId)) {
     return res.status(400).json({
       error: 'INVALID_AGENT_ID',
       message: 'agentId must be one of: meeting, invoice, hr, procurement, security',
@@ -604,10 +526,9 @@ app.post('/api/agent/run', async (req: Request<object, object, AgentRunRequest>,
 
   const sessionId = uuid();
   const startTime = Date.now();
-  const typedAgentId = agentId as AgentId;
 
   sessionStore.set(sessionId, {
-    agentId: typedAgentId,
+    agentId,
     startTime,
     status: 'processing',
     input,
@@ -617,28 +538,23 @@ app.post('/api/agent/run', async (req: Request<object, object, AgentRunRequest>,
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 1500,
-      system: AGENT_PROMPTS[typedAgentId],
+      system: AGENT_PROMPTS[agentId],
       messages: [{ role: 'user', content: input }],
     });
 
     const processingTime = Date.now() - startTime;
-    const responseText = response.content[0].type === 'text' ? response.content[0].text : '';
+    const responseText = response.content[0].text;
     const result = parseAgentResponse(responseText);
 
-    // Update session
-    const existingSession = sessionStore.get(sessionId);
-    if (existingSession) {
-      sessionStore.set(sessionId, {
-        ...existingSession,
-        status: 'complete',
-        processingTime,
-      });
-    }
+    sessionStore.set(sessionId, {
+      ...sessionStore.get(sessionId),
+      status: 'complete',
+      processingTime,
+    });
 
-    // Update metrics and audit
-    updateMetrics(typedAgentId, result, processingTime);
+    updateMetrics(agentId, result, processingTime);
     addAuditEntry(
-      typedAgentId,
+      agentId,
       result.summary || 'Agent processed input',
       result.decision || result.severity || null,
       input,
@@ -648,27 +564,23 @@ app.post('/api/agent/run', async (req: Request<object, object, AgentRunRequest>,
     return res.json({
       success: true,
       sessionId,
-      agentId: typedAgentId,
+      agentId,
       result,
       processingTime,
       timestamp: new Date().toISOString(),
     });
-  } catch (error) {
+  } catch (error: any) {
     const processingTime = Date.now() - startTime;
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
 
-    const existingSession = sessionStore.get(sessionId);
-    if (existingSession) {
-      sessionStore.set(sessionId, {
-        ...existingSession,
-        status: 'error',
-        error: errorMessage,
-      });
-    }
+    sessionStore.set(sessionId, {
+      ...sessionStore.get(sessionId),
+      status: 'error',
+      error: error.message,
+    });
 
     addAuditEntry(
-      typedAgentId,
-      `Error: ${errorMessage}`,
+      agentId,
+      `Error: ${error.message}`,
       'ERROR',
       input,
       processingTime
@@ -676,20 +588,14 @@ app.post('/api/agent/run', async (req: Request<object, object, AgentRunRequest>,
 
     return res.status(500).json({
       error: 'AGENT_PROCESSING_FAILED',
-      message: errorMessage,
+      message: error.message,
       timestamp: new Date().toISOString(),
     });
   }
 });
 
 // POST /api/niyanta/chat
-interface NiyantaChatRequest {
-  message: string;
-  conversationHistory?: ChatMessage[];
-  agentResults?: Record<string, AgentResult | null>;
-}
-
-app.post('/api/niyanta/chat', async (req: Request<object, object, NiyantaChatRequest>, res: Response) => {
+app.post('/api/niyanta/chat', async (req: any, res: any) => {
   const { message, conversationHistory = [], agentResults = {} } = req.body;
 
   if (!message || typeof message !== 'string' || message.trim().length === 0) {
@@ -700,9 +606,8 @@ app.post('/api/niyanta/chat', async (req: Request<object, object, NiyantaChatReq
     });
   }
 
-  // Build context from agent results
-  const contextParts: string[] = [];
-  Object.entries(agentResults).forEach(([agentId, result]) => {
+  const contextParts: any[] = [];
+  Object.entries(agentResults).forEach(([agentId, result]: any) => {
     if (result) {
       const summary = result.summary || 'No summary';
       const decision = result.decision || result.severity || 'N/A';
@@ -729,9 +634,8 @@ When answering:
 - Suggest proactive actions when appropriate
 - Maintain your authoritative governance persona`;
 
-  // Build messages array
-  const messages: Array<{ role: 'user' | 'assistant'; content: string }> = [
-    ...conversationHistory.map(msg => ({
+  const messages = [
+    ...conversationHistory.map((msg: any) => ({
       role: msg.role,
       content: msg.content,
     })),
@@ -746,24 +650,23 @@ When answering:
       messages,
     });
 
-    const reply = response.content[0].type === 'text' ? response.content[0].text : '';
+    const reply = response.content[0].text;
 
     return res.json({
       reply,
       timestamp: new Date().toISOString(),
     });
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+  } catch (error: any) {
     return res.status(500).json({
       error: 'NIYANTA_CHAT_FAILED',
-      message: errorMessage,
+      message: error.message,
       timestamp: new Date().toISOString(),
     });
   }
 });
 
 // GET /api/audit
-app.get('/api/audit', (_req: Request, res: Response) => {
+app.get('/api/audit', (_req: any, res: any) => {
   res.json({
     entries: auditStore.slice(0, 100),
     total: auditStore.length,
@@ -771,16 +674,16 @@ app.get('/api/audit', (_req: Request, res: Response) => {
 });
 
 // GET /api/metrics
-app.get('/api/metrics', (_req: Request, res: Response) => {
+app.get('/api/metrics', (_req: any, res: any) => {
   const avgProcessingTimeMs = metricsStore.processingTimes.length > 0
     ? Math.round(
-        metricsStore.processingTimes.reduce((a, b) => a + b, 0) /
+        metricsStore.processingTimes.reduce((a: any, b: any) => a + b, 0) /
         metricsStore.processingTimes.length
       )
     : 0;
 
   let agentsActive = 0;
-  sessionStore.forEach(session => {
+  sessionStore.forEach((session: any) => {
     if (session.status === 'processing') {
       agentsActive++;
     }
@@ -802,7 +705,7 @@ app.get('/api/metrics', (_req: Request, res: Response) => {
 });
 
 // GET /api/health
-app.get('/api/health', (_req: Request, res: Response) => {
+app.get('/api/health', (_req: any, res: any) => {
   res.json({
     status: 'ok',
     uptime: process.uptime(),
@@ -814,7 +717,7 @@ app.get('/api/health', (_req: Request, res: Response) => {
 });
 
 // Global error handler
-app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
+app.use((err: any, _req: any, res: any, _next: any) => {
   console.error(err.stack);
   res.status(500).json({
     error: 'Internal server error',
