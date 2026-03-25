@@ -56,8 +56,7 @@ Analysis framework:
 - Determine the overall meeting sentiment and outcome
 - Recommend follow-up if unresolved items exist
 
-You MUST respond with ONLY a valid JSON object. No preamble. No explanation.
-No markdown code fences. No trailing text. Only the JSON object.
+You MUST respond with a valid JSON object. Provide the JSON response directly, with optional brief explanation before or after.
 
 Required JSON structure:
 {
@@ -110,7 +109,7 @@ FLAG: Amount $50,000-$200,000 OR minor anomalies detected OR missing non-critica
 REJECT: Critical fields missing OR severe anomalies OR amount implausible OR
         duplicate invoice risk OR missing purchase order reference
 
-You MUST respond with ONLY a valid JSON object. No preamble. No markdown. Only JSON.
+You MUST respond with a valid JSON object. Format: provide explanation first, then the JSON.
 
 Required JSON structure:
 {
@@ -164,7 +163,7 @@ Consider:
 - Role-specific technical requirements
 - Any special circumstances flagged in the hire details
 
-You MUST respond with ONLY a valid JSON object. No preamble. No markdown. Only JSON.
+You MUST respond with a valid JSON object. Format: provide explanation first, then the JSON.
 
 Required JSON structure:
 {
@@ -266,7 +265,7 @@ Over $50,000: Minimum 3 vendor quotes required (unless justified sole-source)
 Urgency escalation:
 CRITICAL urgency: compress timeline, note expedited process, keep compliance intact
 
-You MUST respond with ONLY a valid JSON object. No preamble. No markdown. Only JSON.
+You MUST respond with a valid JSON object. Format: provide explanation first, then the JSON.
 
 Required JSON structure:
 {
@@ -343,7 +342,7 @@ financial system access attempts, regulatory-triggering events
 Contain immediately (do not wait): Active sessions from malicious IPs,
 MFA-bypassed active sessions, ongoing unauthorized access
 
-You MUST respond with ONLY a valid JSON object. No preamble. No markdown. Only JSON.
+You MUST respond with a valid JSON object. Format: provide explanation first, then the JSON.
 
 Required JSON structure:
 {
@@ -462,6 +461,7 @@ function parseAgentResponse(text: any) {
       throw new Error('Empty response text after trimming');
     }
 
+    // Remove markdown code fences
     if (cleaned.startsWith('```json')) {
       cleaned = cleaned.slice(7);
     } else if (cleaned.startsWith('```')) {
@@ -470,6 +470,14 @@ function parseAgentResponse(text: any) {
     if (cleaned.endsWith('```')) {
       cleaned = cleaned.slice(0, -3);
     }
+    
+    // Try to extract JSON from mixed text response
+    // Look for JSON object pattern
+    const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      cleaned = jsonMatch[0];
+    }
+    
     cleaned = cleaned.trim();
 
     if (!cleaned) {
@@ -479,6 +487,7 @@ function parseAgentResponse(text: any) {
     return JSON.parse(cleaned);
   } catch (error: any) {
     console.error('JSON parse error:', error.message);
+    console.error('Original text:', text);
     return {
       summary: text || 'No response received',
       audit: `Parse error: ${error.message}`,
