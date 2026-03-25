@@ -1,16 +1,25 @@
 import React from 'react';
+import { Agent } from '../../types';
 
-const SIZES = {
+type IconSize = 'sm' | 'md' | 'lg';
+
+interface AgentIconProps {
+  agent: Agent;
+  size?: IconSize;
+  isProcessing?: boolean;
+}
+
+const SIZES: Record<IconSize, number> = {
   sm: 28,
   md: 40,
   lg: 56,
 };
 
-export default function AgentIcon({ agent, size = 'md', isProcessing = false }) {
+const AgentIcon: React.FC<AgentIconProps> = ({ agent, size = 'md', isProcessing = false }) => {
   const dimension = SIZES[size];
   const fontSize = Math.round(dimension * 0.45);
 
-  const containerStyle = {
+  const containerStyle: React.CSSProperties = {
     width: dimension,
     height: dimension,
     minWidth: dimension,
@@ -25,7 +34,7 @@ export default function AgentIcon({ agent, size = 'md', isProcessing = false }) 
     animation: isProcessing ? 'pulse 2s ease-in-out infinite' : 'none',
   };
 
-  const letterStyle = {
+  const letterStyle: React.CSSProperties = {
     fontFamily: "'Syne', sans-serif",
     fontWeight: 700,
     fontSize,
@@ -38,4 +47,6 @@ export default function AgentIcon({ agent, size = 'md', isProcessing = false }) 
       <span style={letterStyle}>{agent.icon}</span>
     </div>
   );
-}
+};
+
+export default AgentIcon;

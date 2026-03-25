@@ -1,9 +1,15 @@
 import React, { useState } from 'react';
+import { Theme } from '../../types';
 
-export default function ThemeToggle({ theme, onToggle }) {
+interface ThemeToggleProps {
+  theme: Theme;
+  onToggle: () => void;
+}
+
+const ThemeToggle: React.FC<ThemeToggleProps> = ({ theme, onToggle }) => {
   const [isHovered, setIsHovered] = useState(false);
 
-  const style = {
+  const style: React.CSSProperties = {
     width: 32,
     height: 32,
     borderRadius: '50%',
@@ -29,4 +35,6 @@ export default function ThemeToggle({ theme, onToggle }) {
       {theme === 'dark' ? '☀️' : '🌙'}
     </button>
   );
-}
+};
+
+export default ThemeToggle;
