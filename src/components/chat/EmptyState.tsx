@@ -1,8 +1,8 @@
 import React from 'react';
 import { AGENT_LIST } from '../../constants/agents';
 
-export default function EmptyState() {
-  const containerStyle = {
+const EmptyState: React.FC = () => {
+  const containerStyle: React.CSSProperties = {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
@@ -12,7 +12,7 @@ export default function EmptyState() {
     backgroundSize: '24px 24px',
   };
 
-  const logoStyle = {
+  const logoStyle: React.CSSProperties = {
     width: 64,
     height: 64,
     borderRadius: '50%',
@@ -24,7 +24,7 @@ export default function EmptyState() {
     marginBottom: 16,
   };
 
-  const sanskritStyle = {
+  const sanskritStyle: React.CSSProperties = {
     fontFamily: "'Syne', sans-serif",
     fontWeight: 800,
     fontSize: 28,
@@ -32,7 +32,7 @@ export default function EmptyState() {
     color: 'var(--text-primary)',
   };
 
-  const titleStyle = {
+  const titleStyle: React.CSSProperties = {
     fontFamily: "'Syne', sans-serif",
     fontWeight: 800,
     fontSize: 20,
@@ -41,20 +41,20 @@ export default function EmptyState() {
     marginBottom: 8,
   };
 
-  const subtitleStyle = {
+  const subtitleStyle: React.CSSProperties = {
     fontFamily: "'DM Sans', sans-serif",
     fontSize: 14,
     color: 'var(--text-muted)',
     textAlign: 'center',
   };
 
-  const dotsContainerStyle = {
+  const dotsContainerStyle: React.CSSProperties = {
     display: 'flex',
     gap: 8,
     marginTop: 24,
   };
 
-  const dotStyle = (color) => ({
+  const dotStyle = (color: string): React.CSSProperties => ({
     width: 8,
     height: 8,
     borderRadius: '50%',
@@ -80,4 +80,6 @@ export default function EmptyState() {
       </div>
     </div>
   );
-}
+};
+
+export default EmptyState;

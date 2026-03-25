@@ -1,6 +1,11 @@
 import React from 'react';
 
-function formatTime(isoTimestamp) {
+interface MessageBubbleProps {
+  content: string;
+  timestamp: string;
+}
+
+function formatTime(isoTimestamp: string): string {
   const date = new Date(isoTimestamp);
   return date.toLocaleTimeString('en-US', {
     hour: '2-digit',
@@ -8,21 +13,21 @@ function formatTime(isoTimestamp) {
   });
 }
 
-export default function MessageBubble({ content, timestamp }) {
-  const containerStyle = {
+const MessageBubble: React.FC<MessageBubbleProps> = ({ content, timestamp }) => {
+  const containerStyle: React.CSSProperties = {
     display: 'flex',
     justifyContent: 'flex-end',
     animation: 'slideInBottom 0.25s ease',
   };
 
-  const wrapperStyle = {
+  const wrapperStyle: React.CSSProperties = {
     maxWidth: '65%',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'flex-end',
   };
 
-  const labelStyle = {
+  const labelStyle: React.CSSProperties = {
     fontFamily: "'Space Mono', monospace",
     fontSize: 9,
     color: 'var(--text-muted)',
@@ -30,14 +35,14 @@ export default function MessageBubble({ content, timestamp }) {
     textAlign: 'right',
   };
 
-  const bubbleStyle = {
+  const bubbleStyle: React.CSSProperties = {
     backgroundColor: 'var(--bg-msg-out)',
     border: '1px solid var(--border)',
     borderRadius: '12px 12px 2px 12px',
     padding: '10px 14px',
   };
 
-  const contentStyle = {
+  const contentStyle: React.CSSProperties = {
     fontFamily: "'DM Sans', sans-serif",
     fontSize: 13,
     color: 'var(--text-primary)',
@@ -46,7 +51,7 @@ export default function MessageBubble({ content, timestamp }) {
     wordBreak: 'break-word',
   };
 
-  const timeStyle = {
+  const timeStyle: React.CSSProperties = {
     fontFamily: "'Space Mono', monospace",
     fontSize: 9,
     color: 'var(--text-muted)',
@@ -69,4 +74,6 @@ export default function MessageBubble({ content, timestamp }) {
       </div>
     </div>
   );
-}
+};
+
+export default MessageBubble;

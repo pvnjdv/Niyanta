@@ -1,11 +1,19 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, KeyboardEvent, ChangeEvent } from 'react';
 import { AGENT_PLACEHOLDERS } from '../../constants/agents';
+import { Agent } from '../../types';
 
-export default function InputBar({ agent, onSend, onUseSample, disabled }) {
+interface InputBarProps {
+  agent: Agent;
+  onSend: (text: string) => void;
+  onUseSample: () => void;
+  disabled: boolean;
+}
+
+const InputBar: React.FC<InputBarProps> = ({ agent, onSend, onUseSample, disabled }) => {
   const [value, setValue] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
   const [sendHovered, setSendHovered] = useState(false);
-  const textareaRef = useRef(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -17,7 +25,7 @@ export default function InputBar({ agent, onSend, onUseSample, disabled }) {
     }
   }, [value]);
 
-  const handleKeyDown = (e) => {
+  const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
@@ -36,7 +44,7 @@ export default function InputBar({ agent, onSend, onUseSample, disabled }) {
     setShowDropdown(false);
   };
 
-  const containerStyle = {
+  const containerStyle: React.CSSProperties = {
     borderTop: '1px solid var(--border)',
     padding: '10px 16px',
     display: 'flex',
@@ -44,11 +52,11 @@ export default function InputBar({ agent, onSend, onUseSample, disabled }) {
     gap: 10,
   };
 
-  const attachContainerStyle = {
+  const attachContainerStyle: React.CSSProperties = {
     position: 'relative',
   };
 
-  const attachButtonStyle = {
+  const attachButtonStyle: React.CSSProperties = {
     width: 36,
     height: 36,
     borderRadius: '50%',
@@ -61,7 +69,7 @@ export default function InputBar({ agent, onSend, onUseSample, disabled }) {
     fontSize: 16,
   };
 
-  const dropdownStyle = {
+  const dropdownStyle: React.CSSProperties = {
     position: 'absolute',
     bottom: '100%',
     left: 0,
@@ -75,7 +83,7 @@ export default function InputBar({ agent, onSend, onUseSample, disabled }) {
     zIndex: 10,
   };
 
-  const dropdownItemStyle = {
+  const dropdownItemStyle: React.CSSProperties = {
     padding: '8px 12px',
     cursor: 'pointer',
     borderRadius: 2,
@@ -88,7 +96,7 @@ export default function InputBar({ agent, onSend, onUseSample, disabled }) {
     transition: 'background-color 0.15s ease',
   };
 
-  const textareaStyle = {
+  const textareaStyle: React.CSSProperties = {
     flex: 1,
     minHeight: 40,
     maxHeight: 160,
@@ -106,7 +114,7 @@ export default function InputBar({ agent, onSend, onUseSample, disabled }) {
 
   const hasText = value.trim().length > 0;
 
-  const sendButtonStyle = {
+  const sendButtonStyle: React.CSSProperties = {
     width: 36,
     height: 36,
     borderRadius: '50%',
@@ -121,13 +129,13 @@ export default function InputBar({ agent, onSend, onUseSample, disabled }) {
     transform: sendHovered && hasText ? 'scale(1.05)' : 'scale(1)',
   };
 
-  const arrowStyle = {
+  const arrowStyle: React.CSSProperties = {
     width: 16,
     height: 16,
     color: hasText ? '#000' : 'var(--text-muted)',
   };
 
-  const spinnerStyle = {
+  const spinnerStyle: React.CSSProperties = {
     width: 16,
     height: 16,
     border: '2px solid #000',
@@ -151,10 +159,10 @@ export default function InputBar({ agent, onSend, onUseSample, disabled }) {
               style={dropdownItemStyle}
               onClick={handleUseSampleClick}
               onMouseEnter={(e) =>
-                (e.target.style.backgroundColor = 'var(--bg-hover)')
+                ((e.target as HTMLElement).style.backgroundColor = 'var(--bg-hover)')
               }
               onMouseLeave={(e) =>
-                (e.target.style.backgroundColor = 'transparent')
+                ((e.target as HTMLElement).style.backgroundColor = 'transparent')
               }
             >
               📋 Use Sample Data
@@ -166,7 +174,7 @@ export default function InputBar({ agent, onSend, onUseSample, disabled }) {
         ref={textareaRef}
         style={textareaStyle}
         value={value}
-        onChange={(e) => setValue(e.target.value)}
+        onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setValue(e.target.value)}
         onKeyDown={handleKeyDown}
         placeholder={AGENT_PLACEHOLDERS[agent.id]}
         disabled={disabled}
@@ -188,4 +196,6 @@ export default function InputBar({ agent, onSend, onUseSample, disabled }) {
       </button>
     </div>
   );
-}
+};
+
+export default InputBar;

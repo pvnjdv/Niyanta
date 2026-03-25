@@ -1,13 +1,18 @@
 import React from 'react';
+import { Agent } from '../../types';
 
-export default function ThinkingIndicator({ agent }) {
-  const containerStyle = {
+interface ThinkingIndicatorProps {
+  agent: Agent;
+}
+
+const ThinkingIndicator: React.FC<ThinkingIndicatorProps> = ({ agent }) => {
+  const containerStyle: React.CSSProperties = {
     display: 'flex',
     justifyContent: 'flex-start',
     animation: 'slideInBottom 0.25s ease',
   };
 
-  const bubbleStyle = {
+  const bubbleStyle: React.CSSProperties = {
     maxWidth: '80%',
     backgroundColor: 'var(--bg-msg-in)',
     borderLeft: `3px solid ${agent.color}`,
@@ -15,13 +20,13 @@ export default function ThinkingIndicator({ agent }) {
     padding: '14px 16px',
   };
 
-  const dotsContainerStyle = {
+  const dotsContainerStyle: React.CSSProperties = {
     display: 'flex',
     gap: 6,
     marginBottom: 8,
   };
 
-  const dotStyle = (delay) => ({
+  const dotStyle = (delay: string): React.CSSProperties => ({
     width: 8,
     height: 8,
     borderRadius: '50%',
@@ -30,7 +35,7 @@ export default function ThinkingIndicator({ agent }) {
     animationDelay: delay,
   });
 
-  const textStyle = {
+  const textStyle: React.CSSProperties = {
     fontFamily: "'Space Mono', monospace",
     fontSize: 10,
     color: 'var(--text-muted)',
@@ -48,4 +53,6 @@ export default function ThinkingIndicator({ agent }) {
       </div>
     </div>
   );
-}
+};
+
+export default ThinkingIndicator;

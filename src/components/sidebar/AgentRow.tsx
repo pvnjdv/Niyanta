@@ -1,11 +1,19 @@
 import React, { useState } from 'react';
 import AgentIcon from '../shared/AgentIcon';
+import { Agent, AgentState } from '../../types';
 
-function formatTimeAgo(isoTimestamp) {
+interface AgentRowProps {
+  agent: Agent;
+  agentState: AgentState;
+  isSelected: boolean;
+  onClick: () => void;
+}
+
+function formatTimeAgo(isoTimestamp: string | null): string {
   if (!isoTimestamp) return '';
   const now = new Date();
   const then = new Date(isoTimestamp);
-  const diffMs = now - then;
+  const diffMs = now.getTime() - then.getTime();
   const diffSec = Math.floor(diffMs / 1000);
   const diffMin = Math.floor(diffSec / 60);
   const diffHr = Math.floor(diffMin / 60);
@@ -16,10 +24,10 @@ function formatTimeAgo(isoTimestamp) {
   return then.toLocaleDateString();
 }
 
-export default function AgentRow({ agent, agentState, isSelected, onClick }) {
+const AgentRow: React.FC<AgentRowProps> = ({ agent, agentState, isSelected, onClick }) => {
   const [isHovered, setIsHovered] = useState(false);
 
-  const containerStyle = {
+  const containerStyle: React.CSSProperties = {
     height: 64,
     padding: '0 16px',
     cursor: 'pointer',
@@ -36,7 +44,7 @@ export default function AgentRow({ agent, agentState, isSelected, onClick }) {
     borderLeft: isSelected ? `3px solid ${agent.color}` : '3px solid transparent',
   };
 
-  const contentStyle = {
+  const contentStyle: React.CSSProperties = {
     flex: 1,
     minWidth: 0,
     display: 'flex',
@@ -44,26 +52,26 @@ export default function AgentRow({ agent, agentState, isSelected, onClick }) {
     gap: 2,
   };
 
-  const topRowStyle = {
+  const topRowStyle: React.CSSProperties = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
   };
 
-  const nameStyle = {
+  const nameStyle: React.CSSProperties = {
     fontFamily: "'DM Sans', sans-serif",
     fontWeight: 500,
     fontSize: 14,
     color: 'var(--text-primary)',
   };
 
-  const timeStyle = {
+  const timeStyle: React.CSSProperties = {
     fontFamily: "'Space Mono', monospace",
     fontSize: 10,
     color: 'var(--text-muted)',
   };
 
-  const subtitleStyle = {
+  const subtitleStyle: React.CSSProperties = {
     fontFamily: "'DM Sans', sans-serif",
     fontSize: 12,
     color: 'var(--text-secondary)',
@@ -72,13 +80,13 @@ export default function AgentRow({ agent, agentState, isSelected, onClick }) {
     whiteSpace: 'nowrap',
   };
 
-  const rightStyle = {
+  const rightStyle: React.CSSProperties = {
     display: 'flex',
     alignItems: 'center',
     gap: 8,
   };
 
-  const taskCountStyle = {
+  const taskCountStyle: React.CSSProperties = {
     fontFamily: "'Space Mono', monospace",
     fontSize: 10,
     padding: '2px 6px',
@@ -87,7 +95,7 @@ export default function AgentRow({ agent, agentState, isSelected, onClick }) {
     color: agent.color,
   };
 
-  const statusDotStyle = {
+  const statusDotStyle: React.CSSProperties = {
     width: 8,
     height: 8,
     borderRadius: '50%',
@@ -107,9 +115,10 @@ export default function AgentRow({ agent, agentState, isSelected, onClick }) {
         : 'none',
   };
 
+  const result = agentState.result as { summary?: string } | null;
   const lastMessage =
     agentState.messages.length > 0
-      ? agentState.result?.summary || agent.subtitle
+      ? result?.summary || agent.subtitle
       : agent.subtitle;
 
   return (
@@ -139,4 +148,6 @@ export default function AgentRow({ agent, agentState, isSelected, onClick }) {
       </div>
     </div>
   );
-}
+};
+
+export default AgentRow;

@@ -1,12 +1,17 @@
 import React from 'react';
 
-export default function SearchBar({ value, onChange }) {
-  const containerStyle = {
+interface SearchBarProps {
+  value: string;
+  onChange: (value: string) => void;
+}
+
+const SearchBar: React.FC<SearchBarProps> = ({ value, onChange }) => {
+  const containerStyle: React.CSSProperties = {
     position: 'relative',
     width: '100%',
   };
 
-  const inputStyle = {
+  const inputStyle: React.CSSProperties = {
     width: '100%',
     height: 36,
     borderRadius: 20,
@@ -21,7 +26,7 @@ export default function SearchBar({ value, onChange }) {
     transition: 'border-color 0.15s ease',
   };
 
-  const iconStyle = {
+  const iconStyle: React.CSSProperties = {
     position: 'absolute',
     left: 12,
     top: '50%',
@@ -46,4 +51,6 @@ export default function SearchBar({ value, onChange }) {
       />
     </div>
   );
-}
+};
+
+export default SearchBar;

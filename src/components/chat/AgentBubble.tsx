@@ -6,8 +6,16 @@ import InvoiceResult from '../results/InvoiceResult';
 import HRResult from '../results/HRResult';
 import ProcurementResult from '../results/ProcurementResult';
 import SecurityResult from '../results/SecurityResult';
+import { Agent, AgentResult, AgentId } from '../../types';
 
-function formatTime(isoTimestamp) {
+interface AgentBubbleProps {
+  agent: Agent;
+  result: AgentResult;
+  processingTime: number;
+  timestamp: string;
+}
+
+function formatTime(isoTimestamp: string): string {
   const date = new Date(isoTimestamp);
   return date.toLocaleTimeString('en-US', {
     hour: '2-digit',
@@ -15,31 +23,36 @@ function formatTime(isoTimestamp) {
   });
 }
 
-function ResultContent({ agentId, result }) {
+interface ResultContentProps {
+  agentId: AgentId;
+  result: AgentResult;
+}
+
+const ResultContent: React.FC<ResultContentProps> = ({ agentId, result }) => {
   switch (agentId) {
     case 'meeting':
-      return <MeetingResult result={result} />;
+      return <MeetingResult result={result as any} />;
     case 'invoice':
-      return <InvoiceResult result={result} />;
+      return <InvoiceResult result={result as any} />;
     case 'hr':
-      return <HRResult result={result} />;
+      return <HRResult result={result as any} />;
     case 'procurement':
-      return <ProcurementResult result={result} />;
+      return <ProcurementResult result={result as any} />;
     case 'security':
-      return <SecurityResult result={result} />;
+      return <SecurityResult result={result as any} />;
     default:
       return <pre>{JSON.stringify(result, null, 2)}</pre>;
   }
-}
+};
 
-export default function AgentBubble({ agent, result, processingTime, timestamp }) {
-  const containerStyle = {
+const AgentBubble: React.FC<AgentBubbleProps> = ({ agent, result, processingTime, timestamp }) => {
+  const containerStyle: React.CSSProperties = {
     display: 'flex',
     justifyContent: 'flex-start',
     animation: 'slideInBottom 0.25s ease',
   };
 
-  const bubbleStyle = {
+  const bubbleStyle: React.CSSProperties = {
     maxWidth: '85%',
     backgroundColor: 'var(--bg-msg-in)',
     borderLeft: `3px solid ${agent.color}`,
@@ -47,14 +60,14 @@ export default function AgentBubble({ agent, result, processingTime, timestamp }
     padding: '14px 16px',
   };
 
-  const headerStyle = {
+  const headerStyle: React.CSSProperties = {
     display: 'flex',
     alignItems: 'center',
     gap: 8,
     marginBottom: 8,
   };
 
-  const agentNameStyle = {
+  const agentNameStyle: React.CSSProperties = {
     fontFamily: "'Syne', sans-serif",
     fontWeight: 700,
     fontSize: 11,
@@ -62,24 +75,24 @@ export default function AgentBubble({ agent, result, processingTime, timestamp }
     color: agent.color,
   };
 
-  const dotStyle = {
+  const dotStyle: React.CSSProperties = {
     fontFamily: "'Space Mono', monospace",
     fontSize: 11,
     color: 'var(--text-muted)',
   };
 
-  const timeStyle = {
+  const timeStyle: React.CSSProperties = {
     fontFamily: "'Space Mono', monospace",
     fontSize: 9,
     color: 'var(--text-muted)',
     marginLeft: 'auto',
   };
 
-  const processingChipStyle = {
+  const processingChipStyle: React.CSSProperties = {
     marginBottom: 10,
   };
 
-  const dividerStyle = {
+  const dividerStyle: React.CSSProperties = {
     height: 1,
     backgroundColor: 'var(--border-light)',
     margin: '10px 0',
@@ -106,4 +119,6 @@ export default function AgentBubble({ agent, result, processingTime, timestamp }
       </div>
     </div>
   );
-}
+};
+
+export default AgentBubble;

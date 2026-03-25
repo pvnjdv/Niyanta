@@ -1,11 +1,19 @@
 import React, { useState } from 'react';
 import AgentIcon from '../shared/AgentIcon';
+import { Agent, AgentState } from '../../types';
 
-export default function ChatHeader({ agent, agentState, onRun, onUseSample }) {
+interface ChatHeaderProps {
+  agent: Agent;
+  agentState: AgentState;
+  onRun: () => void;
+  onUseSample: () => void;
+}
+
+const ChatHeader: React.FC<ChatHeaderProps> = ({ agent, agentState, onRun, onUseSample }) => {
   const [sampleHovered, setSampleHovered] = useState(false);
   const [executeHovered, setExecuteHovered] = useState(false);
 
-  const containerStyle = {
+  const containerStyle: React.CSSProperties = {
     height: 56,
     padding: '0 16px',
     borderBottom: '1px solid var(--border)',
@@ -15,26 +23,26 @@ export default function ChatHeader({ agent, agentState, onRun, onUseSample }) {
     flexShrink: 0,
   };
 
-  const leftStyle = {
+  const leftStyle: React.CSSProperties = {
     display: 'flex',
     alignItems: 'center',
     gap: 12,
   };
 
-  const infoStyle = {
+  const infoStyle: React.CSSProperties = {
     display: 'flex',
     flexDirection: 'column',
     gap: 2,
   };
 
-  const nameStyle = {
+  const nameStyle: React.CSSProperties = {
     fontFamily: "'DM Sans', sans-serif",
     fontWeight: 600,
     fontSize: 15,
     color: 'var(--text-primary)',
   };
 
-  const getStatusText = () => {
+  const getStatusText = (): { text: string; color: string } => {
     switch (agentState.status) {
       case 'idle':
         return { text: 'Ready to process', color: 'var(--text-muted)' };
@@ -54,19 +62,19 @@ export default function ChatHeader({ agent, agentState, onRun, onUseSample }) {
 
   const status = getStatusText();
 
-  const statusStyle = {
+  const statusStyle: React.CSSProperties = {
     fontFamily: "'DM Sans', sans-serif",
     fontSize: 11,
     color: status.color,
   };
 
-  const rightStyle = {
+  const rightStyle: React.CSSProperties = {
     display: 'flex',
     alignItems: 'center',
     gap: 8,
   };
 
-  const sampleButtonStyle = {
+  const sampleButtonStyle: React.CSSProperties = {
     height: 32,
     padding: '0 12px',
     backgroundColor: sampleHovered ? 'var(--bg-hover)' : 'transparent',
@@ -79,7 +87,7 @@ export default function ChatHeader({ agent, agentState, onRun, onUseSample }) {
     transition: 'all 0.15s ease',
   };
 
-  const executeButtonStyle = {
+  const executeButtonStyle: React.CSSProperties = {
     height: 32,
     padding: '0 16px',
     backgroundColor: executeHovered
@@ -100,7 +108,7 @@ export default function ChatHeader({ agent, agentState, onRun, onUseSample }) {
     gap: 6,
   };
 
-  const spinnerStyle = {
+  const spinnerStyle: React.CSSProperties = {
     width: 12,
     height: 12,
     border: `2px solid ${agent.color}`,
@@ -145,4 +153,6 @@ export default function ChatHeader({ agent, agentState, onRun, onUseSample }) {
       </div>
     </div>
   );
-}
+};
+
+export default ChatHeader;

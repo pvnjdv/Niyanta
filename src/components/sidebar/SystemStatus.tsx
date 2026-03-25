@@ -1,6 +1,16 @@
 import React, { useState, useEffect } from 'react';
 
-export default function SystemStatus({ isAnyProcessing, processingAgentName, agentColor }) {
+interface SystemStatusProps {
+  isAnyProcessing: boolean;
+  processingAgentName: string | null;
+  agentColor?: string | null;
+}
+
+const SystemStatus: React.FC<SystemStatusProps> = ({
+  isAnyProcessing,
+  processingAgentName,
+  agentColor,
+}) => {
   const [time, setTime] = useState(new Date());
 
   useEffect(() => {
@@ -10,7 +20,7 @@ export default function SystemStatus({ isAnyProcessing, processingAgentName, age
     return () => clearInterval(interval);
   }, []);
 
-  const containerStyle = {
+  const containerStyle: React.CSSProperties = {
     height: 32,
     backgroundColor: 'var(--accent-dim)',
     padding: '0 16px',
@@ -19,13 +29,13 @@ export default function SystemStatus({ isAnyProcessing, processingAgentName, age
     justifyContent: 'space-between',
   };
 
-  const leftStyle = {
+  const leftStyle: React.CSSProperties = {
     display: 'flex',
     alignItems: 'center',
     gap: 8,
   };
 
-  const dotStyle = {
+  const dotStyle: React.CSSProperties = {
     width: 6,
     height: 6,
     borderRadius: '50%',
@@ -33,7 +43,7 @@ export default function SystemStatus({ isAnyProcessing, processingAgentName, age
     animation: 'pulse 2s ease-in-out infinite',
   };
 
-  const textStyle = {
+  const textStyle: React.CSSProperties = {
     fontFamily: "'Space Mono', monospace",
     fontSize: 9,
     textTransform: 'uppercase',
@@ -41,13 +51,13 @@ export default function SystemStatus({ isAnyProcessing, processingAgentName, age
     letterSpacing: '0.05em',
   };
 
-  const timeStyle = {
+  const timeStyle: React.CSSProperties = {
     fontFamily: "'Space Mono', monospace",
     fontSize: 9,
     color: 'var(--text-muted)',
   };
 
-  const formatTime = (date) => {
+  const formatTime = (date: Date): string => {
     return date.toLocaleTimeString('en-US', {
       hour12: false,
       hour: '2-digit',
@@ -69,4 +79,6 @@ export default function SystemStatus({ isAnyProcessing, processingAgentName, age
       <span style={timeStyle}>{formatTime(time)}</span>
     </div>
   );
-}
+};
+
+export default SystemStatus;
