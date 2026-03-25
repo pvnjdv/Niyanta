@@ -453,7 +453,15 @@ function updateMetrics(agentId: any, result: any, processingTimeMs: any) {
 
 function parseAgentResponse(text: any) {
   try {
+    if (!text || typeof text !== 'string') {
+      throw new Error('Invalid input: response text must be a non-empty string');
+    }
+
     let cleaned = text.trim();
+    if (!cleaned) {
+      throw new Error('Empty response text after trimming');
+    }
+
     if (cleaned.startsWith('```json')) {
       cleaned = cleaned.slice(7);
     } else if (cleaned.startsWith('```')) {
@@ -463,11 +471,18 @@ function parseAgentResponse(text: any) {
       cleaned = cleaned.slice(0, -3);
     }
     cleaned = cleaned.trim();
+
+    if (!cleaned) {
+      throw new Error('Empty response after removing code fences');
+    }
+
     return JSON.parse(cleaned);
-  } catch {
+  } catch (error: any) {
+    console.error('JSON parse error:', error.message);
     return {
-      summary: text,
-      audit: 'Raw response - JSON parse failed',
+      summary: text || 'No response received',
+      audit: `Parse error: ${error.message}`,
+      error: true,
     };
   }
 }
@@ -536,14 +551,28 @@ app.post('/api/agent/run', async (req: any, res: any) => {
 
   try {
     const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-3-5-haiku',
       max_tokens: 1500,
       system: AGENT_PROMPTS[agentId],
       messages: [{ role: 'user', content: input }],
     });
 
     const processingTime = Date.now() - startTime;
-    const responseText = response.content[0].text;
+
+    if (!response.content || response.content.length === 0) {
+      throw new Error('Empty response from Anthropic API');
+    }
+
+    const firstContent = response.content[0];
+    if (!firstContent || firstContent.type !== 'text' || !firstContent.text) {
+      throw new Error('Invalid response format from Anthropic API');
+    }
+
+    const responseText = firstContent.text.trim();
+    if (!responseText) {
+      throw new Error('Empty text response from Anthropic API');
+    }
+
     const result = parseAgentResponse(responseText);
 
     sessionStore.set(sessionId, {
@@ -644,13 +673,25 @@ When answering:
 
   try {
     const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-3-5-haiku-20241022',
       max_tokens: 1000,
       system: niyantaSystemPrompt,
       messages,
     });
 
-    const reply = response.content[0].text;
+    if (!response.content || response.content.length === 0) {
+      throw new Error('Empty response from Anthropic API');
+    }
+
+    const firstContent = response.content[0];
+    if (!firstContent || firstContent.type !== 'text' || !firstContent.text) {
+      throw new Error('Invalid response format from Anthropic API');
+    }
+
+    const reply = firstContent.text.trim();
+    if (!reply) {
+      throw new Error('Empty text response from Anthropic API');
+    }
 
     return res.json({
       reply,
