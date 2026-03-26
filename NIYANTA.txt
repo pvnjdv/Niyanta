@@ -1,0 +1,2676 @@
+================================================================================
+NIYANTA AI — UPGRADED MASTER BUILD PROMPT
+Autonomous Enterprise Workflow Orchestration Platform
+Sanskrit: Niyanta (नियंता) — The One Who Controls and Governs
+Version: 2.0.0 | Stack: TypeScript + React + Express + Groq API + SQLite
+Tagline: Command Without Chaos
+================================================================================
+
+INSTRUCTION TO AI
+================================================================================
+
+You are upgrading NIYANTA AI — a complete, offline-first, production-ready
+full-stack enterprise workflow orchestration platform.
+
+CRITICAL RULES — READ BEFORE WRITING ANY CODE:
+1. Write EVERY file completely. Never truncate. Never write "// ... rest of code".
+2. Use TypeScript for ALL files — both backend (.ts) and frontend (.tsx/.ts).
+3. Use Groq API (not Anthropic) for all AI calls. Model: llama-3.3-70b-versatile.
+4. The entire system must work offline — local SQLite database, local file storage.
+5. No Tailwind. No component libraries. Pure TypeScript React + CSS variables.
+6. The app must run with: npm install && npm run dev
+7. Generate files in the exact order specified in the FILE GENERATION ORDER section.
+8. Every component must be typed with proper TypeScript interfaces.
+9. Default theme: DARK. Black and white enterprise console aesthetic.
+10. Layout mirrors WhatsApp Web: 3-panel fixed height, each panel scrolls independently.
+
+================================================================================
+SECTION 1 — COMPLETE PROJECT STRUCTURE
+================================================================================
+
+Generate every file in this exact tree:
+
+niyanta/
+├── package.json
+├── tsconfig.json
+├── tsconfig.server.json
+├── .env.example
+├── README.md
+├── nodemon.json
+│
+├── server/
+│   ├── index.ts                          ← Express entry point
+│   ├── types/
+│   │   ├── agent.types.ts                ← Agent interfaces
+│   │   ├── workflow.types.ts             ← Workflow interfaces
+│   │   ├── node.types.ts                 ← Node interfaces
+│   │   └── api.types.ts                  ← API request/response types
+│   ├── db/
+│   │   ├── database.ts                   ← SQLite connection + init
+│   │   └── schema.sql                    ← All table definitions
+│   ├── core/
+│   │   ├── NiyantaOrchestrator.ts        ← Central AI brain
+│   │   ├── WorkflowEngine.ts             ← Workflow execution engine
+│   │   ├── NodeRegistry.ts               ← All node definitions
+│   │   ├── AgentManager.ts               ← Agent registry + routing
+│   │   └── AuditLogger.ts                ← Audit trail management
+│   ├── agents/
+│   │   ├── MeetingIntelligenceAgent.ts
+│   │   ├── FinanceOperationsAgent.ts
+│   │   ├── ProcurementAgent.ts
+│   │   ├── HROperationsAgent.ts
+│   │   ├── SecurityMonitorAgent.ts
+│   │   ├── WorkflowIntelligenceAgent.ts
+│   │   ├── ComplianceAgent.ts
+│   │   ├── ITOperationsAgent.ts
+│   │   ├── MonitoringAgent.ts
+│   │   └── DocumentIntelligenceAgent.ts
+│   ├── nodes/
+│   │   ├── trigger/
+│   │   │   ├── WebhookTriggerNode.ts
+│   │   │   ├── FileUploadTriggerNode.ts
+│   │   │   ├── TimerTriggerNode.ts
+│   │   │   ├── ManualTriggerNode.ts
+│   │   │   └── MeetingTranscriptTriggerNode.ts
+│   │   ├── ai/
+│   │   │   ├── LLMAnalysisNode.ts
+│   │   │   ├── ClassificationNode.ts
+│   │   │   ├── SummarizationNode.ts
+│   │   │   ├── DecisionGenerationNode.ts
+│   │   │   └── RiskAnalysisNode.ts
+│   │   ├── action/
+│   │   │   ├── InvoiceProcessingNode.ts
+│   │   │   ├── TaskAssignmentNode.ts
+│   │   │   ├── NotificationNode.ts
+│   │   │   ├── ReportGenerationNode.ts
+│   │   │   └── PurchaseOrderNode.ts
+│   │   ├── decision/
+│   │   │   ├── ConditionalRoutingNode.ts
+│   │   │   ├── ApprovalNode.ts
+│   │   │   ├── ThresholdDecisionNode.ts
+│   │   │   └── RuleEngineNode.ts
+│   │   ├── data/
+│   │   │   ├── DataStorageNode.ts
+│   │   │   ├── DataRetrievalNode.ts
+│   │   │   └── AuditStorageNode.ts
+│   │   ├── monitoring/
+│   │   │   ├── SLAMonitoringNode.ts
+│   │   │   ├── BottleneckDetectionNode.ts
+│   │   │   └── HealthCheckNode.ts
+│   │   └── utility/
+│   │       ├── DelayNode.ts
+│   │       ├── RetryNode.ts
+│   │       └── WorkflowCompletionNode.ts
+│   ├── routes/
+│   │   ├── agent.routes.ts               ← /api/agent/*
+│   │   ├── workflow.routes.ts            ← /api/workflow/*
+│   │   ├── niyanta.routes.ts             ← /api/niyanta/*
+│   │   ├── audit.routes.ts               ← /api/audit/*
+│   │   ├── metrics.routes.ts             ← /api/metrics/*
+│   │   └── health.routes.ts              ← /api/health
+│   ├── middleware/
+│   │   ├── rateLimiter.ts
+│   │   ├── errorHandler.ts
+│   │   └── validator.ts
+│   └── utils/
+│       ├── groqClient.ts                 ← Groq API wrapper
+│       ├── fileGenerator.ts              ← Excel/CSV/PDF/JSON export
+│       └── helpers.ts
+│
+├── src/
+│   ├── index.tsx
+│   ├── index.css
+│   ├── App.tsx
+│   ├── types/
+│   │   ├── agent.ts
+│   │   ├── workflow.ts
+│   │   ├── message.ts
+│   │   └── ui.ts
+│   ├── constants/
+│   │   ├── agents.ts
+│   │   └── samples.ts
+│   ├── hooks/
+│   │   ├── useAgents.ts
+│   │   ├── useAuditLog.ts
+│   │   ├── useTheme.ts
+│   │   ├── useNiyantaChat.ts
+│   │   ├── useWorkflows.ts
+│   │   └── useMetrics.ts
+│   ├── services/
+│   │   └── api.ts
+│   └── components/
+│       ├── layout/
+│       │   ├── AppShell.tsx
+│       │   ├── LeftPanel.tsx
+│       │   ├── CenterPanel.tsx
+│       │   └── RightPanel.tsx
+│       ├── sidebar/
+│       │   ├── AgentRow.tsx
+│       │   ├── SearchBar.tsx
+│       │   └── SystemStatus.tsx
+│       ├── chat/
+│       │   ├── ChatHeader.tsx
+│       │   ├── MessageBubble.tsx
+│       │   ├── AgentBubble.tsx
+│       │   ├── ThinkingIndicator.tsx
+│       │   ├── InputBar.tsx
+│       │   └── EmptyState.tsx
+│       ├── results/
+│       │   ├── MeetingResult.tsx
+│       │   ├── InvoiceResult.tsx
+│       │   ├── HRResult.tsx
+│       │   ├── ProcurementResult.tsx
+│       │   ├── SecurityResult.tsx
+│       │   ├── WorkflowResult.tsx
+│       │   └── ComplianceResult.tsx
+│       ├── workflow/
+│       │   ├── WorkflowBuilder.tsx       ← Node canvas builder
+│       │   ├── NodeCard.tsx              ← Draggable node card
+│       │   ├── NodePalette.tsx           ← Left sidebar node picker
+│       │   ├── WorkflowCanvas.tsx        ← SVG connection canvas
+│       │   └── WorkflowRunner.tsx        ← Running workflow viewer
+│       ├── audit/
+│       │   ├── AuditEntry.tsx
+│       │   ├── DecisionCard.tsx
+│       │   └── MetricsGrid.tsx
+│       ├── modals/
+│       │   ├── NiyantaChatModal.tsx
+│       │   └── WorkflowDetailModal.tsx
+│       └── shared/
+│           ├── Badge.tsx
+│           ├── AgentIcon.tsx
+│           └── ThemeToggle.tsx
+
+================================================================================
+SECTION 2 — PACKAGE.JSON
+================================================================================
+
+Write this complete package.json:
+
+{
+  "name": "niyanta-ai",
+  "version": "2.0.0",
+  "description": "Niyanta AI — Autonomous Enterprise Workflow Orchestration Platform",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "server": "nodemon --config nodemon.json server/index.ts",
+    "client": "react-scripts start",
+    "build": "react-scripts build",
+    "build:server": "tsc -p tsconfig.server.json",
+    "start:prod": "node dist/server/index.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "groq-sdk": "^0.7.0",
+    "better-sqlite3": "^9.4.3",
+    "express-rate-limit": "^7.1.5",
+    "helmet": "^7.1.0",
+    "morgan": "^1.10.0",
+    "uuid": "^9.0.0",
+    "xlsx": "^0.18.5",
+    "pdfkit": "^0.14.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-scripts": "5.0.1"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/cors": "^2.8.17",
+    "@types/morgan": "^1.9.9",
+    "@types/better-sqlite3": "^7.6.8",
+    "@types/uuid": "^9.0.7",
+    "@types/pdfkit": "^0.13.3",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "typescript": "^5.3.3",
+    "ts-node": "^10.9.2",
+    "nodemon": "^3.0.2",
+    "concurrently": "^8.2.2"
+  },
+  "proxy": "http://localhost:3001",
+  "browserslist": {
+    "production": [">0.2%", "not dead", "not op_mini all"],
+    "development": ["last 1 chrome version", "last 1 firefox version"]
+  }
+}
+
+================================================================================
+SECTION 3 — TYPESCRIPT CONFIGURATION
+================================================================================
+
+Write tsconfig.json (for React frontend):
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "lib": ["dom", "dom.iterable", "ES2020"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "noFallthroughCasesInSwitch": true,
+    "module": "ESNext",
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "baseUrl": "src"
+  },
+  "include": ["src"]
+}
+
+Write tsconfig.server.json (for Express backend):
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "commonjs",
+    "lib": ["ES2020"],
+    "outDir": "./dist",
+    "rootDir": "./server",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true
+  },
+  "include": ["server/**/*"],
+  "exclude": ["node_modules", "dist", "src"]
+}
+
+Write nodemon.json:
+{
+  "watch": ["server"],
+  "ext": "ts,json",
+  "exec": "ts-node --project tsconfig.server.json server/index.ts",
+  "ignore": ["src/*", "node_modules/*"]
+}
+
+================================================================================
+SECTION 4 — ENVIRONMENT VARIABLES
+================================================================================
+
+Write .env.example:
+GROQ_API_KEY=your_groq_api_key_here
+PORT=3001
+NODE_ENV=development
+DB_PATH=./niyanta.db
+STORAGE_PATH=./storage
+RATE_LIMIT_WINDOW_MS=60000
+RATE_LIMIT_MAX=60
+GROQ_MODEL=llama-3.3-70b-versatile
+GROQ_REASONING_MODEL=llama-3.3-70b-versatile
+GROQ_FAST_MODEL=llama-3.1-8b-instant
+
+Get your Groq API key at: https://console.groq.com
+
+================================================================================
+SECTION 5 — DATABASE SCHEMA (server/db/schema.sql)
+================================================================================
+
+Write the complete SQL schema:
+
+-- Agents table
+CREATE TABLE IF NOT EXISTS agents (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  subtitle TEXT,
+  capabilities TEXT NOT NULL,  -- JSON array
+  status TEXT DEFAULT 'active' CHECK(status IN ('active','disabled','error')),
+  color TEXT NOT NULL,
+  last_activity TEXT,
+  total_runs INTEGER DEFAULT 0,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
+-- Nodes table
+CREATE TABLE IF NOT EXISTS nodes (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  category TEXT NOT NULL,
+  type TEXT NOT NULL UNIQUE,
+  description TEXT,
+  config_schema TEXT,  -- JSON schema for node config
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
+-- Workflows table
+CREATE TABLE IF NOT EXISTS workflows (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  description TEXT,
+  nodes TEXT NOT NULL,   -- JSON array of node instances
+  edges TEXT NOT NULL,   -- JSON array of edges
+  status TEXT DEFAULT 'draft' CHECK(status IN ('draft','active','disabled')),
+  category TEXT,
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now'))
+);
+
+-- Workflow runs table
+CREATE TABLE IF NOT EXISTS workflow_runs (
+  id TEXT PRIMARY KEY,
+  workflow_id TEXT NOT NULL REFERENCES workflows(id),
+  status TEXT DEFAULT 'PENDING' CHECK(status IN ('PENDING','RUNNING','WAITING_APPROVAL','FAILED','COMPLETED')),
+  context TEXT,           -- JSON WorkflowContext
+  started_at TEXT DEFAULT (datetime('now')),
+  completed_at TEXT,
+  triggered_by TEXT,
+  error_message TEXT,
+  FOREIGN KEY(workflow_id) REFERENCES workflows(id)
+);
+
+-- Workflow logs table (per-node execution records)
+CREATE TABLE IF NOT EXISTS workflow_logs (
+  id TEXT PRIMARY KEY,
+  run_id TEXT NOT NULL,
+  node_id TEXT NOT NULL,
+  node_type TEXT NOT NULL,
+  status TEXT NOT NULL CHECK(status IN ('running','completed','failed','waiting','skipped')),
+  input_snapshot TEXT,    -- JSON
+  output_snapshot TEXT,   -- JSON
+  error TEXT,
+  duration_ms INTEGER,
+  timestamp TEXT DEFAULT (datetime('now')),
+  FOREIGN KEY(run_id) REFERENCES workflow_runs(id)
+);
+
+-- Audit logs table
+CREATE TABLE IF NOT EXISTS audit_logs (
+  id TEXT PRIMARY KEY,
+  agent_id TEXT,
+  event_type TEXT NOT NULL,
+  event TEXT NOT NULL,
+  decision TEXT,
+  input_preview TEXT,
+  processing_time_ms INTEGER,
+  metadata TEXT,   -- JSON
+  timestamp TEXT DEFAULT (datetime('now'))
+);
+
+-- Files table
+CREATE TABLE IF NOT EXISTS files (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  type TEXT NOT NULL CHECK(type IN ('excel','csv','json','pdf','txt')),
+  path TEXT NOT NULL,
+  size_bytes INTEGER,
+  generated_by TEXT,    -- agent_id or workflow_id
+  workflow_run_id TEXT,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
+-- Pending approvals table
+CREATE TABLE IF NOT EXISTS pending_approvals (
+  id TEXT PRIMARY KEY,
+  workflow_run_id TEXT NOT NULL,
+  node_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  description TEXT,
+  context TEXT,     -- JSON snapshot for approver
+  assigned_to TEXT,
+  status TEXT DEFAULT 'PENDING' CHECK(status IN ('PENDING','APPROVED','REJECTED','EXPIRED')),
+  created_at TEXT DEFAULT (datetime('now')),
+  resolved_at TEXT,
+  resolved_by TEXT,
+  FOREIGN KEY(workflow_run_id) REFERENCES workflow_runs(id)
+);
+
+================================================================================
+SECTION 6 — SERVER TYPES (server/types/)
+================================================================================
+
+Write server/types/workflow.types.ts:
+
+export interface WorkflowContext {
+  workflowId: string;
+  runId: string;
+  document: Record<string, unknown>;
+  invoice: Record<string, unknown>;
+  employee: Record<string, unknown>;
+  procurement: Record<string, unknown>;
+  finance: Record<string, unknown>;
+  task: Record<string, unknown>;
+  metadata: Record<string, unknown>;
+  workflowState: {
+    status: WorkflowStatus;
+    currentNodeId: string | null;
+    completedNodes: string[];
+    failedNodes: string[];
+    pendingApprovals: string[];
+  };
+  logs: WorkflowLog[];
+}
+
+export type WorkflowStatus =
+  | 'PENDING'
+  | 'RUNNING'
+  | 'WAITING_APPROVAL'
+  | 'FAILED'
+  | 'COMPLETED';
+
+export interface WorkflowLog {
+  nodeId: string;
+  nodeName: string;
+  status: 'running' | 'completed' | 'failed' | 'waiting' | 'skipped';
+  message: string;
+  timestamp: string;
+  durationMs?: number;
+}
+
+export interface WorkflowDefinition {
+  workflowId: string;
+  name: string;
+  description: string;
+  nodes: WorkflowNodeInstance[];
+  edges: WorkflowEdge[];
+  status: 'draft' | 'active' | 'disabled';
+  category: string;
+}
+
+export interface WorkflowNodeInstance {
+  instanceId: string;
+  nodeType: string;
+  name: string;
+  config: Record<string, unknown>;
+  position: { x: number; y: number };
+  retryConfig?: RetryConfig;
+}
+
+export interface WorkflowEdge {
+  id: string;
+  fromNodeId: string;
+  toNodeId: string;
+  condition?: string;
+}
+
+export interface RetryConfig {
+  maxRetries: number;
+  timeout: number;
+  failurePolicy: 'retry' | 'escalate' | 'abort';
+}
+
+Write server/types/node.types.ts:
+
+import { WorkflowContext } from './workflow.types';
+
+export interface INode {
+  id: string;
+  name: string;
+  type: string;
+  category: NodeCategory;
+  description: string;
+  execute(context: WorkflowContext, config?: Record<string, unknown>): Promise<WorkflowContext>;
+}
+
+export type NodeCategory =
+  | 'trigger'
+  | 'data'
+  | 'document'
+  | 'processing'
+  | 'ai'
+  | 'decision'
+  | 'action'
+  | 'monitoring'
+  | 'audit'
+  | 'utility'
+  | 'integration';
+
+export interface NodeDefinition {
+  type: string;
+  name: string;
+  category: NodeCategory;
+  description: string;
+  configSchema: NodeConfigSchema;
+}
+
+export interface NodeConfigSchema {
+  fields: ConfigField[];
+}
+
+export interface ConfigField {
+  key: string;
+  label: string;
+  type: 'text' | 'number' | 'select' | 'boolean' | 'textarea';
+  required: boolean;
+  options?: string[];
+  defaultValue?: unknown;
+}
+
+Write server/types/agent.types.ts:
+
+export interface AgentDefinition {
+  agent_id: string;
+  name: string;
+  subtitle: string;
+  icon: string;
+  color: string;
+  glow: string;
+  capabilities: string[];
+  status: 'active' | 'disabled' | 'error';
+  systemPrompt: string;
+  description: string;
+}
+
+export interface AgentMessage {
+  type:
+    | 'task_request'
+    | 'workflow_trigger'
+    | 'data_update'
+    | 'error_alert'
+    | 'status_update'
+    | 'approval_required';
+  from: string;
+  to: string;
+  payload: Record<string, unknown>;
+  timestamp: string;
+  messageId: string;
+}
+
+export interface AgentRunResult {
+  success: boolean;
+  sessionId: string;
+  agentId: string;
+  result: Record<string, unknown>;
+  processingTime: number;
+  timestamp: string;
+  model: string;
+}
+
+Write server/types/api.types.ts:
+
+export interface RunAgentRequest {
+  agentId: string;
+  input: string;
+  workflowContext?: Record<string, unknown>;
+}
+
+export interface NiyantaChatRequest {
+  message: string;
+  conversationHistory: Array<{ role: 'user' | 'assistant'; content: string }>;
+  agentResults: Record<string, unknown>;
+}
+
+export interface ApiError {
+  error: string;
+  message: string;
+  timestamp: string;
+  code?: string;
+}
+
+export interface MetricsResponse {
+  totalWorkflowsRun: number;
+  totalTasksCreated: number;
+  totalDecisionsMade: number;
+  escalationsTriggered: number;
+  avgProcessingTimeMs: number;
+  agentsActive: number;
+  uptimeSeconds: number;
+  agentRunCounts: Record<string, number>;
+  decisionBreakdown: {
+    approved: number;
+    flagged: number;
+    rejected: number;
+    critical: number;
+    proceeded: number;
+    escalated: number;
+  };
+  workflowStatusBreakdown: {
+    completed: number;
+    failed: number;
+    running: number;
+    pending: number;
+  };
+}
+
+================================================================================
+SECTION 7 — GROQ CLIENT (server/utils/groqClient.ts)
+================================================================================
+
+Write server/utils/groqClient.ts:
+
+import Groq from 'groq-sdk';
+
+const groq = new Groq({
+  apiKey: process.env.GROQ_API_KEY,
+});
+
+export const MODELS = {
+  DEFAULT: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
+  FAST: process.env.GROQ_FAST_MODEL || 'llama-3.1-8b-instant',
+  REASONING: process.env.GROQ_REASONING_MODEL || 'llama-3.3-70b-versatile',
+};
+
+export interface GroqMessage {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+}
+
+export async function callGroq(
+  messages: GroqMessage[],
+  model: string = MODELS.DEFAULT,
+  maxTokens: number = 2000
+): Promise<string> {
+  const response = await groq.chat.completions.create({
+    model,
+    messages,
+    max_tokens: maxTokens,
+    temperature: 0.1,
+  });
+
+  return response.choices[0]?.message?.content || '';
+}
+
+export async function callGroqJSON<T = Record<string, unknown>>(
+  systemPrompt: string,
+  userContent: string,
+  model: string = MODELS.DEFAULT
+): Promise<T> {
+  const text = await callGroq(
+    [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userContent },
+    ],
+    model,
+    2000
+  );
+
+  const cleaned = text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+
+  try {
+    return JSON.parse(cleaned) as T;
+  } catch {
+    const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      return JSON.parse(jsonMatch[0]) as T;
+    }
+    throw new Error(`Failed to parse JSON from Groq response: ${cleaned.substring(0, 200)}`);
+  }
+}
+
+export default groq;
+
+================================================================================
+SECTION 8 — DATABASE CONNECTION (server/db/database.ts)
+================================================================================
+
+Write server/db/database.ts:
+
+import Database from 'better-sqlite3';
+import path from 'path';
+import fs from 'fs';
+
+const DB_PATH = process.env.DB_PATH || './niyanta.db';
+const SCHEMA_PATH = path.join(__dirname, 'schema.sql');
+
+let db: Database.Database;
+
+export function getDB(): Database.Database {
+  if (!db) {
+    db = new Database(DB_PATH);
+    db.pragma('journal_mode = WAL');
+    db.pragma('foreign_keys = ON');
+    initializeSchema();
+  }
+  return db;
+}
+
+function initializeSchema(): void {
+  const schema = fs.readFileSync(SCHEMA_PATH, 'utf-8');
+  const statements = schema
+    .split(';')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+
+  for (const statement of statements) {
+    try {
+      db.exec(statement + ';');
+    } catch (error) {
+      console.error('Schema error:', statement.substring(0, 100), error);
+    }
+  }
+
+  seedDefaultAgents();
+  seedDefaultNodes();
+}
+
+function seedDefaultAgents(): void {
+  const db = getDB();
+  const count = db.prepare('SELECT COUNT(*) as count FROM agents').get() as { count: number };
+
+  if (count.count === 0) {
+    const agents = [
+      { id: 'meeting', name: 'Meeting Intelligence', subtitle: 'Decisions & Task Extraction',
+        capabilities: JSON.stringify(['transcript_analysis','task_extraction','decision_logging']),
+        color: '#00D4FF' },
+      { id: 'invoice', name: 'Invoice Processor', subtitle: 'Validation & Auto-Approval',
+        capabilities: JSON.stringify(['invoice_parsing','anomaly_detection','approval_routing']),
+        color: '#FFB800' },
+      { id: 'hr', name: 'HR Operations', subtitle: 'Hire Workflows & Milestones',
+        capabilities: JSON.stringify(['onboarding','compliance_check','access_provisioning']),
+        color: '#00E676' },
+      { id: 'procurement', name: 'Procurement', subtitle: 'PO Routing & Compliance',
+        capabilities: JSON.stringify(['purchase_orders','vendor_evaluation','approval_chain']),
+        color: '#FF6B6B' },
+      { id: 'security', name: 'Security Monitor', subtitle: 'Threat Detection & Response',
+        capabilities: JSON.stringify(['threat_detection','incident_response','compliance_monitoring']),
+        color: '#FF4488' },
+      { id: 'compliance', name: 'Compliance Agent', subtitle: 'Policy & Regulatory Control',
+        capabilities: JSON.stringify(['policy_enforcement','audit_trail','regulatory_reporting']),
+        color: '#A78BFA' },
+      { id: 'workflow', name: 'Workflow Intelligence', subtitle: 'Orchestration & Routing',
+        capabilities: JSON.stringify(['workflow_optimization','bottleneck_detection','routing']),
+        color: '#34D399' },
+      { id: 'document', name: 'Document Intelligence', subtitle: 'OCR & Classification',
+        capabilities: JSON.stringify(['ocr','classification','field_extraction','validation']),
+        color: '#F59E0B' },
+      { id: 'monitoring', name: 'Monitoring Agent', subtitle: 'SLA & Health Monitoring',
+        capabilities: JSON.stringify(['sla_tracking','health_check','alert_management']),
+        color: '#60A5FA' },
+      { id: 'it_ops', name: 'IT Operations', subtitle: 'Access & Infrastructure',
+        capabilities: JSON.stringify(['access_management','incident_ticketing','asset_tracking']),
+        color: '#F472B6' },
+    ];
+
+    const insert = db.prepare(
+      'INSERT OR IGNORE INTO agents (id, name, subtitle, capabilities, color) VALUES (?, ?, ?, ?, ?)'
+    );
+
+    for (const agent of agents) {
+      insert.run(agent.id, agent.name, agent.subtitle, agent.capabilities, agent.color);
+    }
+  }
+}
+
+function seedDefaultNodes(): void {
+  // Node seeding happens via NodeRegistry at startup
+}
+
+export default getDB;
+
+================================================================================
+SECTION 9 — NIYANTA ORCHESTRATOR (server/core/NiyantaOrchestrator.ts)
+================================================================================
+
+Write server/core/NiyantaOrchestrator.ts completely:
+
+import { v4 as uuid } from 'uuid';
+import { callGroqJSON, callGroq, MODELS } from '../utils/groqClient';
+import { AgentMessage } from '../types/agent.types';
+import { WorkflowContext } from '../types/workflow.types';
+import { AuditLogger } from './AuditLogger';
+import { AgentManager } from './AgentManager';
+
+export class NiyantaOrchestrator {
+  private auditLogger: AuditLogger;
+  private agentManager: AgentManager;
+  private activeWorkflows: Map<string, WorkflowContext>;
+  private messageQueue: AgentMessage[];
+  private serverStartTime: number;
+  private metrics: {
+    totalWorkflowsRun: number;
+    totalTasksCreated: number;
+    totalDecisionsMade: number;
+    escalationsTriggered: number;
+    processingTimes: number[];
+    agentRunCounts: Record<string, number>;
+    decisionBreakdown: Record<string, number>;
+  };
+
+  constructor() {
+    this.auditLogger = new AuditLogger();
+    this.agentManager = new AgentManager();
+    this.activeWorkflows = new Map();
+    this.messageQueue = [];
+    this.serverStartTime = Date.now();
+    this.metrics = {
+      totalWorkflowsRun: 0,
+      totalTasksCreated: 0,
+      totalDecisionsMade: 0,
+      escalationsTriggered: 0,
+      processingTimes: [],
+      agentRunCounts: {},
+      decisionBreakdown: { approved: 0, flagged: 0, rejected: 0, critical: 0, proceeded: 0, escalated: 0 },
+    };
+  }
+
+  // Route and execute a task for a specific agent
+  async routeToAgent(
+    agentId: string,
+    input: string,
+    workflowContext?: Partial<WorkflowContext>
+  ): Promise<{ result: Record<string, unknown>; processingTime: number; model: string }> {
+    const agent = this.agentManager.getAgent(agentId);
+    if (!agent) throw new Error(`Agent not found: ${agentId}`);
+
+    const startTime = Date.now();
+
+    this.auditLogger.log({
+      agentId,
+      eventType: 'task_request',
+      event: `Task routed to ${agent.name}`,
+      inputPreview: input.substring(0, 80),
+    });
+
+    const result = await callGroqJSON(agent.systemPrompt, input, MODELS.DEFAULT);
+    const processingTime = Date.now() - startTime;
+
+    this.updateMetrics(agentId, result, processingTime);
+
+    this.auditLogger.log({
+      agentId,
+      eventType: 'status_update',
+      event: (result as { summary?: string }).summary || 'Agent processing complete',
+      decision:
+        (result as { decision?: string }).decision ||
+        (result as { severity?: string }).severity ||
+        undefined,
+      processingTime,
+    });
+
+    return { result, processingTime, model: MODELS.DEFAULT };
+  }
+
+  // Process orchestrator chat with full agent context
+  async processOrchestratorChat(
+    message: string,
+    conversationHistory: Array<{ role: 'user' | 'assistant'; content: string }>,
+    agentResults: Record<string, unknown>
+  ): Promise<string> {
+    const contextSummary = Object.entries(agentResults)
+      .filter(([, v]) => v !== null && v !== undefined)
+      .map(([agentId, result]) => {
+        const r = result as Record<string, unknown>;
+        return `${agentId.toUpperCase()} AGENT: ${r.summary || 'Completed'} | Decision: ${r.decision || r.severity || 'N/A'}`;
+      })
+      .join('\n');
+
+    const systemPrompt = `You are NIYANTA, the Autonomous Enterprise Governor — the central AI orchestrator 
+of an enterprise workflow platform. You coordinate 10 specialized agents across all departments.
+
+You have complete situational awareness of all running agents and their results.
+You are decisive, authoritative, and concise. You proactively identify cross-workflow risks.
+You surface dependencies between workflows (e.g., a meeting approval that triggers procurement).
+You escalate critical issues immediately.
+You always provide WHY-CHAIN reasoning for your recommendations.
+
+Current agent results:
+${contextSummary || 'No agents have run yet.'}
+
+Respond with authority. Be concise. Flag risks. Surface connections between workflows.`;
+
+    const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
+      { role: 'system', content: systemPrompt },
+      ...conversationHistory.map((m) => ({
+        role: m.role as 'user' | 'assistant',
+        content: m.content,
+      })),
+      { role: 'user', content: message },
+    ];
+
+    return await callGroq(messages, MODELS.DEFAULT, 1000);
+  }
+
+  // Detect cross-workflow insights after all agents run
+  async detectCrossWorkflowInsights(
+    agentResults: Record<string, unknown>
+  ): Promise<string[]> {
+    const completedAgents = Object.entries(agentResults)
+      .filter(([, v]) => v !== null)
+      .map(([id, r]) => `${id}: ${JSON.stringify(r).substring(0, 300)}`);
+
+    if (completedAgents.length < 2) return [];
+
+    const prompt = `You are NIYANTA analyzing cross-workflow dependencies.
+
+Agent results summary:
+${completedAgents.join('\n\n')}
+
+Identify up to 5 specific cross-workflow connections, dependencies, or risks.
+Respond ONLY with a JSON array of strings: ["insight1", "insight2"]
+Each insight must be specific, actionable, and reference actual data from the results.
+Example: "Meeting approved $45k AWS spend → aligns with Procurement request PR-2024-441 for $43k"`;
+
+    try {
+      const insights = await callGroqJSON<string[]>(
+        'You extract cross-workflow insights from enterprise data. Return only JSON.',
+        prompt,
+        MODELS.REASONING
+      );
+      return Array.isArray(insights) ? insights : [];
+    } catch {
+      return [];
+    }
+  }
+
+  private updateMetrics(
+    agentId: string,
+    result: Record<string, unknown>,
+    processingTime: number
+  ): void {
+    this.metrics.totalWorkflowsRun++;
+    this.metrics.processingTimes.push(processingTime);
+    this.metrics.agentRunCounts[agentId] = (this.metrics.agentRunCounts[agentId] || 0) + 1;
+
+    const tasks = (result.tasks as unknown[])?.length || 
+                  (result.checklist as unknown[])?.length || 
+                  (result.next_steps as unknown[])?.length || 0;
+    this.metrics.totalTasksCreated += tasks;
+
+    if (result.decision) {
+      this.metrics.totalDecisionsMade++;
+      const dec = String(result.decision).toLowerCase();
+      if (dec.includes('approve')) this.metrics.decisionBreakdown.approved++;
+      else if (dec.includes('flag')) this.metrics.decisionBreakdown.flagged++;
+      else if (dec.includes('reject')) this.metrics.decisionBreakdown.rejected++;
+      else if (dec.includes('proceed')) this.metrics.decisionBreakdown.proceeded++;
+      else if (dec.includes('escalate')) this.metrics.decisionBreakdown.escalated++;
+    }
+
+    if (
+      result.severity === 'CRITICAL' ||
+      (result as { escalate_to_human?: boolean }).escalate_to_human === true
+    ) {
+      this.metrics.escalationsTriggered++;
+      this.metrics.decisionBreakdown.critical++;
+    }
+  }
+
+  getMetrics() {
+    const times = this.metrics.processingTimes;
+    const avg = times.length > 0 ? times.reduce((a, b) => a + b, 0) / times.length : 0;
+
+    return {
+      ...this.metrics,
+      avgProcessingTimeMs: Math.round(avg),
+      uptimeSeconds: Math.floor((Date.now() - this.serverStartTime) / 1000),
+      agentsActive: this.activeWorkflows.size,
+      workflowStatusBreakdown: { completed: 0, failed: 0, running: 0, pending: 0 },
+    };
+  }
+
+  sendMessage(message: AgentMessage): void {
+    this.messageQueue.push(message);
+    this.auditLogger.log({
+      agentId: message.from,
+      eventType: message.type,
+      event: `Message sent from ${message.from} to ${message.to}`,
+      metadata: message.payload,
+    });
+  }
+}
+
+// Singleton
+let orchestratorInstance: NiyantaOrchestrator | null = null;
+
+export function getOrchestrator(): NiyantaOrchestrator {
+  if (!orchestratorInstance) {
+    orchestratorInstance = new NiyantaOrchestrator();
+  }
+  return orchestratorInstance;
+}
+
+================================================================================
+SECTION 10 — AGENT MANAGER (server/core/AgentManager.ts)
+================================================================================
+
+Write server/core/AgentManager.ts:
+
+import { AgentDefinition } from '../types/agent.types';
+
+export class AgentManager {
+  private agents: Map<string, AgentDefinition>;
+
+  constructor() {
+    this.agents = new Map();
+    this.registerAllAgents();
+  }
+
+  getAgent(id: string): AgentDefinition | undefined {
+    return this.agents.get(id);
+  }
+
+  getAllAgents(): AgentDefinition[] {
+    return Array.from(this.agents.values());
+  }
+
+  private registerAllAgents(): void {
+    const agentDefinitions: AgentDefinition[] = [
+      {
+        agent_id: 'meeting',
+        name: 'Meeting Intelligence',
+        subtitle: 'Decisions & Task Extraction',
+        icon: 'M',
+        color: '#00D4FF',
+        glow: 'rgba(0, 212, 255, 0.25)',
+        capabilities: ['transcript_analysis', 'task_extraction', 'decision_logging'],
+        status: 'active',
+        description: 'Extracts decisions, tasks, owners, deadlines from meeting transcripts.',
+        systemPrompt: `You are the Meeting Intelligence Agent inside Niyanta AI.
+Analyze meeting transcripts and extract complete actionable intelligence.
+Respond ONLY with a valid JSON object. No markdown. No preamble.
+{
+  "summary": "one sentence summary",
+  "meeting_type": "Budget Review | Planning | Standup | Retrospective | Other",
+  "attendees": ["Name (Role)"],
+  "decisions": [{ "id": 1, "text": "...", "owner": "...", "impact": "HIGH|MED|LOW" }],
+  "tasks": [{ "id": 1, "title": "...", "owner": "...", "deadline": "...", "priority": "HIGH|MED|LOW", "status": "PENDING", "department": "..." }],
+  "risks": [{ "text": "...", "severity": "HIGH|MED|LOW", "mitigation": "..." }],
+  "follow_up_meeting": { "needed": true, "suggested_date": "...", "agenda": "..." },
+  "sentiment": "PRODUCTIVE|TENSE|INCONCLUSIVE|ALIGNED",
+  "audit": "WHY-CHAIN: explain extraction decisions and priority reasoning"
+}`,
+      },
+      {
+        agent_id: 'invoice',
+        name: 'Invoice Processor',
+        subtitle: 'Validation & Auto-Approval',
+        icon: 'I',
+        color: '#FFB800',
+        glow: 'rgba(255, 184, 0, 0.25)',
+        capabilities: ['invoice_parsing', 'anomaly_detection', 'approval_routing'],
+        status: 'active',
+        description: 'Validates invoices, detects anomalies, makes approval decisions.',
+        systemPrompt: `You are the Invoice Processing Agent inside Niyanta AI.
+AUTO-APPROVE: under $50k AND no anomalies AND all fields present.
+FLAG: $50k-$200k OR minor anomalies OR missing non-critical fields.
+REJECT: critical fields missing OR severe anomalies OR implausible amounts.
+Respond ONLY with valid JSON. No markdown.
+{
+  "summary": "...", "vendor": "...", "vendor_type": "...",
+  "invoice_number": "...", "invoice_date": "...", "due_date": "...",
+  "amount_subtotal": "...", "amount_tax": "...", "amount_total": "...", "currency": "USD",
+  "line_items": [{ "description": "...", "quantity": "...", "unit_price": "...", "total": "..." }],
+  "payment_terms": "...",
+  "decision": "AUTO-APPROVE|FLAG|REJECT",
+  "decision_reason": "...",
+  "anomalies": [{ "type": "MISSING_FIELD|AMOUNT_ANOMALY|DATE_ISSUE|DUPLICATE_RISK|OTHER", "description": "...", "severity": "HIGH|MED|LOW" }],
+  "compliance_checks": [{ "check": "...", "result": "PASS|FAIL|WARN", "note": "..." }],
+  "recommended_approver": "...",
+  "audit": "WHY-CHAIN: explain every check and why this decision is correct"
+}`,
+      },
+      {
+        agent_id: 'hr',
+        name: 'HR Operations',
+        subtitle: 'Hire Workflows & Milestones',
+        icon: 'H',
+        color: '#00E676',
+        glow: 'rgba(0, 230, 118, 0.25)',
+        capabilities: ['onboarding', 'compliance_check', 'access_provisioning'],
+        status: 'active',
+        description: 'Manages new hire onboarding, document collection, system access.',
+        systemPrompt: `You are the HR Operations Agent inside Niyanta AI.
+Create comprehensive onboarding plans. Apply principle of least privilege for system access.
+Respond ONLY with valid JSON. No markdown.
+{
+  "summary": "...",
+  "employee": { "name": "...", "role": "...", "department": "...", "level": "...", "start_date": "...", "manager": "...", "location": "...", "employment_type": "Full-time|Part-time|Contract" },
+  "special_notes": ["..."],
+  "documents_needed": [{ "name": "...", "owner": "HR|Employee|Legal|IT", "deadline": "Before Day 1|Week 1|Month 1", "status": "PENDING" }],
+  "system_access": [{ "system": "...", "access_level": "Full|Read-only|Restricted", "provisioned_by": "IT|Manager|Auto", "eta": "Day 1|Day 2|Week 1" }],
+  "checklist": {
+    "before_day_one": [{ "task": "...", "owner": "...", "status": "PENDING", "critical": true }],
+    "day_one": [{ "task": "...", "owner": "...", "status": "PENDING", "time": "..." }],
+    "week_one": [{ "task": "...", "owner": "...", "status": "PENDING" }],
+    "month_one": [{ "task": "...", "owner": "...", "status": "PENDING", "milestone": true }]
+  },
+  "scheduled_meetings": [{ "title": "...", "with": "...", "when": "...", "duration": "...", "purpose": "..." }],
+  "equipment": ["..."],
+  "compliance_requirements": ["..."],
+  "buddy_program": { "assigned": true, "buddy_role": "...", "first_meeting": "..." },
+  "audit": "WHY-CHAIN: explain onboarding structure and access decisions"
+}`,
+      },
+      {
+        agent_id: 'procurement',
+        name: 'Procurement',
+        subtitle: 'PO Routing & Compliance',
+        icon: 'P',
+        color: '#FF6B6B',
+        glow: 'rgba(255, 107, 107, 0.25)',
+        capabilities: ['purchase_orders', 'vendor_evaluation', 'approval_chain'],
+        status: 'active',
+        description: 'Evaluates purchase requests, routes approvals, ensures compliance.',
+        systemPrompt: `You are the Procurement Agent inside Niyanta AI.
+Thresholds: <$5k=Manager only, $5k-$25k=Manager+Finance, $25k-$100k=+CFO, >$100k=Board.
+Quotes: <$10k=1 vendor, $10k-$50k=2 vendors, >$50k=3 vendors.
+Respond ONLY with valid JSON. No markdown.
+{
+  "summary": "...", "request_id": "PR-NIYANTA-XXXX", "item": "...", "category": "Software|Hardware|Services|Infrastructure|Office|Other",
+  "quantity": "...", "estimated_cost": "...", "cost_per_unit": "...", "currency": "USD",
+  "requester": "...", "department": "...", "business_justification": "...", "urgency": "CRITICAL|HIGH|NORMAL|LOW",
+  "budget_code": "...",
+  "approval_chain": [{ "step": 1, "approver": "...", "role": "...", "threshold": "...", "status": "PENDING|REQUIRED|OPTIONAL" }],
+  "vendor_recommendation": { "single_source": false, "reason": "...", "suggested_vendors": ["..."], "quotes_required": 2 },
+  "compliance_flags": [{ "flag": "...", "severity": "HIGH|MED|LOW", "action_required": "..." }],
+  "policy_checks": [{ "policy": "...", "result": "PASS|FAIL|WARN", "note": "..." }],
+  "timeline": { "approval_deadline": "...", "expected_delivery": "...", "contract_required": true },
+  "decision": "PROCEED|HOLD|REJECT|ESCALATE",
+  "decision_reason": "...",
+  "next_steps": ["..."],
+  "audit": "WHY-CHAIN: explain approval routing and compliance reasoning"
+}`,
+      },
+      {
+        agent_id: 'security',
+        name: 'Security Monitor',
+        subtitle: 'Threat Detection & Response',
+        icon: 'S',
+        color: '#FF4488',
+        glow: 'rgba(255, 68, 136, 0.25)',
+        capabilities: ['threat_detection', 'incident_response', 'compliance_monitoring'],
+        status: 'active',
+        description: 'Monitors threats, classifies severity, coordinates incident response.',
+        systemPrompt: `You are the Security Monitor Agent inside Niyanta AI.
+CRITICAL: active breach, data exfiltration, MFA bypass from malicious IP.
+HIGH: brute force, privilege escalation, anomalous bulk access.
+MEDIUM: policy violation, unusual pattern, expired cert.
+LOW: informational, routine anomaly.
+Respond ONLY with valid JSON. No markdown.
+{
+  "summary": "...", "incident_id": "INC-NIYANTA-XXXX",
+  "event_type": "Unauthorized Access|Data Exfiltration|Brute Force|Anomalous Behavior|Policy Violation|Malware|Other",
+  "severity": "CRITICAL|HIGH|MEDIUM|LOW", "confidence": "HIGH|MEDIUM|LOW",
+  "threat_actor": "Internal|External|Unknown|Automated",
+  "affected": { "users": ["..."], "systems": ["..."], "data_at_risk": ["..."], "blast_radius": "Isolated|Department|Company-wide" },
+  "attack_vector": { "method": "...", "entry_point": "...", "indicators": ["..."] },
+  "timeline": { "detected_at": "...", "started_at": "...", "duration": "...", "still_active": true },
+  "immediate_actions": [{ "priority": 1, "action": "...", "owner": "Security Team|IT|Manager|Auto-executed", "eta": "Immediate|5 min|15 min|1 hr" }],
+  "containment_steps": ["..."],
+  "escalate_to_human": true, "escalation_contact": "CISO|Security Lead|CTO|Board", "escalation_reason": "...",
+  "regulatory_impact": { "gdpr": false, "hipaa": false, "pci": false, "sox": false, "notification_required": false },
+  "recommended_response_level": "Monitor|Contain|Eradicate|Full Incident Response",
+  "audit": "WHY-CHAIN: explain severity classification and response action choices"
+}`,
+      },
+      {
+        agent_id: 'compliance',
+        name: 'Compliance Agent',
+        subtitle: 'Policy & Regulatory Control',
+        icon: 'C',
+        color: '#A78BFA',
+        glow: 'rgba(167, 139, 250, 0.25)',
+        capabilities: ['policy_enforcement', 'audit_trail', 'regulatory_reporting'],
+        status: 'active',
+        description: 'Enforces policies, manages regulatory compliance, generates audit reports.',
+        systemPrompt: `You are the Compliance Agent inside Niyanta AI.
+Evaluate inputs for policy violations, regulatory risks, and compliance gaps.
+Respond ONLY with valid JSON. No markdown.
+{
+  "summary": "...",
+  "compliance_status": "COMPLIANT|NON_COMPLIANT|NEEDS_REVIEW",
+  "regulations_checked": ["GDPR","HIPAA","SOX","PCI-DSS","ISO27001"],
+  "violations": [{ "regulation": "...", "description": "...", "severity": "HIGH|MED|LOW", "remediation": "..." }],
+  "policy_checks": [{ "policy": "...", "result": "PASS|FAIL|WARN", "evidence": "...", "action": "..." }],
+  "risk_score": 75,
+  "risk_level": "HIGH|MEDIUM|LOW",
+  "recommended_actions": ["..."],
+  "reporting_required": true,
+  "report_deadline": "...",
+  "audit": "WHY-CHAIN: explain compliance assessment methodology"
+}`,
+      },
+      {
+        agent_id: 'document',
+        name: 'Document Intelligence',
+        subtitle: 'OCR & Classification',
+        icon: 'D',
+        color: '#F59E0B',
+        glow: 'rgba(245, 158, 11, 0.25)',
+        capabilities: ['ocr', 'classification', 'field_extraction', 'validation'],
+        status: 'active',
+        description: 'Classifies documents, extracts fields, validates content.',
+        systemPrompt: `You are the Document Intelligence Agent inside Niyanta AI.
+Analyze document content to classify type, extract fields, and validate completeness.
+Respond ONLY with valid JSON. No markdown.
+{
+  "summary": "...",
+  "document_type": "Invoice|Contract|Report|Form|Letter|Legal|Technical|Other",
+  "classification_confidence": "HIGH|MEDIUM|LOW",
+  "extracted_fields": { "field_name": "value" },
+  "missing_fields": ["..."],
+  "validation_status": "VALID|INVALID|INCOMPLETE",
+  "validation_errors": ["..."],
+  "duplicate_risk": false,
+  "recommended_workflow": "...",
+  "metadata": { "language": "English", "pages": 1, "has_signatures": false },
+  "audit": "WHY-CHAIN: explain classification and extraction decisions"
+}`,
+      },
+      {
+        agent_id: 'monitoring',
+        name: 'Monitoring Agent',
+        subtitle: 'SLA & Health Monitoring',
+        icon: 'Mo',
+        color: '#60A5FA',
+        glow: 'rgba(96, 165, 250, 0.25)',
+        capabilities: ['sla_tracking', 'health_check', 'alert_management'],
+        status: 'active',
+        description: 'Monitors SLAs, detects bottlenecks, manages alerts.',
+        systemPrompt: `You are the Monitoring Agent inside Niyanta AI.
+Analyze operational data to detect SLA breaches, bottlenecks, and health issues.
+Respond ONLY with valid JSON. No markdown.
+{
+  "summary": "...",
+  "overall_health": "HEALTHY|DEGRADED|CRITICAL",
+  "sla_status": [{ "workflow": "...", "target_hours": 24, "elapsed_hours": 18, "status": "ON_TRACK|AT_RISK|BREACHED", "predicted_breach": "..." }],
+  "bottlenecks": [{ "node": "...", "avg_duration_ms": 5000, "p95_duration_ms": 8000, "recommendation": "..." }],
+  "alerts": [{ "type": "SLA_BREACH|BOTTLENECK|FAILURE_RATE|RESOURCE", "severity": "HIGH|MED|LOW", "message": "...", "action": "..." }],
+  "metrics": { "workflows_running": 0, "avg_completion_time_ms": 0, "failure_rate_percent": 0, "queue_depth": 0 },
+  "recommendations": ["..."],
+  "audit": "WHY-CHAIN: explain monitoring assessment and alert priorities"
+}`,
+      },
+      {
+        agent_id: 'workflow',
+        name: 'Workflow Intelligence',
+        subtitle: 'Orchestration & Routing',
+        icon: 'W',
+        color: '#34D399',
+        glow: 'rgba(52, 211, 153, 0.25)',
+        capabilities: ['workflow_optimization', 'bottleneck_detection', 'routing'],
+        status: 'active',
+        description: 'Optimizes workflow routing and detects orchestration issues.',
+        systemPrompt: `You are the Workflow Intelligence Agent inside Niyanta AI.
+Analyze workflow execution data and suggest optimizations and routing improvements.
+Respond ONLY with valid JSON. No markdown.
+{
+  "summary": "...",
+  "workflow_analysis": { "total_nodes": 0, "critical_path_nodes": [], "parallel_opportunities": [], "bottleneck_nodes": [] },
+  "optimization_suggestions": [{ "type": "PARALLELIZATION|CACHING|REORDERING|REMOVAL", "description": "...", "estimated_improvement_percent": 20 }],
+  "routing_recommendations": [{ "from_node": "...", "to_node": "...", "condition": "...", "reason": "..." }],
+  "risk_assessment": [{ "risk": "...", "probability": "HIGH|MED|LOW", "impact": "HIGH|MED|LOW", "mitigation": "..." }],
+  "audit": "WHY-CHAIN: explain optimization and routing decisions"
+}`,
+      },
+      {
+        agent_id: 'it_ops',
+        name: 'IT Operations',
+        subtitle: 'Access & Infrastructure',
+        icon: 'IT',
+        color: '#F472B6',
+        glow: 'rgba(244, 114, 182, 0.25)',
+        capabilities: ['access_management', 'incident_ticketing', 'asset_tracking'],
+        status: 'active',
+        description: 'Manages IT access requests, incidents, and asset tracking.',
+        systemPrompt: `You are the IT Operations Agent inside Niyanta AI.
+Process IT requests for access, incidents, and asset management.
+Respond ONLY with valid JSON. No markdown.
+{
+  "summary": "...",
+  "request_type": "ACCESS_REQUEST|INCIDENT|ASSET_REQUEST|CONFIGURATION|OTHER",
+  "priority": "P1_CRITICAL|P2_HIGH|P3_MEDIUM|P4_LOW",
+  "affected_user": "...",
+  "affected_systems": ["..."],
+  "access_requests": [{ "system": "...", "access_level": "...", "justification": "...", "approved": false }],
+  "incident": { "type": "...", "description": "...", "resolution": "...", "estimated_time_hours": 4 },
+  "assets": [{ "name": "...", "type": "...", "assigned_to": "...", "status": "ALLOCATED|AVAILABLE|MAINTENANCE" }],
+  "sla_target": "4 hours",
+  "escalation_required": false,
+  "next_steps": ["..."],
+  "audit": "WHY-CHAIN: explain prioritization and resolution approach"
+}`,
+      },
+    ];
+
+    for (const agent of agentDefinitions) {
+      this.agents.set(agent.agent_id, agent);
+    }
+  }
+}
+
+================================================================================
+SECTION 11 — AUDIT LOGGER (server/core/AuditLogger.ts)
+================================================================================
+
+Write server/core/AuditLogger.ts:
+
+import { v4 as uuid } from 'uuid';
+import { getDB } from '../db/database';
+
+interface AuditEntry {
+  agentId?: string;
+  eventType: string;
+  event: string;
+  decision?: string;
+  inputPreview?: string;
+  processingTime?: number;
+  metadata?: Record<string, unknown>;
+}
+
+export class AuditLogger {
+  log(entry: AuditEntry): void {
+    try {
+      const db = getDB();
+      const stmt = db.prepare(`
+        INSERT INTO audit_logs (id, agent_id, event_type, event, decision, input_preview, processing_time_ms, metadata)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      stmt.run(
+        uuid(),
+        entry.agentId || null,
+        entry.eventType,
+        entry.event,
+        entry.decision || null,
+        entry.inputPreview || null,
+        entry.processingTime || null,
+        entry.metadata ? JSON.stringify(entry.metadata) : null
+      );
+    } catch (error) {
+      console.error('AuditLogger error:', error);
+    }
+  }
+
+  getRecent(limit: number = 100): unknown[] {
+    const db = getDB();
+    return db
+      .prepare('SELECT * FROM audit_logs ORDER BY timestamp DESC LIMIT ?')
+      .all(limit);
+  }
+
+  getByAgent(agentId: string, limit: number = 50): unknown[] {
+    const db = getDB();
+    return db
+      .prepare('SELECT * FROM audit_logs WHERE agent_id = ? ORDER BY timestamp DESC LIMIT ?')
+      .all(agentId, limit);
+  }
+
+  getDecisions(limit: number = 50): unknown[] {
+    const db = getDB();
+    return db
+      .prepare(
+        "SELECT * FROM audit_logs WHERE decision IS NOT NULL AND decision != '' ORDER BY timestamp DESC LIMIT ?"
+      )
+      .all(limit);
+  }
+}
+
+================================================================================
+SECTION 12 — API ROUTES (server/routes/)
+================================================================================
+
+Write server/routes/agent.routes.ts:
+
+import { Router, Request, Response } from 'express';
+import { v4 as uuid } from 'uuid';
+import { getOrchestrator } from '../core/NiyantaOrchestrator';
+import { RunAgentRequest } from '../types/api.types';
+import { validateAgentRun } from '../middleware/validator';
+
+const router = Router();
+const VALID_AGENTS = ['meeting', 'invoice', 'hr', 'procurement', 'security',
+  'compliance', 'document', 'monitoring', 'workflow', 'it_ops'];
+
+router.post('/run', validateAgentRun, async (req: Request, res: Response) => {
+  const { agentId, input }: RunAgentRequest = req.body;
+
+  if (!VALID_AGENTS.includes(agentId)) {
+    return res.status(400).json({
+      error: 'INVALID_AGENT_ID',
+      message: `agentId must be one of: ${VALID_AGENTS.join(', ')}`,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  const sessionId = uuid();
+
+  try {
+    const orchestrator = getOrchestrator();
+    const { result, processingTime, model } = await orchestrator.routeToAgent(agentId, input);
+
+    return res.status(200).json({
+      success: true,
+      sessionId,
+      agentId,
+      result,
+      processingTime,
+      model,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return res.status(500).json({
+      error: 'AGENT_PROCESSING_FAILED',
+      message,
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+router.get('/list', (_req: Request, res: Response) => {
+  const orchestrator = getOrchestrator();
+  const agents = (orchestrator as unknown as { agentManager: { getAllAgents: () => unknown[] } })
+    .agentManager?.getAllAgents() || [];
+  res.json({ agents });
+});
+
+export default router;
+
+Write server/routes/niyanta.routes.ts:
+
+import { Router, Request, Response } from 'express';
+import { getOrchestrator } from '../core/NiyantaOrchestrator';
+import { NiyantaChatRequest } from '../types/api.types';
+
+const router = Router();
+
+router.post('/chat', async (req: Request, res: Response) => {
+  const { message, conversationHistory, agentResults }: NiyantaChatRequest = req.body;
+
+  if (!message || typeof message !== 'string') {
+    return res.status(400).json({ error: 'INVALID_MESSAGE', message: 'message is required' });
+  }
+
+  try {
+    const orchestrator = getOrchestrator();
+    const reply = await orchestrator.processOrchestratorChat(
+      message,
+      conversationHistory || [],
+      agentResults || {}
+    );
+
+    return res.status(200).json({ reply, timestamp: new Date().toISOString() });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return res.status(500).json({ error: 'CHAT_FAILED', message });
+  }
+});
+
+router.post('/insights', async (req: Request, res: Response) => {
+  const { agentResults } = req.body;
+
+  try {
+    const orchestrator = getOrchestrator();
+    const insights = await orchestrator.detectCrossWorkflowInsights(agentResults || {});
+    return res.status(200).json({ insights, timestamp: new Date().toISOString() });
+  } catch (error) {
+    return res.status(200).json({ insights: [], timestamp: new Date().toISOString() });
+  }
+});
+
+export default router;
+
+Write server/routes/audit.routes.ts:
+
+import { Router, Request, Response } from 'express';
+import { AuditLogger } from '../core/AuditLogger';
+
+const router = Router();
+const auditLogger = new AuditLogger();
+
+router.get('/', (_req: Request, res: Response) => {
+  const entries = auditLogger.getRecent(100);
+  res.json({ entries, total: entries.length });
+});
+
+router.get('/decisions', (_req: Request, res: Response) => {
+  const entries = auditLogger.getDecisions(50);
+  res.json({ entries });
+});
+
+router.get('/agent/:agentId', (req: Request, res: Response) => {
+  const entries = auditLogger.getByAgent(req.params.agentId, 50);
+  res.json({ entries });
+});
+
+export default router;
+
+Write server/routes/metrics.routes.ts:
+
+import { Router, Request, Response } from 'express';
+import { getOrchestrator } from '../core/NiyantaOrchestrator';
+
+const router = Router();
+
+router.get('/', (_req: Request, res: Response) => {
+  const orchestrator = getOrchestrator();
+  res.json(orchestrator.getMetrics());
+});
+
+export default router;
+
+Write server/routes/health.routes.ts:
+
+import { Router, Request, Response } from 'express';
+import { getOrchestrator } from '../core/NiyantaOrchestrator';
+
+const router = Router();
+
+router.get('/', (_req: Request, res: Response) => {
+  const metrics = getOrchestrator().getMetrics();
+  res.json({
+    status: 'ok',
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString(),
+    version: '2.0.0',
+    agentsAvailable: 10,
+    totalProcessed: metrics.totalWorkflowsRun,
+    database: 'sqlite:connected',
+    aiProvider: 'groq',
+    model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
+  });
+});
+
+export default router;
+
+Write server/routes/workflow.routes.ts:
+
+import { Router, Request, Response } from 'express';
+import { v4 as uuid } from 'uuid';
+import { getDB } from '../db/database';
+
+const router = Router();
+
+router.get('/', (_req: Request, res: Response) => {
+  const db = getDB();
+  const workflows = db.prepare('SELECT * FROM workflows ORDER BY updated_at DESC').all();
+  res.json({ workflows });
+});
+
+router.post('/', (req: Request, res: Response) => {
+  const { name, description, nodes, edges, category } = req.body;
+  const db = getDB();
+  const id = uuid();
+  const now = new Date().toISOString();
+
+  db.prepare(`
+    INSERT INTO workflows (id, name, description, nodes, edges, category, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(id, name, description || '', JSON.stringify(nodes || []), JSON.stringify(edges || []), category || 'custom', now, now);
+
+  const workflow = db.prepare('SELECT * FROM workflows WHERE id = ?').get(id);
+  res.status(201).json({ workflow });
+});
+
+router.get('/:id', (req: Request, res: Response) => {
+  const db = getDB();
+  const workflow = db.prepare('SELECT * FROM workflows WHERE id = ?').get(req.params.id);
+  if (!workflow) return res.status(404).json({ error: 'Workflow not found' });
+  res.json({ workflow });
+});
+
+router.get('/:id/runs', (req: Request, res: Response) => {
+  const db = getDB();
+  const runs = db.prepare('SELECT * FROM workflow_runs WHERE workflow_id = ? ORDER BY started_at DESC LIMIT 20').all(req.params.id);
+  res.json({ runs });
+});
+
+export default router;
+
+================================================================================
+SECTION 13 — MIDDLEWARE (server/middleware/)
+================================================================================
+
+Write server/middleware/validator.ts:
+
+import { Request, Response, NextFunction } from 'express';
+
+export function validateAgentRun(req: Request, res: Response, next: NextFunction): void {
+  const { agentId, input } = req.body;
+
+  if (!agentId || typeof agentId !== 'string') {
+    res.status(400).json({ error: 'VALIDATION_ERROR', message: 'agentId is required' });
+    return;
+  }
+
+  if (!input || typeof input !== 'string' || input.trim().length === 0) {
+    res.status(400).json({ error: 'VALIDATION_ERROR', message: 'input is required and must be non-empty' });
+    return;
+  }
+
+  if (input.length > 15000) {
+    res.status(400).json({ error: 'VALIDATION_ERROR', message: 'input exceeds maximum length of 15,000 characters' });
+    return;
+  }
+
+  next();
+}
+
+Write server/middleware/errorHandler.ts:
+
+import { Request, Response, NextFunction } from 'express';
+
+export function errorHandler(
+  err: Error,
+  _req: Request,
+  res: Response,
+  _next: NextFunction
+): void {
+  console.error('[NIYANTA ERROR]', err.stack);
+  res.status(500).json({
+    error: 'INTERNAL_SERVER_ERROR',
+    message: err.message,
+    timestamp: new Date().toISOString(),
+  });
+}
+
+================================================================================
+SECTION 14 — SERVER ENTRY POINT (server/index.ts)
+================================================================================
+
+Write server/index.ts completely:
+
+import express from 'express';
+import cors from 'cors';
+import helmet from 'helmet';
+import morgan from 'morgan';
+import rateLimit from 'express-rate-limit';
+import dotenv from 'dotenv';
+import path from 'path';
+import fs from 'fs';
+
+dotenv.config();
+
+import { getDB } from './db/database';
+import { getOrchestrator } from './core/NiyantaOrchestrator';
+import { errorHandler } from './middleware/errorHandler';
+
+import agentRoutes from './routes/agent.routes';
+import niyantaRoutes from './routes/niyanta.routes';
+import auditRoutes from './routes/audit.routes';
+import metricsRoutes from './routes/metrics.routes';
+import healthRoutes from './routes/health.routes';
+import workflowRoutes from './routes/workflow.routes';
+
+const app = express();
+const PORT = process.env.PORT || 3001;
+const STORAGE_PATH = process.env.STORAGE_PATH || './storage';
+
+// Ensure storage directory exists
+if (!fs.existsSync(STORAGE_PATH)) {
+  fs.mkdirSync(STORAGE_PATH, { recursive: true });
+}
+
+// Initialize database and orchestrator on startup
+getDB();
+getOrchestrator();
+
+// Middleware
+app.use(helmet({ contentSecurityPolicy: false }));
+app.use(cors({ origin: ['http://localhost:3000', 'http://localhost:3001'], credentials: true }));
+app.use(express.json({ limit: '10mb' }));
+app.use(morgan('dev'));
+
+// Rate limiting for AI routes
+const agentLimiter = rateLimit({
+  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '60000'),
+  max: parseInt(process.env.RATE_LIMIT_MAX || '60'),
+  message: {
+    error: 'RATE_LIMIT_EXCEEDED',
+    message: 'Too many requests. Please wait 1 minute.',
+    timestamp: new Date().toISOString(),
+  },
+});
+
+// Routes
+app.use('/api/agent', agentLimiter, agentRoutes);
+app.use('/api/niyanta', agentLimiter, niyantaRoutes);
+app.use('/api/audit', auditRoutes);
+app.use('/api/metrics', metricsRoutes);
+app.use('/api/health', healthRoutes);
+app.use('/api/workflow', workflowRoutes);
+
+// Static file serving for generated files
+app.use('/storage', express.static(path.resolve(STORAGE_PATH)));
+
+// Serve React in production
+if (process.env.NODE_ENV === 'production') {
+  app.use(express.static(path.join(__dirname, '../build')));
+  app.get('*', (_req, res) => {
+    res.sendFile(path.join(__dirname, '../build', 'index.html'));
+  });
+}
+
+// Error handler (must be last)
+app.use(errorHandler);
+
+app.listen(PORT, () => {
+  console.log(`
+╔════════════════════════════════════════╗
+║      NIYANTA AI — v2.0.0               ║
+║      Autonomous Enterprise Governor    ║
+║      नियंता — The One Who Governs     ║
+╠════════════════════════════════════════╣
+║  Server:    http://localhost:${PORT}        ║
+║  AI:        Groq (llama-3.3-70b)       ║
+║  Database:  SQLite (offline-first)     ║
+║  Agents:    10 active                  ║
+║  Status:    OPERATIONAL                ║
+╚════════════════════════════════════════╝
+  `);
+});
+
+export default app;
+
+================================================================================
+SECTION 15 — FRONTEND TYPES (src/types/)
+================================================================================
+
+Write src/types/agent.ts:
+
+export interface Agent {
+  id: string;
+  name: string;
+  subtitle: string;
+  icon: string;
+  color: string;
+  glow: string;
+  description: string;
+  capabilities: string[];
+  status: 'idle' | 'processing' | 'complete' | 'error';
+}
+
+export interface AgentState {
+  status: 'idle' | 'processing' | 'complete' | 'error';
+  messages: Message[];
+  result: Record<string, unknown> | null;
+  taskCount: number;
+  lastActivity: string | null;
+  processingTime: number | null;
+}
+
+export interface Message {
+  id: string;
+  type: 'user' | 'agent' | 'insight' | 'error';
+  content: string;
+  timestamp: string;
+  result?: Record<string, unknown>;
+  processingTime?: number;
+  model?: string;
+}
+
+Write src/types/workflow.ts:
+
+export interface WorkflowDefinition {
+  id: string;
+  name: string;
+  description: string;
+  nodes: WorkflowNodeInstance[];
+  edges: WorkflowEdge[];
+  status: 'draft' | 'active' | 'disabled';
+  category: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WorkflowNodeInstance {
+  instanceId: string;
+  nodeType: string;
+  name: string;
+  config: Record<string, unknown>;
+  position: { x: number; y: number };
+}
+
+export interface WorkflowEdge {
+  id: string;
+  fromNodeId: string;
+  toNodeId: string;
+  condition?: string;
+}
+
+Write src/types/ui.ts:
+
+export type Theme = 'dark' | 'light';
+export type ActiveView = 'agents' | 'workflows' | 'monitoring' | 'data';
+export type RightPanelTab = 'why-chain' | 'decisions' | 'metrics';
+
+================================================================================
+SECTION 16 — FRONTEND CONSTANTS (src/constants/agents.ts)
+================================================================================
+
+Write src/constants/agents.ts with all 10 agent definitions matching the backend:
+
+import { Agent } from '../types/agent';
+
+export const AGENTS: Record<string, Agent> = {
+  meeting: {
+    id: 'meeting', name: 'Meeting Intelligence', subtitle: 'Decisions & Task Extraction',
+    icon: 'M', color: '#00D4FF', glow: 'rgba(0,212,255,0.25)',
+    description: 'Extracts decisions, tasks, owners, deadlines from meeting transcripts.',
+    capabilities: ['transcript_analysis', 'task_extraction', 'decision_logging'],
+    status: 'idle',
+  },
+  invoice: {
+    id: 'invoice', name: 'Invoice Processor', subtitle: 'Validation & Auto-Approval',
+    icon: 'I', color: '#FFB800', glow: 'rgba(255,184,0,0.25)',
+    description: 'Validates invoices, detects anomalies, makes approval decisions.',
+    capabilities: ['invoice_parsing', 'anomaly_detection', 'approval_routing'],
+    status: 'idle',
+  },
+  hr: {
+    id: 'hr', name: 'HR Operations', subtitle: 'Hire Workflows & Milestones',
+    icon: 'H', color: '#00E676', glow: 'rgba(0,230,118,0.25)',
+    description: 'Manages new hire onboarding, document collection, system access.',
+    capabilities: ['onboarding', 'compliance_check', 'access_provisioning'],
+    status: 'idle',
+  },
+  procurement: {
+    id: 'procurement', name: 'Procurement', subtitle: 'PO Routing & Compliance',
+    icon: 'P', color: '#FF6B6B', glow: 'rgba(255,107,107,0.25)',
+    description: 'Evaluates purchase requests, routes approvals, ensures compliance.',
+    capabilities: ['purchase_orders', 'vendor_evaluation', 'approval_chain'],
+    status: 'idle',
+  },
+  security: {
+    id: 'security', name: 'Security Monitor', subtitle: 'Threat Detection & Response',
+    icon: 'S', color: '#FF4488', glow: 'rgba(255,68,136,0.25)',
+    description: 'Monitors threats, classifies severity, coordinates incident response.',
+    capabilities: ['threat_detection', 'incident_response', 'compliance_monitoring'],
+    status: 'idle',
+  },
+  compliance: {
+    id: 'compliance', name: 'Compliance Agent', subtitle: 'Policy & Regulatory Control',
+    icon: 'C', color: '#A78BFA', glow: 'rgba(167,139,250,0.25)',
+    description: 'Enforces policies, manages regulatory compliance, audit reports.',
+    capabilities: ['policy_enforcement', 'audit_trail', 'regulatory_reporting'],
+    status: 'idle',
+  },
+  document: {
+    id: 'document', name: 'Document Intelligence', subtitle: 'OCR & Classification',
+    icon: 'D', color: '#F59E0B', glow: 'rgba(245,158,11,0.25)',
+    description: 'Classifies documents, extracts fields, validates content.',
+    capabilities: ['ocr', 'classification', 'field_extraction', 'validation'],
+    status: 'idle',
+  },
+  monitoring: {
+    id: 'monitoring', name: 'Monitoring Agent', subtitle: 'SLA & Health Monitoring',
+    icon: 'Mo', color: '#60A5FA', glow: 'rgba(96,165,250,0.25)',
+    description: 'Monitors SLAs, detects bottlenecks, manages alerts.',
+    capabilities: ['sla_tracking', 'health_check', 'alert_management'],
+    status: 'idle',
+  },
+  workflow: {
+    id: 'workflow', name: 'Workflow Intelligence', subtitle: 'Orchestration & Routing',
+    icon: 'W', color: '#34D399', glow: 'rgba(52,211,153,0.25)',
+    description: 'Optimizes workflow routing and detects orchestration issues.',
+    capabilities: ['workflow_optimization', 'bottleneck_detection', 'routing'],
+    status: 'idle',
+  },
+  it_ops: {
+    id: 'it_ops', name: 'IT Operations', subtitle: 'Access & Infrastructure',
+    icon: 'IT', color: '#F472B6', glow: 'rgba(244,114,182,0.25)',
+    description: 'Manages IT access requests, incidents, and asset tracking.',
+    capabilities: ['access_management', 'incident_ticketing', 'asset_tracking'],
+    status: 'idle',
+  },
+};
+
+export const AGENT_LIST = Object.values(AGENTS);
+
+================================================================================
+SECTION 17 — SAMPLE DATA (src/constants/samples.ts)
+================================================================================
+
+Write src/constants/samples.ts with all 10 samples. Expand the original 5 with 5 new ones:
+
+export const SAMPLES: Record<string, string> = {
+  meeting: `[Full 40-line meeting transcript — same as REQUIREMENTS.md Section 7.1]`,
+  invoice: `[Full invoice text — same as REQUIREMENTS.md Section 7.2]`,
+  hr: `[Full new hire details — same as REQUIREMENTS.md Section 7.3]`,
+  procurement: `[Full purchase request — same as REQUIREMENTS.md Section 7.4]`,
+  security: `[Full security incident — same as REQUIREMENTS.md Section 7.5]`,
+
+  compliance: `COMPLIANCE REVIEW REQUEST
+Date: November 12, 2024
+Department: Engineering
+Submitted by: Mark Thompson
+
+We are about to launch the Payments module which processes credit card transactions.
+The system stores: full card numbers temporarily in memory, CVV codes during checkout,
+cardholder names, billing addresses, transaction amounts.
+Data is encrypted at rest using AES-128. Transit uses TLS 1.0.
+We have not completed our annual SOC 2 Type II audit this year.
+Our privacy policy was last updated in 2021 and does not mention AI processing.
+We share anonymized transaction data with 3 analytics vendors without explicit consent.
+EU customers make up 34% of our user base.
+We have no DPO appointed and no data residency controls for EU data.`,
+
+  document: `DOCUMENT CONTENT FOR CLASSIFICATION:
+DataCorp Master Service Agreement
+Effective Date: March 15, 2022
+Parties: Acme Corporation ("Client") and DataCorp Technologies Inc. ("Vendor")
+
+1. Services: Vendor shall provide data enrichment, analytics API access, and reporting dashboard.
+2. Term: 24 months, auto-renewing annually unless 90-day written notice given.
+3. Payment: $146,000 annually, invoiced quarterly in advance.
+4. Data Processing: Vendor processes Client's customer data under DPA Exhibit A.
+5. Confidentiality: Both parties bound by standard NDA provisions.
+6. Termination for Cause: Either party may terminate with 30-day cure period.
+7. Governing Law: State of California.
+Signatures: [CEO signatures on page 8]`,
+
+  monitoring: `WORKFLOW MONITORING REPORT — Period: Nov 12, 2024 00:00 to 14:32 UTC
+Total workflows started: 47
+Total workflows completed: 39
+Total workflows failed: 5
+Total workflows running: 3
+
+SLA Performance:
+- Invoice Processing (target 4hr): 38/40 completed on time, 2 breached
+- Employee Onboarding (target 48hr): 4/5 on track, 1 at risk (42hr elapsed, 6hr remaining)
+- Procurement Approval (target 24hr): 12/12 completed on time
+- Security Incidents (target 1hr): 2/2 critical resolved in time
+
+Bottlenecks detected:
+- Document OCR Node: avg 8,200ms (P95: 14,500ms) — 3x over baseline
+- Approval Node: avg wait time 6.2 hours — 2 approvals pending over 12 hours
+- LLM Analysis Node: avg 3,100ms — acceptable
+
+Queue depth: 8 workflows waiting
+Failure analysis: 4 of 5 failures caused by invoice validation timeout, 1 by missing field
+System CPU: 23%, Memory: 1.8GB/8GB, Storage: 42GB/500GB`,
+
+  workflow: `WORKFLOW EXECUTION ANALYSIS REQUEST
+Workflow: Invoice-to-Payment Automation (v2.3)
+Total nodes: 14
+Recent runs: 50 executions analyzed
+
+Node execution times (avg ms):
+1. File Upload Trigger: 45ms
+2. Document Classification: 1,200ms
+3. OCR Extraction: 8,200ms  ← FLAGGED
+4. Field Validation: 340ms
+5. Duplicate Detection: 2,100ms
+6. LLM Analysis: 3,100ms
+7. Threshold Decision: 12ms
+8. Approval Node: 22,320,000ms (avg 6.2hr wait)
+9. Payment Processing: 890ms
+10. Audit Storage: 67ms
+11. Notification: 234ms
+
+Node 3 failure rate: 8% (OCR timeout on scanned PDFs > 10MB)
+Node 8 is sequential — blocks all downstream processing
+Nodes 9, 10, 11 could run in parallel
+
+Current critical path: 1→2→3→4→5→6→7→8→9→10→11 (all sequential)`,
+
+  it_ops: `IT REQUEST TICKET
+Submitted: November 12, 2024 14:30 UTC
+Requester: Lisa Rodriguez, HR Director
+
+REQUEST TYPE: New Employee System Access + Incident Report
+
+NEW EMPLOYEE ACCESS REQUEST:
+Employee: Alex Chen (starting Dec 2)
+Required Day 1: GitHub Enterprise (Payments org), AWS payments-staging, Slack, Jira,
+Confluence, 1Password, Zoom Pro, Google Workspace
+Requires special approval: MacBook Pro M3 Max (ergonomic accommodation, ADA)
+Equipment also needed: Kinesis Advantage360 keyboard, Logitech MX Vertical
+
+INCIDENT REPORT:
+Separate issue — developer workstation belonging to Tom Bradley (Engineering)
+was reported stolen from a coffee shop yesterday Nov 11.
+Device: MacBook Pro 14" M2, Asset Tag: ACME-MBP-2891
+Full disk encryption: YES (FileVault enabled)
+Remote wipe: NOT YET EXECUTED — waiting for confirmation
+Last sync to corporate MDM: Nov 11 09:14 UTC
+Sensitive data on device: source code access, AWS credentials in Keychain, 1Password agent`,
+};
+
+================================================================================
+SECTION 18 — FRONTEND SERVICES (src/services/api.ts)
+================================================================================
+
+Write src/services/api.ts with full TypeScript types:
+
+const BASE = '/api';
+
+export interface RunAgentResponse {
+  success: boolean;
+  sessionId: string;
+  agentId: string;
+  result: Record<string, unknown>;
+  processingTime: number;
+  model: string;
+  timestamp: string;
+}
+
+export async function runAgent(agentId: string, inputText: string): Promise<RunAgentResponse> {
+  const response = await fetch(`${BASE}/agent/run`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ agentId, input: inputText }),
+  });
+
+  if (!response.ok) {
+    const err = await response.json();
+    throw new Error(err.message || 'Agent run failed');
+  }
+
+  return response.json();
+}
+
+export async function sendNiyantaMessage(
+  message: string,
+  conversationHistory: Array<{ role: 'user' | 'assistant'; content: string }>,
+  agentResults: Record<string, unknown>
+): Promise<{ reply: string; timestamp: string }> {
+  const response = await fetch(`${BASE}/niyanta/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message, conversationHistory, agentResults }),
+  });
+
+  if (!response.ok) throw new Error('Niyanta chat failed');
+  return response.json();
+}
+
+export async function fetchCrossWorkflowInsights(
+  agentResults: Record<string, unknown>
+): Promise<string[]> {
+  try {
+    const response = await fetch(`${BASE}/niyanta/insights`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agentResults }),
+    });
+    const data = await response.json();
+    return data.insights || [];
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchAuditLog(): Promise<{ entries: unknown[]; total: number }> {
+  const res = await fetch(`${BASE}/audit`);
+  return res.json();
+}
+
+export async function fetchMetrics(): Promise<Record<string, unknown>> {
+  const res = await fetch(`${BASE}/metrics`);
+  return res.json();
+}
+
+export async function fetchWorkflows(): Promise<{ workflows: unknown[] }> {
+  const res = await fetch(`${BASE}/workflow`);
+  return res.json();
+}
+
+export async function fetchHealth(): Promise<Record<string, unknown>> {
+  const res = await fetch(`${BASE}/health`);
+  return res.json();
+}
+
+================================================================================
+SECTION 19 — FRONTEND HOOKS (src/hooks/)
+================================================================================
+
+Write src/hooks/useTheme.ts:
+
+import { useState, useEffect } from 'react';
+import { Theme } from '../types/ui';
+
+export function useTheme() {
+  const [theme, setTheme] = useState<Theme>(() => {
+    return (localStorage.getItem('niyanta-theme') as Theme) || 'dark';
+  });
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('niyanta-theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => setTheme((t) => (t === 'dark' ? 'light' : 'dark'));
+
+  return { theme, toggleTheme, isDark: theme === 'dark' };
+}
+
+Write src/hooks/useAgents.ts with full TypeScript and state for all 10 agents:
+
+import { useState, useCallback } from 'react';
+import { v4 as uuid } from 'uuid';
+import { AGENTS, AGENT_LIST } from '../constants/agents';
+import { SAMPLES } from '../constants/samples';
+import { AgentState, Message } from '../types/agent';
+import { runAgent } from '../services/api';
+
+type AgentStates = Record<string, AgentState>;
+
+const initialState: AgentStates = Object.fromEntries(
+  Object.keys(AGENTS).map((id) => [
+    id,
+    { status: 'idle', messages: [], result: null, taskCount: 0, lastActivity: null, processingTime: null },
+  ])
+);
+
+export function useAgents() {
+  const [agentStates, setAgentStates] = useState<AgentStates>(initialState);
+  const [runAllProgress, setRunAllProgress] = useState<string | null>(null);
+
+  const setAgentStatus = useCallback(
+    (agentId: string, status: AgentState['status']) => {
+      setAgentStates((prev) => ({
+        ...prev,
+        [agentId]: { ...prev[agentId], status },
+      }));
+    },
+    []
+  );
+
+  const addMessage = useCallback((agentId: string, message: Message) => {
+    setAgentStates((prev) => ({
+      ...prev,
+      [agentId]: {
+        ...prev[agentId],
+        messages: [...prev[agentId].messages, message],
+        lastActivity: new Date().toISOString(),
+      },
+    }));
+  }, []);
+
+  const executeAgent = useCallback(
+    async (agentId: string, inputText: string): Promise<Record<string, unknown> | null> => {
+      setAgentStatus(agentId, 'processing');
+
+      // Add user message
+      addMessage(agentId, {
+        id: uuid(),
+        type: 'user',
+        content: inputText,
+        timestamp: new Date().toISOString(),
+      });
+
+      try {
+        const response = await runAgent(agentId, inputText);
+
+        const taskCount =
+          ((response.result.tasks as unknown[])?.length || 0) +
+          ((response.result.checklist as { before_day_one?: unknown[] })?.before_day_one?.length || 0) +
+          ((response.result.next_steps as unknown[])?.length || 0);
+
+        setAgentStates((prev) => ({
+          ...prev,
+          [agentId]: {
+            ...prev[agentId],
+            status: 'complete',
+            result: response.result,
+            taskCount: prev[agentId].taskCount + taskCount,
+            lastActivity: response.timestamp,
+            processingTime: response.processingTime,
+          },
+        }));
+
+        addMessage(agentId, {
+          id: uuid(),
+          type: 'agent',
+          content: (response.result.summary as string) || 'Processing complete',
+          timestamp: response.timestamp,
+          result: response.result,
+          processingTime: response.processingTime,
+          model: response.model,
+        });
+
+        return response.result;
+      } catch (error) {
+        setAgentStatus(agentId, 'error');
+        addMessage(agentId, {
+          id: uuid(),
+          type: 'error',
+          content: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          timestamp: new Date().toISOString(),
+        });
+        return null;
+      }
+    },
+    [setAgentStatus, addMessage]
+  );
+
+  const runAllAgents = useCallback(
+    async (onProgress?: (current: string, index: number, total: number) => void) => {
+      const agents = AGENT_LIST.slice(0, 10);
+      for (let i = 0; i < agents.length; i++) {
+        const agent = agents[i];
+        const sample = SAMPLES[agent.id];
+        if (!sample) continue;
+        setRunAllProgress(`${i + 1}/${agents.length}`);
+        if (onProgress) onProgress(agent.id, i + 1, agents.length);
+        await executeAgent(agent.id, sample);
+        if (i < agents.length - 1) await new Promise((r) => setTimeout(r, 500));
+      }
+      setRunAllProgress(null);
+    },
+    [executeAgent]
+  );
+
+  const isAnyProcessing = Object.values(agentStates).some((s) => s.status === 'processing');
+
+  const totalTasksCreated = Object.values(agentStates).reduce((sum, s) => sum + s.taskCount, 0);
+
+  return {
+    agentStates,
+    executeAgent,
+    runAllAgents,
+    addMessage,
+    isAnyProcessing,
+    runAllProgress,
+    totalTasksCreated,
+  };
+}
+
+Write src/hooks/useAuditLog.ts, src/hooks/useNiyantaChat.ts, src/hooks/useMetrics.ts,
+src/hooks/useWorkflows.ts — all with proper TypeScript types following the same patterns.
+
+================================================================================
+SECTION 20 — CSS DESIGN SYSTEM (src/index.css)
+================================================================================
+
+Write src/index.css completely. Include:
+
+@import for Syne, Space Mono, DM Sans from Google Fonts.
+
+:root dark mode variables:
+  --bg-base, --bg-panel, --bg-hover, --bg-active, --bg-input, --bg-msg-out,
+  --bg-msg-in, --border, --border-light, --text-primary, --text-secondary,
+  --text-muted, --accent, --accent-dim, --green, --red, --amber, --shadow
+
+[data-theme="light"] variables for all of the above.
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+* transition: background-color 0.25s ease, border-color 0.25s ease, color 0.25s ease
+
+body { background: var(--bg-base); font-family: 'DM Sans'; height: 100vh; overflow: hidden; }
+#root { height: 100vh; overflow: hidden; }
+
+Custom scrollbar: 4px width, var(--border) track.
+
+Keyframes: pulse, blink (typing dots), slideInTop, slideInBottom, fadeIn, criticalPulse,
+spin (360deg), countUp, scanLine.
+
+================================================================================
+SECTION 21 — REACT COMPONENT SPECIFICATIONS
+================================================================================
+
+All components must use TypeScript with proper prop interfaces.
+All styles use inline styles with CSS variable references.
+No Tailwind. No component libraries. No any type.
+
+--- App.tsx ---
+
+Imports: useTheme, useAgents, useAuditLog, useNiyantaChat, useMetrics, useWorkflows
+State: selectedAgentId (string|null), showNiyantaChat (boolean), activeView (ActiveView),
+       insights (string[]), rightPanelTab (RightPanelTab)
+
+After runAllAgents completes, call fetchCrossWorkflowInsights and store in insights state.
+Insights display as special bubbles with #00D4FF left border in the last active agent's chat.
+
+useEffect: poll fetchMetrics every 10 seconds, update metrics state.
+useEffect: apply theme to document.documentElement on theme change.
+
+Render: AppShell with all props + NiyantaChatModal conditionally.
+
+--- AppShell.tsx ---
+
+3-panel layout: display flex, height 100vh, overflow hidden
+Left: 280px fixed, border-right 1px solid var(--border)
+Center: flex 1, min-width 0
+Right: 340px fixed, border-left 1px solid var(--border)
+
+Below 1280px viewport: Right panel collapses, toggle button appears.
+
+Toast notification system: fixed bottom-right, auto-dismiss 4s.
+Toast types: success (green left border), error (red left border), info (blue left border).
+
+--- LeftPanel.tsx ---
+
+Fixed height 100vh, display flex column, overflow hidden.
+
+HEADER (56px, border-bottom):
+  Left: Niyanta logo (28px circle with Sanskrit "नि" inside, border 2px solid var(--accent))
+        + "NIYANTA" Syne 800 16px letter-spacing 0.15em
+  Right: ThemeToggle + notification bell (red dot if critical security events)
+
+SYSTEM STATUS BAR (32px):
+  SystemStatus component
+
+SEARCH BAR (padding 8px 12px):
+  SearchBar component filtering all 10 agents
+
+VIEW TABS (40px, 4 tabs):
+  [AGENTS] [WORKFLOWS] [MONITOR] [DATA]
+  Active: border-bottom 2px solid var(--accent)
+
+AGENT LIST (flex 1, overflow-y auto):
+  Render all 10 AgentRow components, filtered by search
+  Each row: 64px, WhatsApp contact style
+
+FOOTER (border-top, padding 12px):
+  "▶ RUN ALL AGENTS" button with progress text
+  Stats: "X tasks autonomous · Y escalated"
+
+--- AgentRow.tsx ---
+
+Props: agent, agentState, isSelected, onClick
+
+Height 64px, padding 0 16px, cursor pointer, display flex, align-items center, gap 12px
+Position relative (for left border accent on selected)
+
+When isSelected: border-left 3px solid agent.color, bg var(--bg-active), left padding adjusts
+Hover: bg var(--bg-hover)
+Transition: background 0.15s ease
+
+Left: AgentIcon (40px circle, bg agent.glow, border 1px solid agent.color)
+  Shows agent.icon letter(s) in Syne 700, agent.color
+  Processing: pulsing box-shadow in agent.glow
+
+Middle (flex 1, minWidth 0):
+  Row 1: agent.name DM Sans 500 14px + time right Space Mono 10px muted
+  Row 2: last message preview or subtitle — nowrap, overflow hidden, text-overflow ellipsis
+  Time: "just now" / "2m ago" / "5m ago" based on lastActivity
+
+Right: task count pill (agent.color bg) + 8px status dot
+  idle: var(--text-muted)
+  processing: agent.color + animation pulse + box-shadow
+  complete: agent.color solid
+  error: var(--red)
+
+--- CenterPanel.tsx ---
+
+If no selectedAgent: EmptyState fills panel.
+
+If selectedAgent:
+  ChatHeader (56px, border-bottom)
+  Messages area (flex 1, overflow-y auto, padding 16px 20px, gap 12px)
+  InputBar (border-top)
+
+Auto-scroll to bottom when messages change: useRef on messages container + useEffect.
+
+Messages rendering:
+  type="user" → MessageBubble
+  type="agent" → AgentBubble (renders correct Result component based on agentId)
+  type="insight" → Special insight bubble (bg rgba(0,212,255,0.05), border-left 3px solid #00D4FF)
+    Header: "NIYANTA INSIGHT" in #00D4FF Syne 700 11px uppercase
+    Content: insight text DM Sans 13px
+  type="error" → Error bubble with retry button
+  status="processing" → ThinkingIndicator at bottom of list
+
+--- ChatHeader.tsx ---
+
+Props: agent, agentState, onRun, onUseSample
+
+Height 56px, padding 0 16px, display flex, align-items center, justify-content space-between
+
+Left: AgentIcon (40px) + div column:
+  agent.name DM Sans 600 15px
+  Status text 11px:
+    idle → "Ready to process" muted
+    processing → "Processing..." agent.color + blinking dot
+    complete → "${taskCount} items extracted · ${(processingTime/1000).toFixed(1)}s" green
+    error → "Error — retry?" var(--red)
+
+Right:
+  "USE SAMPLE" ghost button (border 1px solid var(--border), hover bg-hover, DM Sans 12px)
+  "▶ EXECUTE" button (bg agent.color 20%, border agent.color, color agent.color, Syne 700 11px)
+  Disabled + spinner icon when processing
+
+--- InputBar.tsx ---
+
+Props: agent, onSend, onUseSample, disabled
+
+border-top 1px solid var(--border), padding 10px 16px
+display flex, align-items flex-end, gap 10px
+
+Attach button (📎): 36px circle, opens dropdown with "📋 Use Sample Data"
+Dropdown: absolute, bg var(--bg-panel), border var(--border), z-index 10
+
+Textarea:
+  flex 1, min-height 40px, max-height 160px, auto-resize (onInput sets style.height)
+  bg var(--bg-input), border 1px solid var(--border), border-radius 8px
+  padding 10px 14px, DM Sans 14px, resize none, no outline
+  Placeholder: agent-specific text per agent id
+  Enter = send, Shift+Enter = newline
+
+Send button: 36px circle
+  Has text: bg agent.color, color dark, scale normal
+  Empty: bg var(--accent-dim), muted, disabled
+  Processing: spinner SVG animation
+
+--- ThinkingIndicator.tsx ---
+
+3 dots flex row, each 8px circle bg agent.color
+animation: blink keyframe, delays 0s / 0.2s / 0.4s
+Below: "Niyanta agent is processing..." Space Mono 10px muted
+
+--- EmptyState.tsx ---
+
+Full panel centered, dot grid background (radial-gradient)
+Sanskrit circle (64px) + "NIYANTA" text + subtitle
+5 colored agent dots at bottom
+
+--- All Result Components ---
+
+MeetingResult.tsx — renders: summary, decisions table, tasks table, risks, sentiment
+InvoiceResult.tsx — renders: vendor header, decision badge (prominent), line items, anomalies
+HRResult.tsx — renders: employee header, tabbed checklist (4 tabs), documents, system access
+ProcurementResult.tsx — renders: item/cost header, decision badge, approval chain steps, compliance
+SecurityResult.tsx — renders: severity banner (CRITICAL pulses red), affected, actions, escalation
+WorkflowResult.tsx — renders: optimization suggestions, bottleneck nodes, routing recommendations
+ComplianceResult.tsx — renders: compliance status, violations, risk score meter, regulations
+
+--- RightPanel.tsx ---
+
+Header (56px): "AUDIT TRAIL" Syne 700 + entry count
+Tabs (40px): [WHY-CHAIN] [DECISIONS] [METRICS]
+Content (flex 1, overflow-y auto):
+  WHY-CHAIN: AuditEntry list, newest top, slideInTop animation
+  DECISIONS: DecisionCard list for entries with decision field
+  METRICS: MetricsGrid 2-col, count-up animation
+
+NexusMiniChat footer (200px, border-top):
+  Pulsing blue dot + "NIYANTA COMMAND" 
+  Last 2 chat messages truncated
+  Single input → opens NiyantaChatModal on focus
+  "Expand →" opens modal
+
+--- NiyantaChatModal.tsx ---
+
+Fixed overlay, backdrop blur
+Modal: 700px x 600px, centered, bg var(--bg-panel), border var(--border)
+fadeIn + scale 0.95→1.0 animation
+
+Header: Niyanta logo small + "NIYANTA · COMMAND" + close button
+Messages: same bubble style, NIYANTA left-aligned blue border
+Suggested prompts when empty (3 clickable chips)
+Input: single line textarea, send button, Groq model tag shown
+
+Escape key closes modal.
+Auto-scroll to bottom on new message.
+Context: pass all agentStates results to sendNiyantaMessage.
+
+--- WorkflowBuilder.tsx ---
+
+Drag-and-drop visual node canvas for building workflows.
+Left sidebar: NodePalette with all node categories and types.
+Center canvas: WorkflowCanvas with SVG edges between nodes.
+Each node: NodeCard (draggable, shows type, name, status indicator).
+Toolbar: Save Workflow, Run Workflow, Clear, Zoom In/Out buttons.
+Store workflow as { nodes: WorkflowNodeInstance[], edges: WorkflowEdge[] } in state.
+On save: POST to /api/workflow.
+
+================================================================================
+SECTION 22 — FILE GENERATION ORDER
+================================================================================
+
+Generate files in EXACTLY this order. Do not skip any file.
+
+1.  package.json
+2.  tsconfig.json
+3.  tsconfig.server.json
+4.  nodemon.json
+5.  .env.example
+6.  README.md
+7.  server/db/schema.sql
+8.  server/db/database.ts
+9.  server/types/workflow.types.ts
+10. server/types/node.types.ts
+11. server/types/agent.types.ts
+12. server/types/api.types.ts
+13. server/utils/groqClient.ts
+14. server/utils/helpers.ts
+15. server/utils/fileGenerator.ts
+16. server/core/AuditLogger.ts
+17. server/core/AgentManager.ts
+18. server/core/NiyantaOrchestrator.ts
+19. server/core/WorkflowEngine.ts
+20. server/core/NodeRegistry.ts
+21. server/middleware/validator.ts
+22. server/middleware/errorHandler.ts
+23. server/routes/agent.routes.ts
+24. server/routes/niyanta.routes.ts
+25. server/routes/audit.routes.ts
+26. server/routes/metrics.routes.ts
+27. server/routes/health.routes.ts
+28. server/routes/workflow.routes.ts
+29. server/index.ts
+30. src/types/agent.ts
+31. src/types/workflow.ts
+32. src/types/message.ts
+33. src/types/ui.ts
+34. src/constants/agents.ts
+35. src/constants/samples.ts
+36. src/services/api.ts
+37. src/hooks/useTheme.ts
+38. src/hooks/useAgents.ts
+39. src/hooks/useAuditLog.ts
+40. src/hooks/useNiyantaChat.ts
+41. src/hooks/useMetrics.ts
+42. src/hooks/useWorkflows.ts
+43. src/index.css
+44. src/index.tsx
+45. src/App.tsx
+46. src/components/shared/Badge.tsx
+47. src/components/shared/AgentIcon.tsx
+48. src/components/shared/ThemeToggle.tsx
+49. src/components/sidebar/SearchBar.tsx
+50. src/components/sidebar/SystemStatus.tsx
+51. src/components/sidebar/AgentRow.tsx
+52. src/components/chat/ThinkingIndicator.tsx
+53. src/components/chat/EmptyState.tsx
+54. src/components/chat/MessageBubble.tsx
+55. src/components/chat/AgentBubble.tsx
+56. src/components/chat/ChatHeader.tsx
+57. src/components/chat/InputBar.tsx
+58. src/components/results/MeetingResult.tsx
+59. src/components/results/InvoiceResult.tsx
+60. src/components/results/HRResult.tsx
+61. src/components/results/ProcurementResult.tsx
+62. src/components/results/SecurityResult.tsx
+63. src/components/results/WorkflowResult.tsx
+64. src/components/results/ComplianceResult.tsx
+65. src/components/audit/AuditEntry.tsx
+66. src/components/audit/DecisionCard.tsx
+67. src/components/audit/MetricsGrid.tsx
+68. src/components/workflow/NodeCard.tsx
+69. src/components/workflow/NodePalette.tsx
+70. src/components/workflow/WorkflowCanvas.tsx
+71. src/components/workflow/WorkflowBuilder.tsx
+72. src/components/workflow/WorkflowRunner.tsx
+73. src/components/modals/NiyantaChatModal.tsx
+74. src/components/modals/WorkflowDetailModal.tsx
+75. src/components/layout/AppShell.tsx
+76. src/components/layout/LeftPanel.tsx
+77. src/components/layout/CenterPanel.tsx
+78. src/components/layout/RightPanel.tsx
+
+================================================================================
+SECTION 23 — SETUP & RUN INSTRUCTIONS
+================================================================================
+
+Write README.md with:
+
+NIYANTA AI v2.0 — Autonomous Enterprise Workflow Orchestration Platform
+नियंता — The One Who Controls and Governs
+
+STACK:
+  Backend:   Node.js + Express + TypeScript
+  Frontend:  React 18 + TypeScript
+  Database:  SQLite (better-sqlite3) — fully offline
+  AI:        Groq API (llama-3.3-70b-versatile)
+  Storage:   Local filesystem
+
+PREREQUISITES:
+  Node.js 18+, npm 9+, Groq API key (free at console.groq.com)
+
+SETUP:
+  1. cd niyanta
+  2. cp .env.example .env
+  3. Open .env and set GROQ_API_KEY=your_key_here
+  4. npm install
+  5. npm run dev
+
+RUNS AT:
+  Frontend: http://localhost:3000
+  Backend:  http://localhost:3001
+  Database: ./niyanta.db (auto-created)
+  Storage:  ./storage/ (auto-created)
+
+10 AGENTS:
+  Meeting Intelligence  (#00D4FF) — transcript → tasks + decisions
+  Invoice Processor     (#FFB800) — invoice → approve/flag/reject
+  HR Operations         (#00E676) — new hire → full onboarding plan
+  Procurement           (#FF6B6B) — purchase request → approval chain
+  Security Monitor      (#FF4488) — security event → threat response
+  Compliance Agent      (#A78BFA) — policy check → violation report
+  Document Intelligence (#F59E0B) — document → classification + fields
+  Monitoring Agent      (#60A5FA) — ops data → SLA + bottleneck analysis
+  Workflow Intelligence (#34D399) — workflow data → optimization plan
+  IT Operations         (#F472B6) — IT request → access + incident plan
+
+HACKATHON DEMO:
+  1. Open http://localhost:3000
+  2. Click "RUN ALL AGENTS" — all 10 process sample data automatically
+  3. Watch Live Audit Trail fill in real-time on the right
+  4. Click Security agent → see CRITICAL severity pulsing red banner
+  5. Click DECISIONS tab → every WHY-CHAIN decision logged
+  6. Open Niyanta Command chat → ask "Cross-workflow risk report"
+  7. See NIYANTA INSIGHT bubbles surfacing dependencies
+  8. Toggle light/dark mode — everything transitions in 250ms
+  9. Pitch: "10 agents. Zero human intervention. Full WHY-CHAIN audit. Offline-first."
+
+================================================================================
+SECTION 24 — FINAL INSTRUCTIONS TO AI
+================================================================================
+
+BEFORE YOU WRITE ANY CODE:
+  1. Confirm you understand: TypeScript throughout, Groq API (not Anthropic), SQLite offline.
+  2. Confirm you will write all 78 files completely without truncation.
+  3. Confirm generation order: package.json first, layout components last.
+
+WHILE WRITING CODE:
+  1. Every file must have proper TypeScript imports and types.
+  2. No 'any' type unless absolutely unavoidable — use 'unknown' instead.
+  3. All React components: functional components with typed props interfaces.
+  4. All async functions: proper try/catch with typed errors.
+  5. CSS: inline styles only, CSS variables for theme-sensitive colors.
+  6. Agent colors are fixed and NOT theme-sensitive.
+  7. Every file must be complete — no "// implementation here" placeholders.
+
+GROQ API USAGE:
+  Use groq-sdk package. Model: llama-3.3-70b-versatile for all agents.
+  llama-3.1-8b-instant for fast/simple tasks.
+  Temperature: 0.1 for consistent JSON outputs.
+  Max tokens: 2000 for agent runs, 1000 for chat.
+
+DATABASE:
+  Use better-sqlite3 (synchronous, no async needed for SQLite operations).
+  Initialize schema on startup. Seed agents on first run.
+  All queries: prepared statements (no string interpolation).
+
+UI DESIGN:
+  Black and white enterprise console aesthetic.
+  Dark mode default. Clean, minimal, information-dense.
+  WhatsApp Web 3-panel layout. Each panel scrolls independently.
+  No colorful gradients. No decorative elements. Pure utility.
+
+WRITE ALL 78 FILES NOW. START WITH package.json. DO NOT STOP UNTIL COMPLETE.
+================================================================================
+END OF NIYANTA AI v2.0 MASTER BUILD PROMPT
+================================================================================

@@ -2,7 +2,7 @@
   "compilerOptions": {
     "target": "ES2020",
     "lib": ["DOM", "DOM.Iterable", "ES2020"],
-    "allowJs": true,
+    "allowJs": false,
     "skipLibCheck": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
@@ -15,16 +15,7 @@
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "react-jsx",
-    "baseUrl": "src",
-    "paths": {
-      "@/*": ["./*"],
-      "@components/*": ["components/*"],
-      "@hooks/*": ["hooks/*"],
-      "@services/*": ["services/*"],
-      "@constants/*": ["constants/*"],
-      "@types/*": ["types/*"]
-    }
+    "baseUrl": "src"
   },
-  "include": ["src"],
-  "exclude": ["node_modules", "dist", "server.ts"]
+  "include": ["src"]
 }
