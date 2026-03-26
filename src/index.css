@@ -50,7 +50,7 @@
 }
 
 body {
-  background: radial-gradient(circle at 10% 10%, rgba(0, 212, 255, 0.08), transparent 40%), var(--bg-base);
+  background: var(--bg-base);
   color: var(--text-primary);
   font-family: 'DM Sans', sans-serif;
   height: 100vh;
