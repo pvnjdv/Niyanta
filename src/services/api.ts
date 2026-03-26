@@ -1,92 +1,80 @@
-import {
-  AgentId,
-  AgentResult,
-  AgentRunResponse,
-  NiyantaChatResponse,
-  AuditResponse,
-  Metrics,
-  HealthResponse,
-  ChatMessage,
-} from '../types';
+const BASE = '/api';
 
-const API_BASE = '/api';
+export interface RunAgentResponse {
+  success: boolean;
+  sessionId: string;
+  agentId: string;
+  result: Record<string, unknown>;
+  processingTime: number;
+  model: string;
+  timestamp: string;
+}
 
-export async function runAgent(agentId: AgentId, inputText: string): Promise<AgentRunResponse> {
-  const response = await fetch(`${API_BASE}/agent/run`, {
+export async function runAgent(agentId: string, inputText: string): Promise<RunAgentResponse> {
+  const response = await fetch(`${BASE}/agent/run`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      agentId,
-      input: inputText,
-    }),
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ agentId, input: inputText }),
   });
 
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.message || 'Agent processing failed');
-  }
-
-  return data as AgentRunResponse;
+  if (!response.ok) throw new Error(`Agent run failed with status ${response.status}`);
+  return response.json();
 }
 
 export async function sendNiyantaMessage(
   message: string,
-  conversationHistory: Pick<ChatMessage, 'role' | 'content'>[],
-  agentResults: Partial<Record<AgentId, AgentResult | null>>
-): Promise<NiyantaChatResponse> {
-  const response = await fetch(`${API_BASE}/niyanta/chat`, {
+  conversationHistory: Array<{ role: 'user' | 'assistant'; content: string }>,
+  agentResults: Record<string, unknown>
+): Promise<{ reply: string; timestamp: string }> {
+  const response = await fetch(`${BASE}/niyanta/chat`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      message,
-      conversationHistory,
-      agentResults,
-    }),
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message, conversationHistory, agentResults }),
   });
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.message || 'Niyanta chat failed');
-  }
-
-  return data as NiyantaChatResponse;
+  if (!response.ok) throw new Error('Niyanta chat failed');
+  return response.json();
 }
 
-export async function fetchAuditLog(): Promise<AuditResponse> {
-  const response = await fetch(`${API_BASE}/audit`);
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.message || 'Failed to fetch audit log');
+export async function fetchCrossWorkflowInsights(agentResults: Record<string, unknown>): Promise<string[]> {
+  try {
+    const response = await fetch(`${BASE}/niyanta/insights`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agentResults }),
+    });
+    if (!response.ok) return [];
+    const data = (await response.json()) as { insights?: string[] };
+    return data.insights || [];
+  } catch {
+    return [];
   }
-
-  return data as AuditResponse;
 }
 
-export async function fetchMetrics(): Promise<Metrics> {
-  const response = await fetch(`${API_BASE}/metrics`);
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.message || 'Failed to fetch metrics');
-  }
-
-  return data as Metrics;
+export async function fetchAuditLog(): Promise<{ entries: unknown[]; total: number }> {
+  const res = await fetch(`${BASE}/audit`);
+  return res.json();
 }
 
-export async function fetchHealth(): Promise<HealthResponse> {
-  const response = await fetch(`${API_BASE}/health`);
-  const data = await response.json();
+export async function fetchMetrics(): Promise<Record<string, unknown>> {
+  const res = await fetch(`${BASE}/metrics`);
+  return res.json();
+}
 
-  if (!response.ok) {
-    throw new Error(data.message || 'Health check failed');
-  }
+export async function fetchWorkflows(): Promise<{ workflows: unknown[] }> {
+  const res = await fetch(`${BASE}/workflow`);
+  return res.json();
+}
 
-  return data as HealthResponse;
+export async function createWorkflow(payload: Record<string, unknown>): Promise<{ workflow: unknown }> {
+  const res = await fetch(`${BASE}/workflow`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  return res.json();
+}
+
+export async function fetchHealth(): Promise<Record<string, unknown>> {
+  const res = await fetch(`${BASE}/health`);
+  return res.json();
 }

@@ -1,80 +1,24 @@
 import { useState, useCallback } from 'react';
-import { sendNiyantaMessage as apiSendMessage } from '../services/api';
-import { ChatMessage, AgentId, AgentResult } from '../types';
+import { sendNiyantaMessage } from '../services/api';
+import { ChatMessage } from '../types/message';
 
-interface UseNiyantaChatReturn {
-  messages: ChatMessage[];
-  isLoading: boolean;
-  sendMessage: (
-    text: string,
-    agentResults: Partial<Record<AgentId, AgentResult | null>>
-  ) => Promise<ChatMessage>;
-  clearChat: () => void;
-}
-
-export function useNiyantaChat(): UseNiyantaChatReturn {
+export function useNiyantaChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isSending, setIsSending] = useState(false);
 
-  const sendMessage = useCallback(
-    async (
-      text: string,
-      agentResults: Partial<Record<AgentId, AgentResult | null>>
-    ): Promise<ChatMessage> => {
-      const userMessage: ChatMessage = {
-        id: Date.now().toString(),
-        role: 'user',
-        content: text,
-        timestamp: new Date().toISOString(),
-      };
+  const sendMessage = useCallback(async (message: string, agentResults: Record<string, unknown>) => {
+    setIsSending(true);
+    const timestamp = new Date().toISOString();
+    setMessages((prev) => [...prev, { role: 'user', content: message, timestamp }]);
 
-      setMessages((prev) => [...prev, userMessage]);
-      setIsLoading(true);
+    try {
+      const history = messages.map((m) => ({ role: m.role, content: m.content }));
+      const response = await sendNiyantaMessage(message, history, agentResults);
+      setMessages((prev) => [...prev, { role: 'assistant', content: response.reply, timestamp: response.timestamp }]);
+    } finally {
+      setIsSending(false);
+    }
+  }, [messages]);
 
-      try {
-        // Build conversation history for API
-        const conversationHistory = messages.map((m) => ({
-          role: m.role,
-          content: m.content,
-        }));
-
-        const response = await apiSendMessage(text, conversationHistory, agentResults);
-
-        const assistantMessage: ChatMessage = {
-          id: (Date.now() + 1).toString(),
-          role: 'assistant',
-          content: response.reply,
-          timestamp: response.timestamp,
-        };
-
-        setMessages((prev) => [...prev, assistantMessage]);
-        return assistantMessage;
-      } catch (error) {
-        const errorMessage: ChatMessage = {
-          id: (Date.now() + 1).toString(),
-          role: 'assistant',
-          content: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          timestamp: new Date().toISOString(),
-          isError: true,
-        };
-
-        setMessages((prev) => [...prev, errorMessage]);
-        throw error;
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    [messages]
-  );
-
-  const clearChat = useCallback(() => {
-    setMessages([]);
-  }, []);
-
-  return {
-    messages,
-    isLoading,
-    sendMessage,
-    clearChat,
-  };
+  return { messages, isSending, sendMessage };
 }

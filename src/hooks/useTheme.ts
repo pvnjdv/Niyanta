@@ -1,47 +1,15 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Theme } from '../types';
+import { useState, useEffect } from 'react';
+import { Theme } from '../types/ui';
 
-const STORAGE_KEY = 'niyanta-theme';
-
-interface UseThemeReturn {
-  theme: Theme;
-  toggleTheme: () => void;
-  isDark: boolean;
-}
-
-export function useTheme(): UseThemeReturn {
-  const [theme, setTheme] = useState<Theme>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const stored = localStorage.getItem(STORAGE_KEY);
-        if (stored === 'dark' || stored === 'light') {
-          return stored;
-        }
-      } catch {
-        // localStorage may be unavailable in some environments
-      }
-    }
-    return 'dark';
-  });
+export function useTheme() {
+  const [theme, setTheme] = useState<Theme>(() => (localStorage.getItem('niyanta-theme') as Theme) || 'dark');
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
-    try {
-      localStorage.setItem(STORAGE_KEY, theme);
-    } catch {
-      // localStorage may be unavailable in some environments
-    }
+    localStorage.setItem('niyanta-theme', theme);
   }, [theme]);
 
-  const toggleTheme = useCallback(() => {
-    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
-  }, []);
+  const toggleTheme = () => setTheme((t) => (t === 'dark' ? 'light' : 'dark'));
 
-  const isDark = theme === 'dark';
-
-  return {
-    theme,
-    toggleTheme,
-    isDark,
-  };
+  return { theme, toggleTheme, isDark: theme === 'dark' };
 }
