@@ -24,19 +24,26 @@ const App: React.FC = () => {
   const [showNiyantaChat, setShowNiyantaChat] = useState(false);
   const [activeView, setActiveView] = useState<ActiveView>('agents');
   const [rightPanelTab, setRightPanelTab] = useState<RightPanelTab>('why-chain');
+  const [insights, setInsights] = useState<string[]>([]);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
 
-  const handleRunAll = async () => {
-    await runAllAgents();
-    const results = Object.fromEntries(Object.entries(agentStates).map(([k, v]) => [k, v.result]).filter(([, v]) => v));
-    const insights = await fetchCrossWorkflowInsights(results as Record<string, unknown>);
+  useEffect(() => {
+    if (insights.length === 0) return;
     const target = selectedAgentId || 'it_ops';
     insights.forEach((insight) => {
       addMessage(target, { id: uuid(), type: 'insight', content: insight, timestamp: new Date().toISOString() });
     });
+    setInsights([]);
+  }, [insights, selectedAgentId, addMessage]);
+
+  const handleRunAll = async () => {
+    await runAllAgents();
+    const results = Object.fromEntries(Object.entries(agentStates).map(([k, v]) => [k, v.result]).filter(([, v]) => v));
+    const computedInsights = await fetchCrossWorkflowInsights(results as Record<string, unknown>);
+    setInsights(computedInsights);
   };
 
   const handleUseSample = async (agentId: string) => {

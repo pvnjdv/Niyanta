@@ -10,6 +10,12 @@ interface NiyantaChatModalProps {
   agentStates: Record<string, AgentState>;
 }
 
+const SUGGESTIONS = [
+  'Cross-workflow risk report',
+  'Summarize all pending escalations',
+  'Top bottlenecks across all workflows',
+];
+
 const NiyantaChatModal: React.FC<NiyantaChatModalProps> = ({ isOpen, onClose, onSend, isSending, messages }) => {
   const [text, setText] = useState('');
   const ref = useRef<HTMLDivElement>(null);
@@ -17,6 +23,14 @@ const NiyantaChatModal: React.FC<NiyantaChatModalProps> = ({ isOpen, onClose, on
   useEffect(() => {
     ref.current?.scrollTo({ top: ref.current.scrollHeight, behavior: 'smooth' });
   }, [messages]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    if (isOpen) window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
@@ -28,10 +42,16 @@ const NiyantaChatModal: React.FC<NiyantaChatModalProps> = ({ isOpen, onClose, on
           <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)' }}>Close</button>
         </div>
         <div ref={ref} style={{ flex: 1, overflowY: 'auto', padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {messages.length === 0 && (
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {SUGGESTIONS.map((s) => <button key={s} onClick={() => setText(s)} style={{ border: '1px solid var(--border)', background: 'var(--bg-hover)', color: 'var(--text-primary)', borderRadius: 999, padding: '6px 10px', fontSize: 12 }}>{s}</button>)}
+            </div>
+          )}
           {messages.map((m, i) => <div key={i} style={{ alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start', borderLeft: m.role === 'assistant' ? '2px solid var(--accent)' : undefined, background: 'var(--bg-hover)', border: '1px solid var(--border)', borderRadius: 8, padding: 8, maxWidth: '85%' }}>{m.content}</div>)}
         </div>
-        <div style={{ borderTop: '1px solid var(--border)', padding: 10, display: 'flex', gap: 8 }}>
+        <div style={{ borderTop: '1px solid var(--border)', padding: 10, display: 'flex', gap: 8, alignItems: 'center' }}>
           <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Ask NIYANTA..." style={{ flex: 1, background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)', padding: '8px 10px' }} />
+          <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'Space Mono, monospace' }}>llama-3.3-70b</span>
           <button disabled={!text.trim() || isSending} onClick={async () => { if (text.trim()) { await onSend(text.trim()); setText(''); } }} style={{ border: '1px solid var(--accent)', background: 'var(--accent-dim)', color: 'var(--accent)', borderRadius: 8, padding: '8px 10px' }}>{isSending ? '...' : 'Send'}</button>
         </div>
       </div>

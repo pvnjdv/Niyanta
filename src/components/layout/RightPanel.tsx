@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { RightPanelTab } from '../../types/ui';
 import AuditEntry from '../audit/AuditEntry';
 import DecisionCard from '../audit/DecisionCard';
@@ -13,7 +13,9 @@ interface RightPanelProps {
 }
 
 const RightPanel: React.FC<RightPanelProps> = ({ entries, metrics, tab, onTabChange, onOpenNiyantaChat }) => {
+  const [miniInput, setMiniInput] = useState('');
   const decisionEntries = entries.filter((e) => typeof e === 'object' && e !== null && 'decision' in e) as Array<Record<string, unknown>>;
+  const recent = useMemo(() => (entries as Array<Record<string, unknown>>).slice(0, 2), [entries]);
 
   return (
     <aside style={{ width: 340, borderLeft: '1px solid var(--border)', height: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -29,8 +31,13 @@ const RightPanel: React.FC<RightPanelProps> = ({ entries, metrics, tab, onTabCha
         {tab === 'decisions' && decisionEntries.map((entry, i) => <DecisionCard key={i} entry={entry} />)}
         {tab === 'metrics' && <MetricsGrid metrics={metrics} />}
       </div>
-      <div style={{ borderTop: '1px solid var(--border)', padding: 10 }}>
-        <button onClick={onOpenNiyantaChat} style={{ width: '100%', border: '1px solid var(--accent)', background: 'var(--accent-dim)', color: 'var(--accent)', borderRadius: 8, padding: '10px 12px' }}>NIYANTA COMMAND</button>
+      <div style={{ height: 200, borderTop: '1px solid var(--border)', padding: 10, display: 'grid', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)', animation: 'pulse 1s infinite' }} /><strong style={{ fontSize: 12 }}>NIYANTA COMMAND</strong></div>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+          {recent.map((e, i) => <div key={i} style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{String(e.event || e.decision || '...')}</div>)}
+        </div>
+        <input value={miniInput} onFocus={onOpenNiyantaChat} onChange={(e) => setMiniInput(e.target.value)} placeholder="Ask command..." style={{ border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-input)', color: 'var(--text-primary)', padding: '8px 10px' }} />
+        <button onClick={onOpenNiyantaChat} style={{ border: '1px solid var(--accent)', background: 'var(--accent-dim)', color: 'var(--accent)', borderRadius: 8, padding: '8px 10px' }}>Expand →</button>
       </div>
     </aside>
   );
