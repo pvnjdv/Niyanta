@@ -4,7 +4,8 @@ import { ActiveView, RightPanelTab, Theme } from '../../types/ui';
 import LeftPanel from './LeftPanel';
 import CenterPanel from './CenterPanel';
 import RightPanel from './RightPanel';
-import WorkflowBuilder from '../workflow/WorkflowBuilder';
+import { Dashboard } from '../dashboard/Dashboard';
+import { N8nWorkflowBuilder } from '../workflow/N8nWorkflowBuilder';
 import WorkflowRunner from '../workflow/WorkflowRunner';
 
 interface AppShellProps {
@@ -43,19 +44,24 @@ const AppShell: React.FC<AppShellProps> = ({ agents, agentStates, selectedAgentI
 
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
-      <LeftPanel agents={agents} agentStates={agentStates} selectedAgentId={selectedAgentId} onSelectAgent={onSelectAgent} onRunAll={onRunAll} runAllProgress={runAllProgress} activeView={activeView} onChangeView={onChangeView} theme={theme} onToggleTheme={onToggleTheme} metrics={metrics} />
+      {activeView !== 'home' && (
+        <LeftPanel agents={agents} agentStates={agentStates} selectedAgentId={selectedAgentId} onSelectAgent={onSelectAgent} onRunAll={onRunAll} runAllProgress={runAllProgress} activeView={activeView} onChangeView={onChangeView} theme={theme} onToggleTheme={onToggleTheme} metrics={metrics} />
+      )}
       <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
-        {!showRightPanel && <button onClick={() => setShowRightPanel(true)} style={{ position: 'absolute', top: 12, right: 12, zIndex: 2, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-panel)', color: 'var(--text-primary)', padding: '6px 8px' }}>Open Audit</button>}
+        {!showRightPanel && activeView !== 'home' && <button onClick={() => setShowRightPanel(true)} style={{ position: 'absolute', top: 12, right: 12, zIndex: 2, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-panel)', color: 'var(--text-primary)', padding: '6px 8px' }}>Open Audit</button>}
+        {activeView === 'home' && (
+          <Dashboard
+            onCreateWorkflow={() => onChangeView('workflows')}
+            onOpenSamples={() => onChangeView('agents')}
+          />
+        )}
         {activeView === 'agents' && <CenterPanel selectedAgent={selectedAgent} selectedState={selectedState} onExecute={onExecuteAgent} onUseSample={onUseSample} />}
         {activeView === 'workflows' && (
-          <div style={{ padding: 14, height: '100vh', overflowY: 'auto', display: 'grid', gap: 12 }}>
-            <WorkflowBuilder onSave={onSaveWorkflow} />
-            <WorkflowRunner />
-            <div style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 10 }}>
-              <div style={{ fontWeight: 700, marginBottom: 6 }}>Saved Workflows</div>
-              {workflows.length === 0 ? <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>No workflows saved yet.</div> : workflows.map((w, i) => <div key={i} style={{ fontSize: 12, padding: '4px 0' }}>{w.name || 'Unnamed Workflow'} <span style={{ color: 'var(--text-muted)' }}>({w.status || 'draft'})</span></div>)}
-            </div>
-          </div>
+          <N8nWorkflowBuilder
+            workflowName="My Workflow"
+            onSave={onSaveWorkflow}
+            onExecute={onSaveWorkflow}
+          />
         )}
         {activeView === 'monitoring' && (
           <div style={{ padding: 16, height: '100vh', overflowY: 'auto' }}>
@@ -72,7 +78,7 @@ const AppShell: React.FC<AppShellProps> = ({ agents, agentStates, selectedAgentI
           </div>
         )}
       </div>
-      {showRightPanel && <RightPanel entries={auditEntries} metrics={metrics} tab={rightPanelTab} onTabChange={onRightPanelTabChange} onOpenNiyantaChat={onOpenNiyantaChat} />}
+      {showRightPanel && activeView !== 'home' && <RightPanel entries={auditEntries} metrics={metrics} tab={rightPanelTab} onTabChange={onRightPanelTabChange} onOpenNiyantaChat={onOpenNiyantaChat} />}
     </div>
   );
 };
