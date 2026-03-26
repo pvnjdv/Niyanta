@@ -5,22 +5,45 @@ import './Dashboard.css';
 interface DashboardProps {
   onCreateWorkflow?: () => void;
   onOpenAgents?: () => void;
+  onCreateAgent?: () => void;
   metrics?: Record<string, unknown>;
   agentStates?: Record<string, AgentState>;
   agents?: Agent[];
+  recentActivity?: Array<Record<string, unknown>>;
+  workflows?: Array<{ id?: string; name?: string; status?: string }>;
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({
   onCreateWorkflow,
   onOpenAgents,
+  onCreateAgent,
   metrics,
   agentStates,
   agents,
+  recentActivity,
+  workflows,
 }) => {
   const totalRuns = (metrics?.totalRuns as number) || 0;
   const totalDecisions = (metrics?.totalDecisions as number) || 0;
   const activeAgents = agents?.filter((a) => agentStates?.[a.id]?.status === 'complete').length || 0;
   const processingAgents = agents?.filter((a) => agentStates?.[a.id]?.status === 'processing').length || 0;
+  const totalWorkflows = workflows?.length || 0;
+  const activeWorkflows = workflows?.filter((w) => w.status === 'active' || w.status === 'running').length || 0;
+
+  const recentEntries = (recentActivity || []).slice(0, 5);
+
+  const formatTimestamp = (ts: unknown): string => {
+    if (!ts) return '';
+    const date = new Date(ts as string);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMin = Math.floor(diffMs / 60000);
+    if (diffMin < 1) return 'just now';
+    if (diffMin < 60) return `${diffMin}m ago`;
+    const diffHr = Math.floor(diffMin / 60);
+    if (diffHr < 24) return `${diffHr}h ago`;
+    return `${Math.floor(diffHr / 24)}d ago`;
+  };
 
   return (
     <div className="dash">
@@ -28,7 +51,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
         {/* Header */}
         <header className="dash__header">
           <div className="dash__header-left">
-            <h1 className="dash__title">Niyanta AI</h1>
+            <div className="dash__title-row">
+              <h1 className="dash__title">Niyanta AI</h1>
+              <span className="dash__status-pill">Niyanta Online</span>
+            </div>
             <p className="dash__subtitle">Enterprise Workflow Orchestration</p>
           </div>
           <div className="dash__header-actions">
@@ -89,7 +115,43 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
         </section>
 
-        {/* Agent Overview */}
+        {/* Active Workflows */}
+        <section className="dash__section">
+          <div className="dash__section-header">
+            <h2 className="dash__section-title">Active Workflows</h2>
+            <button className="nyt-btn nyt-btn--sm nyt-btn--ghost" onClick={onCreateWorkflow}>
+              View All →
+            </button>
+          </div>
+          {totalWorkflows > 0 ? (
+            <>
+              <div className="dash__workflow-summary">
+                <span className="dash__workflow-count">{activeWorkflows}</span> active of{' '}
+                <span className="dash__workflow-count">{totalWorkflows}</span> total workflows
+              </div>
+              <div className="dash__workflows-list">
+                {(workflows || []).slice(0, 5).map((wf, i) => (
+                  <div key={wf.id || i} className="dash__workflow-item" onClick={onCreateWorkflow}>
+                    <div className="dash__workflow-name">{wf.name || `Workflow ${i + 1}`}</div>
+                    <div className={`dash__workflow-status dash__workflow-status--${wf.status || 'draft'}`}>
+                      {wf.status || 'draft'}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <div className="dash__empty-state">
+              <div className="dash__empty-icon">⎇</div>
+              <div className="dash__empty-text">No workflows yet</div>
+              <button className="nyt-btn nyt-btn--sm nyt-btn--primary" onClick={onCreateWorkflow}>
+                Create First Workflow
+              </button>
+            </div>
+          )}
+        </section>
+
+        {/* Agent Fleet */}
         <section className="dash__section">
           <div className="dash__section-header">
             <h2 className="dash__section-title">Agent Fleet</h2>
@@ -128,7 +190,49 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 </div>
               );
             })}
+            {/* Create New Agent Card */}
+            <div className="dash__agent-card dash__agent-card--create" onClick={onCreateAgent}>
+              <div className="dash__agent-create-icon">+</div>
+              <div className="dash__agent-name">Create New Agent</div>
+              <div className="dash__agent-desc">Add a custom AI agent</div>
+            </div>
           </div>
+        </section>
+
+        {/* Recent Activity */}
+        <section className="dash__section">
+          <div className="dash__section-header">
+            <h2 className="dash__section-title">Recent Activity</h2>
+          </div>
+          {recentEntries.length > 0 ? (
+            <div className="dash__activity-list">
+              {recentEntries.map((entry, i) => (
+                <div key={i} className="dash__activity-item">
+                  <div className={`dash__activity-dot dash__activity-dot--${
+                    (entry.type as string) === 'error' ? 'error' :
+                    (entry.type as string) === 'success' || (entry.type as string) === 'complete' ? 'success' :
+                    'default'
+                  }`} />
+                  <div className="dash__activity-content">
+                    <div className="dash__activity-message">
+                      {(entry.message as string) || (entry.action as string) || 'Activity logged'}
+                    </div>
+                    <div className="dash__activity-meta">
+                      {(entry.agentName as string) || (entry.agent as string) || ''}
+                      {entry.timestamp ? (
+                        <span className="dash__activity-time"> · {formatTimestamp(entry.timestamp)}</span>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="dash__empty-state">
+              <div className="dash__empty-icon">◔</div>
+              <div className="dash__empty-text">No recent activity</div>
+            </div>
+          )}
         </section>
 
         {/* Workflow Templates */}

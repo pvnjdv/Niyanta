@@ -3,6 +3,7 @@ import { Agent, AgentState } from '../../types/agent';
 import { ActiveView, RightPanelTab, Theme } from '../../types/ui';
 import CenterPanel from './CenterPanel';
 import RightPanel from './RightPanel';
+import BottomDock from './BottomDock';
 import { Dashboard } from '../dashboard/Dashboard';
 import { N8nWorkflowBuilder } from '../workflow/N8nWorkflowBuilder';
 import MonitoringView from '../monitoring/MonitoringView';
@@ -53,6 +54,26 @@ const AppShell: React.FC<AppShellProps> = ({
   const filteredAgents = agents.filter((a) =>
     a.name.toLowerCase().includes(agentSearch.toLowerCase())
   );
+
+  const handleDockAction = (action: string) => {
+    switch (action) {
+      case 'quick-run':
+        onChangeView('agents');
+        break;
+      case 'new-workflow':
+        onChangeView('workflows');
+        break;
+      case 'approvals':
+        onChangeView('monitoring');
+        break;
+      case 'messages':
+        onChangeView('agents');
+        break;
+      case 'niyanta':
+        onOpenNiyantaChat();
+        break;
+    }
+  };
 
   return (
     <div className="nyt-app">
@@ -137,9 +158,12 @@ const AppShell: React.FC<AppShellProps> = ({
             <Dashboard
               onCreateWorkflow={() => onChangeView('workflows')}
               onOpenAgents={() => onChangeView('agents')}
+              onCreateAgent={() => onChangeView('agents')}
               metrics={metrics}
               agentStates={agentStates}
               agents={agents}
+              recentActivity={auditEntries as Array<Record<string, unknown>>}
+              workflows={workflows}
             />
           )}
 
@@ -274,6 +298,15 @@ const AppShell: React.FC<AppShellProps> = ({
           )}
         </div>
       </div>
+
+      {/* Bottom Dock */}
+      <BottomDock
+        onQuickAction={handleDockAction}
+        activeView={activeView}
+        agentCount={agents.length}
+        workflowCount={workflows.length}
+        pendingApprovals={0}
+      />
     </div>
   );
 };
