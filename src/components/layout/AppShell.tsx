@@ -4,6 +4,8 @@ import { ActiveView, RightPanelTab, Theme } from '../../types/ui';
 import LeftPanel from './LeftPanel';
 import CenterPanel from './CenterPanel';
 import RightPanel from './RightPanel';
+import WorkflowBuilder from '../workflow/WorkflowBuilder';
+import WorkflowRunner from '../workflow/WorkflowRunner';
 
 interface AppShellProps {
   agents: Agent[];
@@ -23,9 +25,11 @@ interface AppShellProps {
   onExecuteAgent: (agentId: string, input?: string) => Promise<void>;
   onUseSample: (agentId: string) => Promise<void>;
   onOpenNiyantaChat: () => void;
+  onSaveWorkflow: (nodes: Array<{ instanceId: string; nodeType: string; name: string; config: Record<string, unknown>; position: { x: number; y: number } }>, edges: Array<{ id: string; fromNodeId: string; toNodeId: string; condition?: string }>) => Promise<void>;
+  workflows: Array<{ id?: string; name?: string; status?: string }>;
 }
 
-const AppShell: React.FC<AppShellProps> = ({ agents, agentStates, selectedAgentId, onSelectAgent, onRunAll, runAllProgress, activeView, onChangeView, theme, onToggleTheme, metrics, auditEntries, rightPanelTab, onRightPanelTabChange, onExecuteAgent, onUseSample, onOpenNiyantaChat }) => {
+const AppShell: React.FC<AppShellProps> = ({ agents, agentStates, selectedAgentId, onSelectAgent, onRunAll, runAllProgress, activeView, onChangeView, theme, onToggleTheme, metrics, auditEntries, rightPanelTab, onRightPanelTabChange, onExecuteAgent, onUseSample, onOpenNiyantaChat, onSaveWorkflow, workflows }) => {
   const selectedAgent = selectedAgentId ? agents.find((a) => a.id === selectedAgentId) || null : null;
   const selectedState = selectedAgent ? agentStates[selectedAgent.id] : null;
   const [showRightPanel, setShowRightPanel] = useState(true);
@@ -42,7 +46,31 @@ const AppShell: React.FC<AppShellProps> = ({ agents, agentStates, selectedAgentI
       <LeftPanel agents={agents} agentStates={agentStates} selectedAgentId={selectedAgentId} onSelectAgent={onSelectAgent} onRunAll={onRunAll} runAllProgress={runAllProgress} activeView={activeView} onChangeView={onChangeView} theme={theme} onToggleTheme={onToggleTheme} metrics={metrics} />
       <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
         {!showRightPanel && <button onClick={() => setShowRightPanel(true)} style={{ position: 'absolute', top: 12, right: 12, zIndex: 2, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-panel)', color: 'var(--text-primary)', padding: '6px 8px' }}>Open Audit</button>}
-        <CenterPanel selectedAgent={selectedAgent} selectedState={selectedState} onExecute={onExecuteAgent} onUseSample={onUseSample} />
+        {activeView === 'agents' && <CenterPanel selectedAgent={selectedAgent} selectedState={selectedState} onExecute={onExecuteAgent} onUseSample={onUseSample} />}
+        {activeView === 'workflows' && (
+          <div style={{ padding: 14, height: '100vh', overflowY: 'auto', display: 'grid', gap: 12 }}>
+            <WorkflowBuilder onSave={onSaveWorkflow} />
+            <WorkflowRunner />
+            <div style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 10 }}>
+              <div style={{ fontWeight: 700, marginBottom: 6 }}>Saved Workflows</div>
+              {workflows.length === 0 ? <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>No workflows saved yet.</div> : workflows.map((w, i) => <div key={i} style={{ fontSize: 12, padding: '4px 0' }}>{w.name || 'Unnamed Workflow'} <span style={{ color: 'var(--text-muted)' }}>({w.status || 'draft'})</span></div>)}
+            </div>
+          </div>
+        )}
+        {activeView === 'monitoring' && (
+          <div style={{ padding: 16, height: '100vh', overflowY: 'auto' }}>
+            <div style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 12, fontSize: 13 }}>
+              Monitoring view aggregates SLA, bottlenecks, and health indicators from workflow runs.
+            </div>
+          </div>
+        )}
+        {activeView === 'data' && (
+          <div style={{ padding: 16, height: '100vh', overflowY: 'auto' }}>
+            <div style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 12, fontSize: 13 }}>
+              Data view is reserved for generated files, exports, and document artifacts.
+            </div>
+          </div>
+        )}
       </div>
       {showRightPanel && <RightPanel entries={auditEntries} metrics={metrics} tab={rightPanelTab} onTabChange={onRightPanelTabChange} onOpenNiyantaChat={onOpenNiyantaChat} />}
     </div>

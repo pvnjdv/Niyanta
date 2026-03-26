@@ -18,7 +18,7 @@ const App: React.FC = () => {
   const { entries } = useAuditLog();
   const { messages, isSending, sendMessage } = useNiyantaChat();
   const { metrics } = useMetrics();
-  useWorkflows();
+  const { workflows, saveWorkflow } = useWorkflows();
 
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>('meeting');
   const [showNiyantaChat, setShowNiyantaChat] = useState(false);
@@ -73,6 +73,16 @@ const App: React.FC = () => {
         onExecuteAgent={executeAgent}
         onUseSample={handleUseSample}
         onOpenNiyantaChat={() => setShowNiyantaChat(true)}
+        onSaveWorkflow={async (nodes, edges) => {
+          await saveWorkflow({
+            name: `Workflow ${new Date().toISOString()}`,
+            description: 'Generated from workflow builder',
+            nodes,
+            edges,
+            category: 'custom',
+          });
+        }}
+        workflows={workflows}
       />
       <NiyantaChatModal
         isOpen={showNiyantaChat}
