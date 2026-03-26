@@ -1,103 +1,42 @@
-import React, { useRef, useEffect } from 'react';
-import { AGENTS } from '../../constants/agents';
-import { SAMPLES } from '../../constants/samples';
+import React, { useEffect, useRef } from 'react';
+import { Agent, AgentState, Message } from '../../types/agent';
 import EmptyState from '../chat/EmptyState';
 import ChatHeader from '../chat/ChatHeader';
 import MessageBubble from '../chat/MessageBubble';
 import AgentBubble from '../chat/AgentBubble';
 import ThinkingIndicator from '../chat/ThinkingIndicator';
 import InputBar from '../chat/InputBar';
-import { AgentStates, AgentId, AgentResult, AgentRunResponse } from '../../types';
 
 interface CenterPanelProps {
-  selectedAgent: AgentId | null;
-  agentStates: AgentStates;
-  onRunAgent: (agentId: AgentId, inputText: string) => Promise<AgentRunResponse>;
+  selectedAgent: Agent | null;
+  selectedState: AgentState | null;
+  onExecute: (agentId: string, input?: string) => Promise<void>;
+  onUseSample: (agentId: string) => Promise<void>;
 }
 
-const CenterPanel: React.FC<CenterPanelProps> = ({ selectedAgent, agentStates, onRunAgent }) => {
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  const agent = selectedAgent ? AGENTS[selectedAgent] : null;
-  const agentState = selectedAgent ? agentStates[selectedAgent] : null;
+const CenterPanel: React.FC<CenterPanelProps> = ({ selectedAgent, selectedState, onExecute, onUseSample }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [agentState?.messages]);
+    containerRef.current?.scrollTo({ top: containerRef.current.scrollHeight, behavior: 'smooth' });
+  }, [selectedState?.messages]);
 
-  const handleSend = (text: string) => {
-    if (text.trim() && selectedAgent) {
-      onRunAgent(selectedAgent, text.trim());
-    }
-  };
-
-  const handleUseSample = () => {
-    if (selectedAgent) {
-      onRunAgent(selectedAgent, SAMPLES[selectedAgent]);
-    }
-  };
-
-  const handleRun = () => {
-    // This is called from execute button - we need input from InputBar
-    // For now, just use sample when clicking execute
-    if (selectedAgent) {
-      handleUseSample();
-    }
-  };
-
-  const containerStyle: React.CSSProperties = {
-    flex: 1, display: 'flex', flexDirection: 'column', height: '100vh',
-    overflow: 'hidden', minWidth: 0, backgroundColor: 'var(--bg-base)',
-  };
-
-  const messagesStyle: React.CSSProperties = {
-    flex: 1, overflowY: 'auto', padding: '16px 20px',
-    display: 'flex', flexDirection: 'column', gap: 12,
-  };
-
-  if (!selectedAgent || !agent || !agentState) {
-    return <div style={containerStyle}><EmptyState /></div>;
-  }
+  if (!selectedAgent || !selectedState) return <EmptyState />;
 
   return (
-    <div style={containerStyle}>
-      <ChatHeader agent={agent} agentState={agentState} onRun={handleRun} onUseSample={handleUseSample} />
-      <div style={messagesStyle}>
-        {agentState.messages.map((message, index) => {
-          if (message.type === 'user') {
-            return <MessageBubble key={index} content={message.content as string} timestamp={message.timestamp} />;
-          }
-          if (message.type === 'agent') {
-            return (
-              <AgentBubble
-                key={index}
-                agent={agent}
-                result={message.content as AgentResult}
-                processingTime={message.processingTime || 0}
-                timestamp={message.timestamp}
-              />
-            );
-          }
-          if (message.type === 'error') {
-            return (
-              <div
-                key={index}
-                style={{
-                  padding: '10px 14px', backgroundColor: 'rgba(255, 23, 68, 0.1)', border: '1px solid var(--red)',
-                  borderRadius: 8, color: 'var(--red)', fontFamily: "'DM Sans', sans-serif", fontSize: 13,
-                }}
-              >
-                Error: {message.content as string}
-              </div>
-            );
-          }
-          return null;
+    <section style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
+      <ChatHeader agent={selectedAgent} agentState={selectedState} onRun={() => { void onExecute(selectedAgent.id); }} onUseSample={() => { void onUseSample(selectedAgent.id); }} />
+      <div ref={containerRef} style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {selectedState.messages.map((m: Message) => {
+          if (m.type === 'user') return <MessageBubble key={m.id} message={m} />;
+          if (m.type === 'agent') return <AgentBubble key={m.id} message={m} agentId={selectedAgent.id} />;
+          if (m.type === 'insight') return <div key={m.id} style={{ borderLeft: '3px solid #00D4FF', background: 'rgba(0,212,255,0.05)', padding: '10px 12px', borderRadius: 8, fontSize: 13 }}>{m.content}</div>;
+          return <div key={m.id} style={{ borderLeft: '3px solid var(--red)', background: 'rgba(255,90,107,0.06)', padding: '10px 12px', borderRadius: 8, fontSize: 13 }}>{m.content}</div>;
         })}
-        {agentState.status === 'processing' && <ThinkingIndicator agent={agent} />}
-        <div ref={messagesEndRef} />
+        {selectedState.status === 'processing' && <ThinkingIndicator color={selectedAgent.color} />}
       </div>
-      <InputBar agent={agent} onSend={handleSend} onUseSample={handleUseSample} disabled={agentState.status === 'processing'} />
-    </div>
+      <InputBar agent={selectedAgent} disabled={selectedState.status === 'processing'} onUseSample={() => { void onUseSample(selectedAgent.id); }} onSend={(text) => { void onExecute(selectedAgent.id, text); }} />
+    </section>
   );
 };
 

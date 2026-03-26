@@ -1,146 +1,80 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
+import { v4 as uuid } from 'uuid';
 import { useTheme } from './hooks/useTheme';
 import { useAgents } from './hooks/useAgents';
 import { useAuditLog } from './hooks/useAuditLog';
-import { fetchMetrics } from './services/api';
+import { useNiyantaChat } from './hooks/useNiyantaChat';
+import { useMetrics } from './hooks/useMetrics';
+import { useWorkflows } from './hooks/useWorkflows';
+import { AGENT_LIST } from './constants/agents';
+import { fetchCrossWorkflowInsights } from './services/api';
+import { ActiveView, RightPanelTab } from './types/ui';
 import AppShell from './components/layout/AppShell';
 import NiyantaChatModal from './components/modals/NiyantaChatModal';
-import { AgentId, Metrics, Toast, AgentRunResponse } from './types';
 
 const App: React.FC = () => {
   const { theme, toggleTheme } = useTheme();
-  const {
-    agentStates,
-    runAgent,
-    runAllAgents,
-    isAnyProcessing,
-    getProcessingAgentName,
-  } = useAgents();
-  const { log: auditLog, addEntry } = useAuditLog();
+  const { agentStates, executeAgent, runAllAgents, runAllProgress, addMessage } = useAgents();
+  const { entries } = useAuditLog();
+  const { messages, isSending, sendMessage } = useNiyantaChat();
+  const { metrics } = useMetrics();
+  useWorkflows();
 
-  const [selectedAgent, setSelectedAgent] = useState<AgentId | null>(null);
-  const [showNiyantaChat, setShowNiyantaChat] = useState<boolean>(false);
-  const [runAllProgress, setRunAllProgress] = useState<string | null>(null);
-  const [metrics, setMetrics] = useState<Metrics | null>(null);
-  const [toast, setToast] = useState<Toast | null>(null);
+  const [selectedAgentId, setSelectedAgentId] = useState<string | null>('meeting');
+  const [showNiyantaChat, setShowNiyantaChat] = useState(false);
+  const [activeView, setActiveView] = useState<ActiveView>('agents');
+  const [rightPanelTab, setRightPanelTab] = useState<RightPanelTab>('why-chain');
 
-  // Fetch metrics periodically
   useEffect(() => {
-    const loadMetrics = async () => {
-      try {
-        const data = await fetchMetrics();
-        setMetrics(data);
-      } catch (error) {
-        console.error('Failed to fetch metrics:', error);
-      }
-    };
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
 
-    loadMetrics();
-    const interval = setInterval(loadMetrics, 10000);
-    return () => clearInterval(interval);
-  }, []);
+  const handleRunAll = async () => {
+    await runAllAgents();
+    const results = Object.fromEntries(Object.entries(agentStates).map(([k, v]) => [k, v.result]).filter(([, v]) => v));
+    const insights = await fetchCrossWorkflowInsights(results as Record<string, unknown>);
+    const target = selectedAgentId || 'it_ops';
+    insights.forEach((insight) => {
+      addMessage(target, { id: uuid(), type: 'insight', content: insight, timestamp: new Date().toISOString() });
+    });
+  };
 
-  // Show toast
-  const showToast = useCallback((message: string, type: 'info' | 'success' | 'error' = 'info') => {
-    setToast({ message, type, visible: true });
-    setTimeout(() => {
-      setToast(prev => prev ? { ...prev, visible: false } : null);
-    }, 4000);
-  }, []);
+  const handleUseSample = async (agentId: string) => {
+    await executeAgent(agentId);
+    setSelectedAgentId(agentId);
+  };
 
-  // Handle agent run
-  const handleRunAgent = useCallback(
-    async (agentId: AgentId, inputText: string): Promise<AgentRunResponse> => {
-      try {
-        const response = await runAgent(agentId, inputText);
-
-        // Add to audit log
-        if (response?.result) {
-          const result = response.result as { summary?: string; decision?: string; severity?: string };
-          addEntry(
-            agentId,
-            result.summary || 'Agent processed input',
-            result.decision || result.severity || null
-          );
-        }
-
-        // Refresh metrics
-        const data = await fetchMetrics();
-        setMetrics(data);
-
-        return response;
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        showToast(`Error: ${errorMessage}`, 'error');
-        addEntry(agentId, `Error: ${errorMessage}`, 'ERROR');
-        throw error;
-      }
-    },
-    [runAgent, addEntry, showToast]
-  );
-
-  // Handle run all agents
-  const handleRunAllAgents = useCallback(async () => {
-    try {
-      await runAllAgents((progress: string | null, agentId: AgentId | null) => {
-        setRunAllProgress(progress);
-        if (agentId) {
-          setSelectedAgent(agentId);
-        }
-      });
-
-      showToast(`All agents processed successfully!`, 'success');
-
-      // Refresh metrics
-      const data = await fetchMetrics();
-      setMetrics(data);
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      showToast(`Error running agents: ${errorMessage}`, 'error');
-    } finally {
-      setRunAllProgress(null);
-    }
-  }, [runAllAgents, showToast]);
-
-  // Handle select agent
-  const handleSelectAgent = useCallback((agentId: AgentId) => {
-    setSelectedAgent(agentId);
-  }, []);
-
-  // Handle open Niyanta chat
-  const handleOpenNiyantaChat = useCallback(() => {
-    setShowNiyantaChat(true);
-  }, []);
-
-  // Handle close Niyanta chat
-  const handleCloseNiyantaChat = useCallback(() => {
-    setShowNiyantaChat(false);
-  }, []);
+  const agentResults = Object.fromEntries(Object.entries(agentStates).map(([k, v]) => [k, v.result]).filter(([, v]) => v));
 
   return (
     <>
       <AppShell
-        theme={theme}
-        onThemeToggle={toggleTheme}
+        agents={AGENT_LIST}
         agentStates={agentStates}
-        selectedAgent={selectedAgent}
-        onSelectAgent={handleSelectAgent}
-        onRunAgent={handleRunAgent}
-        onRunAllAgents={handleRunAllAgents}
+        selectedAgentId={selectedAgentId}
+        onSelectAgent={setSelectedAgentId}
+        onRunAll={handleRunAll}
         runAllProgress={runAllProgress}
-        auditLog={auditLog}
+        activeView={activeView}
+        onChangeView={setActiveView}
+        theme={theme}
+        onToggleTheme={toggleTheme}
         metrics={metrics}
-        isAnyProcessing={isAnyProcessing}
-        getProcessingAgentName={getProcessingAgentName}
-        onOpenNiyantaChat={handleOpenNiyantaChat}
-        toast={toast}
+        auditEntries={entries}
+        rightPanelTab={rightPanelTab}
+        onRightPanelTabChange={setRightPanelTab}
+        onExecuteAgent={executeAgent}
+        onUseSample={handleUseSample}
+        onOpenNiyantaChat={() => setShowNiyantaChat(true)}
       />
-      {showNiyantaChat && (
-        <NiyantaChatModal
-          agentStates={agentStates}
-          onClose={handleCloseNiyantaChat}
-        />
-      )}
+      <NiyantaChatModal
+        isOpen={showNiyantaChat}
+        onClose={() => setShowNiyantaChat(false)}
+        onSend={(msg) => sendMessage(msg, agentResults as Record<string, unknown>)}
+        isSending={isSending}
+        messages={messages}
+        agentStates={agentStates}
+      />
     </>
   );
 };

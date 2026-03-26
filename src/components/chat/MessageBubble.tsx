@@ -1,79 +1,14 @@
 import React from 'react';
+import { Message } from '../../types/agent';
 
 interface MessageBubbleProps {
-  content: string;
-  timestamp: string;
+  message: Message;
 }
 
-function formatTime(isoTimestamp: string): string {
-  const date = new Date(isoTimestamp);
-  return date.toLocaleTimeString('en-US', {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
-
-const MessageBubble: React.FC<MessageBubbleProps> = ({ content, timestamp }) => {
-  const containerStyle: React.CSSProperties = {
-    display: 'flex',
-    justifyContent: 'flex-end',
-    animation: 'slideInBottom 0.25s ease',
-  };
-
-  const wrapperStyle: React.CSSProperties = {
-    maxWidth: '65%',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'flex-end',
-  };
-
-  const labelStyle: React.CSSProperties = {
-    fontFamily: "'Space Mono', monospace",
-    fontSize: 9,
-    color: 'var(--text-muted)',
-    marginBottom: 4,
-    textAlign: 'right',
-  };
-
-  const bubbleStyle: React.CSSProperties = {
-    backgroundColor: 'var(--bg-msg-out)',
-    border: '1px solid var(--border)',
-    borderRadius: '12px 12px 2px 12px',
-    padding: '10px 14px',
-  };
-
-  const contentStyle: React.CSSProperties = {
-    fontFamily: "'DM Sans', sans-serif",
-    fontSize: 13,
-    color: 'var(--text-primary)',
-    whiteSpace: 'pre-wrap',
-    lineHeight: 1.6,
-    wordBreak: 'break-word',
-  };
-
-  const timeStyle: React.CSSProperties = {
-    fontFamily: "'Space Mono', monospace",
-    fontSize: 9,
-    color: 'var(--text-muted)',
-    marginTop: 4,
-    textAlign: 'right',
-  };
-
-  // Truncate very long content for display
-  const displayContent =
-    content.length > 500 ? content.substring(0, 500) + '...' : content;
-
-  return (
-    <div style={containerStyle}>
-      <div style={wrapperStyle}>
-        <div style={labelStyle}>YOU · INPUT</div>
-        <div style={bubbleStyle}>
-          <div style={contentStyle}>{displayContent}</div>
-        </div>
-        <div style={timeStyle}>{formatTime(timestamp)}</div>
-      </div>
-    </div>
-  );
-};
+const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => (
+  <div style={{ alignSelf: 'flex-end', maxWidth: '78%', background: 'var(--bg-msg-out)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 12px' }}>
+    <div style={{ fontSize: 13, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{message.content}</div>
+  </div>
+);
 
 export default MessageBubble;

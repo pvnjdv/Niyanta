@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { Agent, AgentState } from '../../types/agent';
 import AgentIcon from '../shared/AgentIcon';
-import { Agent, AgentState } from '../../types';
 
 interface ChatHeaderProps {
   agent: Agent;
@@ -9,150 +9,20 @@ interface ChatHeaderProps {
   onUseSample: () => void;
 }
 
-const ChatHeader: React.FC<ChatHeaderProps> = ({ agent, agentState, onRun, onUseSample }) => {
-  const [sampleHovered, setSampleHovered] = useState(false);
-  const [executeHovered, setExecuteHovered] = useState(false);
-
-  const containerStyle: React.CSSProperties = {
-    height: 56,
-    padding: '0 16px',
-    borderBottom: '1px solid var(--border)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    flexShrink: 0,
-  };
-
-  const leftStyle: React.CSSProperties = {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 12,
-  };
-
-  const infoStyle: React.CSSProperties = {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 2,
-  };
-
-  const nameStyle: React.CSSProperties = {
-    fontFamily: "'DM Sans', sans-serif",
-    fontWeight: 600,
-    fontSize: 15,
-    color: 'var(--text-primary)',
-  };
-
-  const getStatusText = (): { text: string; color: string } => {
-    switch (agentState.status) {
-      case 'idle':
-        return { text: 'Ready to process', color: 'var(--text-muted)' };
-      case 'processing':
-        return { text: 'Processing...', color: agent.color };
-      case 'complete':
-        return {
-          text: `${agentState.taskCount} tasks extracted`,
-          color: 'var(--green)',
-        };
-      case 'error':
-        return { text: 'Error — click to retry', color: 'var(--red)' };
-      default:
-        return { text: 'Ready', color: 'var(--text-muted)' };
-    }
-  };
-
-  const status = getStatusText();
-
-  const statusStyle: React.CSSProperties = {
-    fontFamily: "'DM Sans', sans-serif",
-    fontSize: 11,
-    color: status.color,
-  };
-
-  const rightStyle: React.CSSProperties = {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 8,
-  };
-
-  const sampleButtonStyle: React.CSSProperties = {
-    height: 32,
-    padding: '0 12px',
-    backgroundColor: sampleHovered ? 'var(--bg-hover)' : 'transparent',
-    border: '1px solid var(--border)',
-    borderRadius: 4,
-    fontFamily: "'DM Sans', sans-serif",
-    fontSize: 12,
-    color: 'var(--text-secondary)',
-    cursor: 'pointer',
-    transition: 'all 0.15s ease',
-  };
-
-  const executeButtonStyle: React.CSSProperties = {
-    height: 32,
-    padding: '0 16px',
-    backgroundColor: executeHovered
-      ? `color-mix(in srgb, ${agent.color} 30%, transparent)`
-      : `color-mix(in srgb, ${agent.color} 20%, transparent)`,
-    border: `1px solid ${agent.color}`,
-    borderRadius: 4,
-    fontFamily: "'Syne', sans-serif",
-    fontWeight: 700,
-    fontSize: 11,
-    textTransform: 'uppercase',
-    color: agent.color,
-    cursor: agentState.status === 'processing' ? 'not-allowed' : 'pointer',
-    opacity: agentState.status === 'processing' ? 0.6 : 1,
-    transition: 'all 0.15s ease',
-    display: 'flex',
-    alignItems: 'center',
-    gap: 6,
-  };
-
-  const spinnerStyle: React.CSSProperties = {
-    width: 12,
-    height: 12,
-    border: `2px solid ${agent.color}`,
-    borderTopColor: 'transparent',
-    borderRadius: '50%',
-    animation: 'spin 1s linear infinite',
-  };
-
-  return (
-    <div style={containerStyle}>
-      <div style={leftStyle}>
-        <AgentIcon
-          agent={agent}
-          size="md"
-          isProcessing={agentState.status === 'processing'}
-        />
-        <div style={infoStyle}>
-          <div style={nameStyle}>{agent.name}</div>
-          <div style={statusStyle}>{status.text}</div>
-        </div>
-      </div>
-      <div style={rightStyle}>
-        <button
-          style={sampleButtonStyle}
-          onClick={onUseSample}
-          onMouseEnter={() => setSampleHovered(true)}
-          onMouseLeave={() => setSampleHovered(false)}
-          disabled={agentState.status === 'processing'}
-        >
-          USE SAMPLE
-        </button>
-        <button
-          style={executeButtonStyle}
-          onClick={onRun}
-          onMouseEnter={() => setExecuteHovered(true)}
-          onMouseLeave={() => setExecuteHovered(false)}
-          disabled={agentState.status === 'processing'}
-        >
-          {agentState.status === 'processing' && <div style={spinnerStyle} />}
-          EXECUTE
-        </button>
+const ChatHeader: React.FC<ChatHeaderProps> = ({ agent, agentState, onRun, onUseSample }) => (
+  <div style={{ height: 56, borderBottom: '1px solid var(--border)', padding: '0 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <AgentIcon icon={agent.icon} color={agent.color} glow={agent.glow} />
+      <div>
+        <div style={{ fontSize: 15, fontWeight: 600 }}>{agent.name}</div>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{agentState.status.toUpperCase()}</div>
       </div>
     </div>
-  );
-};
+    <div style={{ display: 'flex', gap: 8 }}>
+      <button onClick={onUseSample} style={{ border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-primary)', borderRadius: 6, padding: '7px 10px' }}>USE SAMPLE</button>
+      <button onClick={onRun} disabled={agentState.status === 'processing'} style={{ border: `1px solid ${agent.color}`, background: `${agent.color}22`, color: agent.color, borderRadius: 6, padding: '7px 10px' }}>EXECUTE</button>
+    </div>
+  </div>
+);
 
 export default ChatHeader;

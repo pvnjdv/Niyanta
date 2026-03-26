@@ -1,40 +1,15 @@
-import React, { useState } from 'react';
-import { Theme } from '../../types';
+import React from 'react';
+import { Theme } from '../../types/ui';
 
 interface ThemeToggleProps {
   theme: Theme;
   onToggle: () => void;
 }
 
-const ThemeToggle: React.FC<ThemeToggleProps> = ({ theme, onToggle }) => {
-  const [isHovered, setIsHovered] = useState(false);
-
-  const style: React.CSSProperties = {
-    width: 32,
-    height: 32,
-    borderRadius: '50%',
-    backgroundColor: isHovered ? 'var(--bg-hover)' : 'var(--accent-dim)',
-    border: '1px solid var(--border)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    cursor: 'pointer',
-    transition: 'all 0.15s ease',
-    transform: isHovered ? 'scale(1.05)' : 'scale(1)',
-    fontSize: 14,
-  };
-
-  return (
-    <button
-      style={style}
-      onClick={onToggle}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-    >
-      {theme === 'dark' ? '☀️' : '🌙'}
-    </button>
-  );
-};
+const ThemeToggle: React.FC<ThemeToggleProps> = ({ theme, onToggle }) => (
+  <button onClick={onToggle} style={{ border: '1px solid var(--border)', background: 'var(--bg-panel)', color: 'var(--text-primary)', borderRadius: 8, padding: '6px 10px', cursor: 'pointer' }}>
+    {theme === 'dark' ? 'Light' : 'Dark'}
+  </button>
+);
 
 export default ThemeToggle;

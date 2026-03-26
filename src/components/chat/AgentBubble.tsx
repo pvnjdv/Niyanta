@@ -1,122 +1,36 @@
 import React from 'react';
-import AgentIcon from '../shared/AgentIcon';
-import Badge from '../shared/Badge';
+import { Message } from '../../types/agent';
 import MeetingResult from '../results/MeetingResult';
 import InvoiceResult from '../results/InvoiceResult';
 import HRResult from '../results/HRResult';
 import ProcurementResult from '../results/ProcurementResult';
 import SecurityResult from '../results/SecurityResult';
-import { Agent, AgentResult, AgentId } from '../../types';
+import WorkflowResult from '../results/WorkflowResult';
+import ComplianceResult from '../results/ComplianceResult';
 
 interface AgentBubbleProps {
-  agent: Agent;
-  result: AgentResult;
-  processingTime: number;
-  timestamp: string;
+  message: Message;
+  agentId: string;
 }
 
-function formatTime(isoTimestamp: string): string {
-  const date = new Date(isoTimestamp);
-  return date.toLocaleTimeString('en-US', {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
+const AgentBubble: React.FC<AgentBubbleProps> = ({ message, agentId }) => {
+  const result = message.result || {};
 
-interface ResultContentProps {
-  agentId: AgentId;
-  result: AgentResult;
-}
-
-const ResultContent: React.FC<ResultContentProps> = ({ agentId, result }) => {
-  switch (agentId) {
-    case 'meeting':
-      return <MeetingResult result={result as any} />;
-    case 'invoice':
-      return <InvoiceResult result={result as any} />;
-    case 'hr':
-      return <HRResult result={result as any} />;
-    case 'procurement':
-      return <ProcurementResult result={result as any} />;
-    case 'security':
-      return <SecurityResult result={result as any} />;
-    default:
-      return <pre>{JSON.stringify(result, null, 2)}</pre>;
-  }
-};
-
-const AgentBubble: React.FC<AgentBubbleProps> = ({ agent, result, processingTime, timestamp }) => {
-  const containerStyle: React.CSSProperties = {
-    display: 'flex',
-    justifyContent: 'flex-start',
-    animation: 'slideInBottom 0.25s ease',
-  };
-
-  const bubbleStyle: React.CSSProperties = {
-    maxWidth: '85%',
-    backgroundColor: 'var(--bg-msg-in)',
-    borderLeft: `3px solid ${agent.color}`,
-    borderRadius: '2px 12px 12px 12px',
-    padding: '14px 16px',
-  };
-
-  const headerStyle: React.CSSProperties = {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 8,
-  };
-
-  const agentNameStyle: React.CSSProperties = {
-    fontFamily: "'Syne', sans-serif",
-    fontWeight: 700,
-    fontSize: 11,
-    textTransform: 'uppercase',
-    color: agent.color,
-  };
-
-  const dotStyle: React.CSSProperties = {
-    fontFamily: "'Space Mono', monospace",
-    fontSize: 11,
-    color: 'var(--text-muted)',
-  };
-
-  const timeStyle: React.CSSProperties = {
-    fontFamily: "'Space Mono', monospace",
-    fontSize: 9,
-    color: 'var(--text-muted)',
-    marginLeft: 'auto',
-  };
-
-  const processingChipStyle: React.CSSProperties = {
-    marginBottom: 10,
-  };
-
-  const dividerStyle: React.CSSProperties = {
-    height: 1,
-    backgroundColor: 'var(--border-light)',
-    margin: '10px 0',
+  const renderResult = () => {
+    if (agentId === 'meeting') return <MeetingResult result={result} />;
+    if (agentId === 'invoice') return <InvoiceResult result={result} />;
+    if (agentId === 'hr') return <HRResult result={result} />;
+    if (agentId === 'procurement') return <ProcurementResult result={result} />;
+    if (agentId === 'security') return <SecurityResult result={result} />;
+    if (agentId === 'workflow') return <WorkflowResult result={result} />;
+    if (agentId === 'compliance') return <ComplianceResult result={result} />;
+    return <div style={{ fontSize: 12 }}>{JSON.stringify(result)}</div>;
   };
 
   return (
-    <div style={containerStyle}>
-      <div style={bubbleStyle}>
-        <div style={headerStyle}>
-          <AgentIcon agent={agent} size="sm" />
-          <span style={agentNameStyle}>{agent.name}</span>
-          <span style={dotStyle}>·</span>
-          <span style={timeStyle}>{formatTime(timestamp)}</span>
-        </div>
-        <div style={processingChipStyle}>
-          <Badge
-            text={`Processed in ${(processingTime / 1000).toFixed(1)}s`}
-            type="muted"
-            size="sm"
-          />
-        </div>
-        <div style={dividerStyle} />
-        <ResultContent agentId={agent.id} result={result} />
-      </div>
+    <div style={{ alignSelf: 'flex-start', maxWidth: '82%', background: 'var(--bg-msg-in)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 12px' }}>
+      <div style={{ fontSize: 13, marginBottom: 8 }}>{message.content}</div>
+      {renderResult()}
     </div>
   );
 };
