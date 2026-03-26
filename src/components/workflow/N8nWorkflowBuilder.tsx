@@ -21,12 +21,14 @@ interface N8nWorkflowBuilderProps {
   workflowName?: string;
   onSave?: (nodes: Array<{ instanceId: string; nodeType: string; name: string; config: Record<string, unknown>; position: { x: number; y: number } }>, edges: Array<{ id: string; fromNodeId: string; toNodeId: string; condition?: string }>) => Promise<void>;
   onExecute?: (nodes: Array<{ instanceId: string; nodeType: string; name: string; config: Record<string, unknown>; position: { x: number; y: number } }>, edges: Array<{ id: string; fromNodeId: string; toNodeId: string; condition?: string }>) => Promise<void>;
+  onBack?: () => void;
 }
 
 export const N8nWorkflowBuilder: React.FC<N8nWorkflowBuilderProps> = ({
   workflowName = 'My Workflow',
   onSave,
   onExecute,
+  onBack,
 }) => {
   const [nodes, setNodes] = useState<Node[]>([]);
   const [edges, setEdges] = useState<Edge[]>([]);
@@ -139,6 +141,11 @@ export const N8nWorkflowBuilder: React.FC<N8nWorkflowBuilderProps> = ({
       {/* Header */}
       <div className="n8n-header">
         <div className="n8n-header-left">
+          {onBack && (
+            <button className="n8n-back-btn" onClick={onBack} title="Back to dashboard">
+              ←
+            </button>
+          )}
           <h1 className="n8n-workflow-title">{workflowName}</h1>
         </div>
         <div className="n8n-header-center">

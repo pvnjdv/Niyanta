@@ -12,8 +12,8 @@ interface NiyantaChatModalProps {
 
 const SUGGESTIONS = [
   'Cross-workflow risk report',
-  'Summarize all pending escalations',
-  'Top bottlenecks across all workflows',
+  'Summarize pending escalations',
+  'Top bottlenecks across workflows',
 ];
 
 const NiyantaChatModal: React.FC<NiyantaChatModalProps> = ({ isOpen, onClose, onSend, isSending, messages }) => {
@@ -35,24 +35,101 @@ const NiyantaChatModal: React.FC<NiyantaChatModalProps> = ({ isOpen, onClose, on
   if (!isOpen) return null;
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)', backdropFilter: 'blur(4px)', display: 'grid', placeItems: 'center', zIndex: 1000 }}>
-      <div style={{ width: 'min(700px, 95vw)', height: 'min(600px, 88vh)', background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 12, display: 'flex', flexDirection: 'column', animation: 'fadeIn .2s ease' }}>
-        <div style={{ height: 54, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 14px' }}>
-          <strong>NIYANTA · COMMAND</strong>
-          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)' }}>Close</button>
+    <div className="nyt-modal-overlay" onClick={onClose}>
+      <div
+        className="nyt-modal"
+        style={{ width: 'min(680px, 92vw)', height: 'min(560px, 85vh)' }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="nyt-modal__header">
+          <div className="nyt-modal__title">Niyanta Command</div>
+          <button className="nyt-btn nyt-btn--ghost nyt-btn--sm" onClick={onClose}>
+            ✕
+          </button>
         </div>
-        <div ref={ref} style={{ flex: 1, overflowY: 'auto', padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+
+        {/* Messages */}
+        <div ref={ref} className="nyt-modal__body" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {messages.length === 0 && (
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              {SUGGESTIONS.map((s) => <button key={s} onClick={() => setText(s)} style={{ border: '1px solid var(--border)', background: 'var(--bg-hover)', color: 'var(--text-primary)', borderRadius: 999, padding: '6px 10px', fontSize: 12 }}>{s}</button>)}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, padding: '40px 0' }}>
+              <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--text-primary)' }}>
+                Niyanta AI
+              </div>
+              <div style={{ fontSize: 13, color: 'var(--text-tertiary)', textAlign: 'center', maxWidth: 400 }}>
+                Ask the orchestrator for cross-workflow insights, risk reports, or operational summaries.
+              </div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+                {SUGGESTIONS.map((s) => (
+                  <button
+                    key={s}
+                    className="nyt-btn nyt-btn--sm"
+                    onClick={() => setText(s)}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
-          {messages.map((m, i) => <div key={i} style={{ alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start', borderLeft: m.role === 'assistant' ? '2px solid var(--accent)' : undefined, background: 'var(--bg-hover)', border: '1px solid var(--border)', borderRadius: 8, padding: 8, maxWidth: '85%' }}>{m.content}</div>)}
+
+          {messages.map((m, i) => (
+            <div
+              key={i}
+              style={{
+                alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start',
+                maxWidth: '80%',
+                padding: '10px 14px',
+                borderRadius: m.role === 'user' ? '12px 12px 4px 12px' : '12px 12px 12px 4px',
+                background: m.role === 'user' ? 'var(--bg-surface-raised)' : 'var(--bg-surface)',
+                border: '1px solid var(--border-default)',
+                fontSize: 13,
+                lineHeight: 1.6,
+                whiteSpace: 'pre-wrap',
+              }}
+            >
+              {m.content}
+            </div>
+          ))}
+
+          {isSending && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: 8, color: 'var(--text-tertiary)', fontSize: 13 }}>
+              <span className="nyt-spinner nyt-spinner--sm" />
+              Thinking...
+            </div>
+          )}
         </div>
-        <div style={{ borderTop: '1px solid var(--border)', padding: 10, display: 'flex', gap: 8, alignItems: 'center' }}>
-          <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Ask NIYANTA..." style={{ flex: 1, background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)', padding: '8px 10px' }} />
-          <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'Space Mono, monospace' }}>llama-3.3-70b</span>
-          <button disabled={!text.trim() || isSending} onClick={async () => { if (text.trim()) { await onSend(text.trim()); setText(''); } }} style={{ border: '1px solid var(--accent)', background: 'var(--accent-dim)', color: 'var(--accent)', borderRadius: 8, padding: '8px 10px' }}>{isSending ? '...' : 'Send'}</button>
+
+        {/* Input */}
+        <div className="nyt-modal__footer" style={{ gap: 10 }}>
+          <input
+            className="nyt-input"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="Ask Niyanta..."
+            style={{ flex: 1 }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && text.trim() && !isSending) {
+                void onSend(text.trim());
+                setText('');
+              }
+            }}
+          />
+          <span style={{ fontSize: 10, color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono)' }}>
+            llama-3.3-70b
+          </span>
+          <button
+            className="nyt-btn nyt-btn--primary nyt-btn--sm"
+            disabled={!text.trim() || isSending}
+            onClick={async () => {
+              if (text.trim()) {
+                await onSend(text.trim());
+                setText('');
+              }
+            }}
+          >
+            {isSending ? '...' : 'Send'}
+          </button>
         </div>
       </div>
     </div>

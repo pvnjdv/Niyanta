@@ -23,7 +23,7 @@ const App: React.FC = () => {
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>('meeting');
   const [showNiyantaChat, setShowNiyantaChat] = useState(false);
   const [activeView, setActiveView] = useState<ActiveView>('home');
-  const [rightPanelTab, setRightPanelTab] = useState<RightPanelTab>('why-chain');
+  const [rightPanelTab, setRightPanelTab] = useState<RightPanelTab>('execution');
   const [insights, setInsights] = useState<string[]>([]);
 
   useEffect(() => {
