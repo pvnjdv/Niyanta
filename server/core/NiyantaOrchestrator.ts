@@ -5,6 +5,7 @@ import { WorkflowContext } from '../types/workflow.types';
 import { AuditLogger } from './AuditLogger';
 import { AgentManager } from './AgentManager';
 import { MetricsResponse } from '../types/api.types';
+import { getDB } from '../db/database';
 
 export class NiyantaOrchestrator {
   private auditLogger: AuditLogger;
@@ -185,6 +186,164 @@ Each insight must be specific and actionable.`;
     if (this.messageQueue.length > 500) {
       this.messageQueue.shift();
     }
+  }
+
+  // ── Inter-agent messaging (DB-backed) ──────────────────────────────
+
+  sendAgentMessage(
+    from: string,
+    to: string,
+    type: string,
+    payload: Record<string, unknown>
+  ): { messageId: string } {
+    const db = getDB();
+    const messageId = uuid();
+    db.prepare(
+      `INSERT INTO agent_messages (id, from_agent, to_agent, message_type, payload, status, created_at)
+       VALUES (?, ?, ?, ?, ?, 'pending', datetime('now'))`
+    ).run(messageId, from, to, type, JSON.stringify(payload));
+
+    // Also queue in-memory for fast access
+    this.messageQueue.push({
+      messageId,
+      from,
+      to,
+      type: type as AgentMessage['type'],
+      payload,
+      timestamp: new Date().toISOString(),
+    });
+    if (this.messageQueue.length > 500) {
+      this.messageQueue.shift();
+    }
+
+    return { messageId };
+  }
+
+  getAgentMessages(agentId: string): Array<Record<string, unknown>> {
+    const db = getDB();
+    const rows = db
+      .prepare(
+        `SELECT id, from_agent, to_agent, message_type, payload, status, created_at, processed_at
+         FROM agent_messages
+         WHERE to_agent = ? AND status = 'pending'
+         ORDER BY created_at ASC`
+      )
+      .all(agentId) as Array<Record<string, unknown>>;
+
+    return rows.map((row) => ({
+      id: row.id,
+      from: row.from_agent,
+      to: row.to_agent,
+      type: row.message_type,
+      payload: typeof row.payload === 'string' ? JSON.parse(row.payload as string) : row.payload,
+      status: row.status,
+      createdAt: row.created_at,
+      processedAt: row.processed_at,
+    }));
+  }
+
+  // ── Agent access ports ─────────────────────────────────────────────
+
+  createAgentPort(
+    agentId: string,
+    portName: string
+  ): { portId: string; accessKey: string; url: string } {
+    const agent = this.agentManager.getAgent(agentId);
+    if (!agent) {
+      throw new Error(`Unknown agent: ${agentId}`);
+    }
+
+    const db = getDB();
+    const portId = uuid();
+    const accessKey = uuid();
+
+    db.prepare(
+      `INSERT INTO agent_ports (id, agent_id, port_name, access_key, is_active, created_at)
+       VALUES (?, ?, ?, ?, 1, datetime('now'))`
+    ).run(portId, agentId, portName, accessKey);
+
+    return {
+      portId,
+      accessKey,
+      url: `/api/port/access/${accessKey}`,
+    };
+  }
+
+  getAgentPorts(agentId?: string): Array<Record<string, unknown>> {
+    const db = getDB();
+    let rows: Array<Record<string, unknown>>;
+
+    if (agentId) {
+      rows = db
+        .prepare(
+          `SELECT id, agent_id, port_name, access_key, is_active, allowed_operations,
+                  rate_limit, total_requests, created_at, last_accessed
+           FROM agent_ports
+           WHERE agent_id = ?
+           ORDER BY created_at DESC`
+        )
+        .all(agentId) as Array<Record<string, unknown>>;
+    } else {
+      rows = db
+        .prepare(
+          `SELECT id, agent_id, port_name, access_key, is_active, allowed_operations,
+                  rate_limit, total_requests, created_at, last_accessed
+           FROM agent_ports
+           ORDER BY created_at DESC`
+        )
+        .all() as Array<Record<string, unknown>>;
+    }
+
+    return rows.map((row) => ({
+      id: row.id,
+      agentId: row.agent_id,
+      portName: row.port_name,
+      accessKey: row.access_key,
+      isActive: row.is_active === 1,
+      allowedOperations:
+        typeof row.allowed_operations === 'string'
+          ? JSON.parse(row.allowed_operations as string)
+          : row.allowed_operations,
+      rateLimit: row.rate_limit,
+      totalRequests: row.total_requests,
+      createdAt: row.created_at,
+      lastAccessed: row.last_accessed,
+    }));
+  }
+
+  async routeViaPort(
+    accessKey: string,
+    input: string
+  ): Promise<{ result: Record<string, unknown>; processingTime: number; model: string; agentId: string }> {
+    const db = getDB();
+
+    const port = db
+      .prepare(
+        `SELECT id, agent_id, port_name, is_active
+         FROM agent_ports
+         WHERE access_key = ?`
+      )
+      .get(accessKey) as Record<string, unknown> | undefined;
+
+    if (!port) {
+      throw new Error('Invalid access key');
+    }
+    if (port.is_active !== 1) {
+      throw new Error('Port is disabled');
+    }
+
+    const agentId = port.agent_id as string;
+
+    // Increment total_requests and update last_accessed
+    db.prepare(
+      `UPDATE agent_ports
+       SET total_requests = total_requests + 1, last_accessed = datetime('now')
+       WHERE id = ?`
+    ).run(port.id);
+
+    const { result, processingTime, model } = await this.routeToAgent(agentId, input);
+
+    return { result, processingTime, model, agentId };
   }
 }
 
