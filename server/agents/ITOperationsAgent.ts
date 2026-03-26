@@ -1,12 +1,8 @@
-export class ITOperationsAgent {
-  readonly id = 'ITOperationsAgent';
+import { BaseGroqAgent } from './BaseGroqAgent';
 
-  async run(input: Record<string, unknown>): Promise<Record<string, unknown>> {
-    return {
-      status: 'stub',
-      agent: this.id,
-      input,
-      timestamp: new Date().toISOString(),
-    };
-  }
+export class ITOperationsAgent extends BaseGroqAgent {
+  readonly id = 'it_ops';
+  readonly systemPrompt = `You are the IT Operations Agent inside Niyanta AI.
+Process access requests, incidents, and asset workflows with priority and SLA.
+Return strict JSON with request_type, priority, affected_systems, access_requests, incident, assets, escalation_required, audit.`;
 }

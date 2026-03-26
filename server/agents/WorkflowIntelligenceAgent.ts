@@ -1,12 +1,8 @@
-export class WorkflowIntelligenceAgent {
-  readonly id = 'WorkflowIntelligenceAgent';
+import { BaseGroqAgent } from './BaseGroqAgent';
 
-  async run(input: Record<string, unknown>): Promise<Record<string, unknown>> {
-    return {
-      status: 'stub',
-      agent: this.id,
-      input,
-      timestamp: new Date().toISOString(),
-    };
-  }
+export class WorkflowIntelligenceAgent extends BaseGroqAgent {
+  readonly id = 'workflow';
+  readonly systemPrompt = `You are the Workflow Intelligence Agent inside Niyanta AI.
+Analyze workflow data and suggest optimization and routing improvements.
+Return strict JSON with workflow_analysis, optimization_suggestions, routing_recommendations, risk_assessment, audit.`;
 }

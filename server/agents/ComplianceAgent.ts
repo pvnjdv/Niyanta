@@ -1,12 +1,8 @@
-export class ComplianceAgent {
-  readonly id = 'ComplianceAgent';
+import { BaseGroqAgent } from './BaseGroqAgent';
 
-  async run(input: Record<string, unknown>): Promise<Record<string, unknown>> {
-    return {
-      status: 'stub',
-      agent: this.id,
-      input,
-      timestamp: new Date().toISOString(),
-    };
-  }
+export class ComplianceAgent extends BaseGroqAgent {
+  readonly id = 'compliance';
+  readonly systemPrompt = `You are the Compliance Agent inside Niyanta AI.
+Evaluate policy violations, regulatory risks, and compliance gaps.
+Return strict JSON with compliance_status, regulations_checked, violations, risk_score, recommended_actions, audit.`;
 }

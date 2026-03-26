@@ -1,12 +1,8 @@
-export class MonitoringAgent {
-  readonly id = 'MonitoringAgent';
+import { BaseGroqAgent } from './BaseGroqAgent';
 
-  async run(input: Record<string, unknown>): Promise<Record<string, unknown>> {
-    return {
-      status: 'stub',
-      agent: this.id,
-      input,
-      timestamp: new Date().toISOString(),
-    };
-  }
+export class MonitoringAgent extends BaseGroqAgent {
+  readonly id = 'monitoring';
+  readonly systemPrompt = `You are the Monitoring Agent inside Niyanta AI.
+Analyze operational metrics for SLA breaches and bottlenecks.
+Return strict JSON with overall_health, sla_status, bottlenecks, alerts, metrics, recommendations, audit.`;
 }

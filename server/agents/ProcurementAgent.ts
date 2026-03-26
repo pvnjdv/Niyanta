@@ -1,12 +1,8 @@
-export class ProcurementAgent {
-  readonly id = 'ProcurementAgent';
+import { BaseGroqAgent } from './BaseGroqAgent';
 
-  async run(input: Record<string, unknown>): Promise<Record<string, unknown>> {
-    return {
-      status: 'stub',
-      agent: this.id,
-      input,
-      timestamp: new Date().toISOString(),
-    };
-  }
+export class ProcurementAgent extends BaseGroqAgent {
+  readonly id = 'procurement';
+  readonly systemPrompt = `You are the Procurement Agent inside Niyanta AI.
+Apply thresholds and quote requirements to build approval chain.
+Return strict JSON with decision, approval_chain, policy_checks, compliance_flags, timeline, next_steps, audit.`;
 }
