@@ -7,7 +7,6 @@ import { useNiyantaChat } from './hooks/useNiyantaChat';
 import { useMetrics } from './hooks/useMetrics';
 import { useWorkflows } from './hooks/useWorkflows';
 import { useTheme } from './hooks/useTheme';
-import { AGENT_LIST } from './constants/agents';
 import { fetchCrossWorkflowInsights } from './services/api';
 
 import NavigationSidebar from './components/layout/NavigationSidebar';
@@ -23,7 +22,7 @@ import ServicesStatus from './screens/ServicesStatus';
 
 const AppContent: React.FC = () => {
   const { theme, toggleTheme } = useTheme();
-  const { agentStates, executeAgent, runAllAgents, runAllProgress, addMessage } = useAgents();
+  const { agents, agentStates, executeAgent, runAllAgents, runAllProgress, addMessage, refreshAgents } = useAgents();
   const { entries } = useAuditLog();
   const { messages, isSending, sendMessage } = useNiyantaChat();
   const { metrics } = useMetrics();
@@ -144,7 +143,7 @@ const AppContent: React.FC = () => {
             path="/agents"
             element={
               <AgentConsole
-                agents={AGENT_LIST}
+                agents={agents}
                 agentStates={agentStates}
                 onExecuteAgent={executeAgent}
                 onRunAll={handleRunAll}
@@ -156,7 +155,7 @@ const AppContent: React.FC = () => {
             path="/agents/:agentId"
             element={
               <AgentConsole
-                agents={AGENT_LIST}
+                agents={agents}
                 agentStates={agentStates}
                 onExecuteAgent={executeAgent}
                 onRunAll={handleRunAll}
@@ -166,7 +165,7 @@ const AppContent: React.FC = () => {
           />
           <Route path="/monitor" element={<OperationsMonitor />} />
           <Route path="/audit" element={<AuditCompliance auditEntries={entries} />} />
-          <Route path="/services" element={<ServicesStatus agents={AGENT_LIST} />} />
+          <Route path="/services" element={<ServicesStatus agents={agents} />} />
           <Route path="/notifications" element={<div style={{ padding: 32 }}><h2>Notifications</h2><p style={{ color: 'var(--text-secondary)' }}>No new notifications.</p></div>} />
           <Route path="/settings" element={<div style={{ padding: 32 }}><h2>Settings</h2><p style={{ color: 'var(--text-secondary)' }}>Settings will be available soon.</p></div>} />
           <Route path="*" element={<Navigate to="/" replace />} />
