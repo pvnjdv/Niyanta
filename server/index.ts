@@ -40,6 +40,7 @@ app.use(morgan('dev'));
 const agentLimiter = rateLimit({
   windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '60000', 10),
   max: parseInt(process.env.RATE_LIMIT_MAX || '60', 10),
+  validate: { xForwardedForHeader: false },
   message: {
     error: 'RateLimitExceeded',
     message: 'Too many AI requests. Please retry shortly.',

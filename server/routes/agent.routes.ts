@@ -193,8 +193,12 @@ router.delete('/:id', (req: Request, res: Response) => {
     const { getDB } = require('../db/database');
     const db = getDB();
     const workflowId = `wf_agent_${id}`;
+    // Delete workflow runs and their logs
+    const runs = db.prepare('SELECT id FROM workflow_runs WHERE workflow_id = ?').all(workflowId);
+    for (const run of runs) {
+      db.prepare('DELETE FROM workflow_logs WHERE run_id = ?').run(run.id);
+    }
     db.prepare('DELETE FROM workflow_runs WHERE workflow_id = ?').run(workflowId);
-    db.prepare('DELETE FROM workflow_logs WHERE workflow_id = ?').run(workflowId);
     db.prepare('DELETE FROM workflows WHERE id = ?').run(workflowId);
     db.prepare('DELETE FROM agents WHERE id = ?').run(id);
 
