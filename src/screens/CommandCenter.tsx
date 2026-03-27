@@ -84,11 +84,11 @@ const CommandCenter: React.FC<CommandCenterProps> = ({ agentStates, metrics, wor
       </div>
 
       {/* Main Content */}
-      <div style={{ flex: 1, display: 'flex', gap: 1, overflow: 'hidden' }}>
+      <div style={{ flex: 1, display: 'flex', gap: 12, overflow: 'hidden', padding: '0 12px 12px' }}>
         {/* Left 60% */}
-        <div style={{ flex: 6, display: 'flex', flexDirection: 'column', gap: 1, overflow: 'hidden' }}>
+        <div style={{ flex: 6, display: 'flex', flexDirection: 'column', gap: 12, overflow: 'hidden' }}>
           {/* Live Workflow Feed */}
-          <div style={{ flex: 1, background: 'var(--bg-tile)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div className="tile" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             <div style={{
               height: 40, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center',
               justifyContent: 'space-between', padding: '0 16px', flexShrink: 0,
@@ -137,9 +137,8 @@ const CommandCenter: React.FC<CommandCenterProps> = ({ agentStates, metrics, wor
           </div>
 
           {/* Niyanta Insights */}
-          <div style={{
-            height: 160, background: 'var(--bg-tile)', border: '1px solid var(--border)',
-            display: 'flex', flexDirection: 'column', flexShrink: 0,
+          <div className="tile" style={{
+            height: 160, display: 'flex', flexDirection: 'column', flexShrink: 0,
           }}>
             <div style={{
               height: 40, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center',
@@ -171,9 +170,9 @@ const CommandCenter: React.FC<CommandCenterProps> = ({ agentStates, metrics, wor
         </div>
 
         {/* Right 40% */}
-        <div style={{ flex: 4, display: 'flex', flexDirection: 'column', gap: 1, overflow: 'hidden' }}>
+        <div style={{ flex: 4, display: 'flex', flexDirection: 'column', gap: 12, overflow: 'hidden' }}>
           {/* Agent Health Grid */}
-          <div style={{ flex: 1, background: 'var(--bg-tile)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div className="tile" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             <div style={{
               height: 40, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center',
               justifyContent: 'space-between', padding: '0 16px', flexShrink: 0,
@@ -211,9 +210,8 @@ const CommandCenter: React.FC<CommandCenterProps> = ({ agentStates, metrics, wor
           </div>
 
           {/* Pending Approvals */}
-          <div style={{
-            height: 200, background: 'var(--bg-tile)', border: '1px solid var(--border)',
-            display: 'flex', flexDirection: 'column', flexShrink: 0,
+          <div className="tile" style={{
+            height: 200, display: 'flex', flexDirection: 'column', flexShrink: 0, overflow: 'hidden',
           }}>
             <div style={{
               height: 40, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center',

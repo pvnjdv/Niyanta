@@ -72,11 +72,10 @@ const OperationsMonitor: React.FC = () => {
       </div>
 
       {/* Metric Row */}
-      <div style={{ display: 'flex', gap: 1, flexShrink: 0 }}>
+      <div style={{ display: 'flex', gap: 12, flexShrink: 0, padding: '12px 12px 0' }}>
         {metricTiles.map((m, i) => (
-          <div key={i} style={{
-            flex: 1, height: 80, background: 'var(--bg-tile)', border: '1px solid var(--border)',
-            padding: '12px 20px', display: 'flex', flexDirection: 'column', justifyContent: 'center',
+          <div key={i} className="stat-tile" style={{
+            flex: 1, height: 80, padding: '12px 20px', display: 'flex', flexDirection: 'column', justifyContent: 'center',
           }}>
             <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, textTransform: 'uppercase', color: 'var(--text-secondary)' }}>{m.label}</span>
             <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 32, color: m.color, lineHeight: 1.1 }}>{m.value}</span>
@@ -85,9 +84,9 @@ const OperationsMonitor: React.FC = () => {
       </div>
 
       {/* Main Grid */}
-      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr 1fr', gap: 1, overflow: 'hidden' }}>
+      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr 1fr', gap: 12, overflow: 'hidden', padding: '0 12px 12px' }}>
         {/* Live Workflow Runs */}
-        <div style={{ background: 'var(--bg-tile)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div className="tile" style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <div style={{ height: 36, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', padding: '0 16px', flexShrink: 0 }}>
             <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, textTransform: 'uppercase', color: 'var(--green-primary)' }}>LIVE WORKFLOW RUNS</span>
             <span style={{ marginLeft: 'auto', fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--green-primary)', background: 'var(--green-dim)', border: '1px solid var(--green-border)', padding: '1px 6px' }}>{liveWorkflows.length}</span>
@@ -114,7 +113,7 @@ const OperationsMonitor: React.FC = () => {
         </div>
 
         {/* Bottleneck Heatmap */}
-        <div style={{ background: 'var(--bg-tile)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div className="tile" style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <div style={{ height: 36, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', padding: '0 16px', flexShrink: 0 }}>
             <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, textTransform: 'uppercase', color: 'var(--status-warning)' }}>BOTTLENECK HEATMAP</span>
           </div>
@@ -137,7 +136,7 @@ const OperationsMonitor: React.FC = () => {
         </div>
 
         {/* Agent Activity Timeline */}
-        <div style={{ background: 'var(--bg-tile)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div className="tile" style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <div style={{ height: 36, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', padding: '0 16px', flexShrink: 0 }}>
             <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, textTransform: 'uppercase', color: 'var(--status-info)' }}>AGENT ACTIVITY — LAST 6 HOURS</span>
           </div>
@@ -173,7 +172,7 @@ const OperationsMonitor: React.FC = () => {
         </div>
 
         {/* SLA Tracker */}
-        <div style={{ background: 'var(--bg-tile)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div className="tile" style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <div style={{ height: 36, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', padding: '0 16px', flexShrink: 0 }}>
             <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, textTransform: 'uppercase', color: 'var(--status-warning)' }}>SLA TRACKER BY WORKFLOW</span>
           </div>
