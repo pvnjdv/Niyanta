@@ -1,11 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import { AgentState } from '../types/agent';
 import { AGENT_LIST } from '../constants/agents';
-import { GlassCard, GlassPanel, GlassBadge, GlassButton } from '../components/shared/GlassCard';
-import StatusDot from '../components/shared/StatusDot';
-import ProgressBar from '../components/shared/ProgressBar';
 
 interface CommandCenterProps {
   agentStates: Record<string, AgentState>;
@@ -19,234 +15,150 @@ const CommandCenter: React.FC<CommandCenterProps> = ({ agentStates, metrics, wor
   const navigate = useNavigate();
   const agents = AGENT_LIST;
   const m = metrics as Record<string, number>;
-  const totalRuns = m.totalRuns || 47;
-  const failedToday = m.failedToday || 3;
-  const pendingApprovals = m.pendingApprovals || 8;
-  const criticalAlerts = m.criticalAlerts || 2;
+  const totalRuns = m.totalRuns || 0;
+  const failedToday = m.failedToday || 0;
+  const pendingApprovals = m.pendingApprovals || 0;
+  const criticalAlerts = m.criticalAlerts || 0;
 
-  const statTiles = [
-    { label: 'ACTIVE WORKFLOWS', value: totalRuns, color: 'var(--green-primary)', sub: '▲ 3 from yesterday', accent: 'var(--green-primary)' },
-    { label: 'FAILED TODAY', value: failedToday, color: 'var(--status-danger)', sub: 'requires action', accent: 'var(--status-danger)', flash: failedToday > 0 },
-    { label: 'PENDING APPROVALS', value: pendingApprovals, color: 'var(--status-warning)', sub: '2 overdue >12hr', accent: 'var(--status-warning)' },
-    { label: 'CRITICAL ALERTS', value: criticalAlerts, color: 'var(--status-danger)', sub: 'security · compliance', accent: 'var(--status-danger)' },
+  const tiles = [
+    { label: 'Active Workflows', value: totalRuns, onClick: () => navigate('/workflows') },
+    { label: 'Failed Today', value: failedToday, warn: failedToday > 0, onClick: () => navigate('/monitor') },
+    { label: 'Pending Approvals', value: pendingApprovals, onClick: () => navigate('/audit') },
+    { label: 'Critical Alerts', value: criticalAlerts, warn: criticalAlerts > 0, onClick: () => navigate('/audit') },
+    { label: 'Agents', value: agents.length, onClick: () => navigate('/agents') },
+    { label: 'Workflows', value: workflows.length, onClick: () => navigate('/workflows') },
   ];
-
-  const mockWorkflows = [
-    { name: 'Invoice Processing #892', node: '8/11', agent: 'Invoice Processor', progress: 73, elapsed: '2.3hr', sla: '4hr', status: 'RUNNING' },
-    { name: 'Employee Onboarding #156', node: '5/8', agent: 'HR Operations', progress: 62, elapsed: '1.1hr', sla: '3hr', status: 'RUNNING' },
-    { name: 'Procurement Review #44', node: '3/6', agent: 'Procurement', progress: 50, elapsed: '0.8hr', sla: '2hr', status: 'WAITING' },
-    { name: 'Security Scan #201', node: '6/6', agent: 'Security Monitor', progress: 100, elapsed: '0.4hr', sla: '1hr', status: 'RUNNING' },
-    { name: 'Compliance Audit #78', node: '2/9', agent: 'Compliance Agent', progress: 22, elapsed: '3.1hr', sla: '4hr', status: 'RUNNING' },
-  ];
-
-  const mockInsights = [
-    'Invoice #892 depends on Procurement #44 vendor approval — potential bottleneck detected',
-    'Security Scan #201 completion may trigger compliance re-evaluation for GDPR scope',
-    'Employee Onboarding #156 blocked on IT access provisioning — escalation recommended',
-  ];
-
-  const mockApprovals = [
-    { description: 'Invoice #892 — $48,816 payment approval', wait: '6.2 hours', who: 'CFO required', agent: '#FFB800', overdue: true },
-    { description: 'Procurement #44 — Kubernetes platform', wait: '3.1 hours', who: 'VP Engineering', agent: '#FF6B6B', overdue: false },
-    { description: 'IT Access — Admin privileges for A.Chen', wait: '1.4 hours', who: 'Security Lead', agent: '#F472B6', overdue: false },
-  ];
-
-  const statusColors: Record<string, { bg: string; border: string; text: string }> = {
-    RUNNING: { bg: 'var(--green-dim)', border: 'var(--green-border)', text: 'var(--green-primary)' },
-    FAILED: { bg: 'rgba(255,45,85,0.1)', border: 'var(--border-danger)', text: 'var(--status-danger)' },
-    WAITING: { bg: 'rgba(255,184,0,0.1)', border: 'var(--border-warning)', text: 'var(--status-warning)' },
-  };
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', animation: 'fadeScale 220ms ease' }}>
+    <div style={{ height: '100%', overflow: 'auto', padding: 24 }}>
+      <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 700, margin: '0 0 20px' }}>
+        Command Centre
+      </h2>
+
       {/* Stat Tiles */}
-      <div style={{ display: 'flex', gap: 12, flexShrink: 0, padding: '12px 12px 0' }}>
-        {statTiles.map((s, i) => (
-          <motion.div
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12, marginBottom: 24 }}>
+        {tiles.map((tile, i) => (
+          <div
             key={i}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: i * 0.1 }}
-            style={{ flex: 1 }}
+            onClick={tile.onClick}
+            style={{
+              padding: 20,
+              background: 'var(--bg-tile)',
+              border: `1px solid ${tile.warn ? 'var(--status-danger)' : 'var(--border)'}`,
+              borderRadius: 4,
+              cursor: 'pointer',
+              transition: 'border-color 150ms',
+            }}
+            onMouseEnter={e => { if (!tile.warn) e.currentTarget.style.borderColor = 'var(--text-secondary)'; }}
+            onMouseLeave={e => { if (!tile.warn) e.currentTarget.style.borderColor = 'var(--border)'; }}
           >
-            <GlassCard
-              noPadding
-              onClick={() => {
-                if (i === 0) navigate('/workflows');
-                if (i === 1) navigate('/monitor');
-                if (i === 2) navigate('/audit');
-                if (i === 3) navigate('/audit');
-              }}
-              style={{
-                borderLeft: `3px solid ${s.accent}`,
-                animation: s.flash ? 'criticalFlash 2s infinite' : undefined,
-              }}
-            >
-              <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, textTransform: 'uppercase', color: 'var(--text-secondary)' }}>{s.label}</span>
-                <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 40, color: s.color, lineHeight: 1 }}>{s.value}</span>
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: i === 1 && failedToday > 0 ? s.color : 'var(--text-secondary)' }}>{s.sub}</span>
-              </div>
-            </GlassCard>
-          </motion.div>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 8, letterSpacing: '0.06em' }}>
+              {tile.label}
+            </div>
+            <div style={{
+              fontFamily: 'var(--font-display)', fontSize: 32, fontWeight: 700,
+              color: tile.warn ? 'var(--status-danger)' : 'var(--text-primary)', lineHeight: 1,
+            }}>
+              {tile.value}
+            </div>
+          </div>
         ))}
       </div>
 
-      {/* Main Content */}
-      <div style={{ flex: 1, display: 'flex', gap: 12, overflow: 'hidden', padding: '0 12px 12px' }}>
-        {/* Left 60% */}
-        <div style={{ flex: 6, display: 'flex', flexDirection: 'column', gap: 12, overflow: 'hidden' }}>
-          {/* Live Workflow Feed */}
-          <GlassCard noPadding style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            <div style={{
-              height: 40, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center',
-              justifyContent: 'space-between', padding: '0 16px', flexShrink: 0,
-            }}>
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, textTransform: 'uppercase', color: 'var(--accent)' }}>LIVE WORKFLOW FEED</span>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <GlassBadge variant="success">{totalRuns} RUNNING</GlassBadge>
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)' }}>↻ AUTO-REFRESH</span>
-              </div>
-            </div>
-            <div style={{ flex: 1, overflowY: 'auto', padding: '0' }}>
-              {mockWorkflows.map((wf, i) => {
-                const sc = statusColors[wf.status] || statusColors.RUNNING;
-                return (
-                  <div key={i} style={{
-                    height: 56, borderBottom: '1px solid var(--border-subtle)',
-                    display: 'flex', alignItems: 'center', gap: 12, padding: '0 16px',
-                    cursor: 'pointer', transition: 'background 150ms',
-                  }}
-                  onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-tile-hover)')}
-                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                  >
-                    <StatusDot status={wf.status === 'RUNNING' ? 'active' : wf.status === 'WAITING' ? 'warning' : 'error'} size={8} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontFamily: 'var(--font-body)', fontWeight: 500, fontSize: 13, color: 'var(--text-primary)' }}>{wf.name}</div>
-                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-secondary)' }}>Node {wf.node} · Agent: {wf.agent}</div>
-                    </div>
-                    <div style={{ width: 160 }}>
-                      <ProgressBar value={wf.progress} />
-                    </div>
-                    <div style={{ width: 80, textAlign: 'right' }}>
-                      <div style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--text-primary)' }}>{wf.elapsed}</div>
-                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--green-primary)' }}>SLA: {wf.sla}</div>
-                    </div>
-                    <span style={{
-                      fontFamily: 'var(--font-mono)', fontSize: 9, textTransform: 'uppercase',
-                      padding: '3px 8px', background: sc.bg, border: `1px solid ${sc.border}`, color: sc.text,
-                    }}>{wf.status}</span>
-                  </div>
-                );
-              })}
-            </div>
-          </GlassCard>
-
-          {/* Niyanta Insights */}
-          <GlassCard noPadding style={{ height: 160, display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
-            <div style={{
-              height: 40, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center',
-              justifyContent: 'space-between', padding: '0 16px',
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <StatusDot status="active" color="var(--status-info)" size={6} />
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, textTransform: 'uppercase', color: 'var(--status-info)' }}>NIYANTA INSIGHTS</span>
-              </div>
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 8, color: 'var(--text-muted)' }}>AI-DETECTED CROSS-WORKFLOW DEPENDENCIES</span>
-            </div>
-            <div style={{ flex: 1, overflowY: 'auto' }}>
-              {mockInsights.map((insight, i) => (
-                <div key={i} style={{
-                  height: 40, borderBottom: '1px solid var(--border-subtle)',
-                  display: 'flex', alignItems: 'center', gap: 8, padding: '0 16px',
+      {/* Agent Health */}
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 10, letterSpacing: '0.06em' }}>
+          Agent Status
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 8 }}>
+          {agents.map(agent => {
+            const state = agentStates[agent.id];
+            const status = state?.status || 'idle';
+            return (
+              <div
+                key={agent.id}
+                onClick={() => navigate(`/agents/${agent.id}`)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  padding: '10px 14px',
+                  background: 'var(--bg-tile)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 4,
                   cursor: 'pointer',
                 }}
-                onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-tile-hover)')}
-                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                >
-                  <span style={{ color: 'var(--status-info)' }}>◆</span>
-                  <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--text-primary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{insight}</span>
-                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', flexShrink: 0 }}>just now</span>
-                </div>
-              ))}
-            </div>
-          </GlassCard>
-        </div>
-
-        {/* Right 40% */}
-        <div style={{ flex: 4, display: 'flex', flexDirection: 'column', gap: 12, overflow: 'hidden' }}>
-          {/* Agent Health Grid */}
-          <GlassCard noPadding style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            <div style={{
-              height: 40, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center',
-              justifyContent: 'space-between', padding: '0 16px', flexShrink: 0,
-            }}>
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, textTransform: 'uppercase', color: 'var(--accent)' }}>AGENT HEALTH</span>
-              <GlassBadge variant="success">{agents.length}/{agents.length} ACTIVE</GlassBadge>
-            </div>
-            <div style={{ flex: 1, overflowY: 'auto', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, padding: 16 }}>
-              {agents.map(agent => {
-                const state = agentStates[agent.id];
-                const isProc = state?.status === 'processing';
-                return (
-                  <div
-                    key={agent.id}
-                    onClick={() => navigate(`/agents/${agent.id}`)}
-                    style={{ cursor: 'pointer' }}
-                  >
-                    <GlassPanel
-                      noPadding
-                      style={{
-                        height: 48, padding: '0 12px', display: 'flex', alignItems: 'center', gap: 10,
-                        transition: 'border-color 150ms',
-                      }}
-                    >
-                      <StatusDot status={isProc ? 'processing' : 'active'} color={agent.color} size={6} />
-                      <span style={{ fontFamily: 'var(--font-body)', fontWeight: 500, fontSize: 12, color: 'var(--text-primary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{agent.name}</span>
-                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-secondary)' }}>98%</span>
-                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)' }}>{state?.taskCount || 0}</span>
-                    </GlassPanel>
-                  </div>
-                );
-              })}
-            </div>
-          </GlassCard>
-
-          {/* Pending Approvals */}
-          <GlassCard noPadding style={{ height: 200, display: 'flex', flexDirection: 'column', flexShrink: 0, overflow: 'hidden' }}>
-            <div style={{
-              height: 40, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center',
-              justifyContent: 'space-between', padding: '0 16px',
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, textTransform: 'uppercase', color: 'var(--status-warning)' }}>PENDING APPROVALS</span>
-                <GlassBadge variant="warning">{mockApprovals.length}</GlassBadge>
-              </div>
-              <GlassButton variant="outline" size="sm" onClick={() => navigate('/audit')}>VIEW ALL →</GlassButton>
-            </div>
-            <div style={{ flex: 1, overflowY: 'auto' }}>
-              {mockApprovals.map((ap, i) => (
-                <div key={i} style={{
-                  minHeight: 52, borderBottom: '1px solid var(--border-subtle)',
-                  display: 'flex', alignItems: 'center', gap: 12, padding: '8px 16px',
-                  borderLeft: ap.overdue ? '2px solid var(--status-warning)' : 'none',
+                onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--text-secondary)')}
+                onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border)')}
+              >
+                <div style={{
+                  width: 32, height: 32, borderRadius: 4,
+                  background: agent.color, display: 'grid', placeItems: 'center',
+                  fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, color: '#fff',
+                  flexShrink: 0,
                 }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: ap.agent, flexShrink: 0 }} />
-                      <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--text-primary)' }}>{ap.description}</span>
-                    </div>
-                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-secondary)', marginTop: 2 }}>Waiting {ap.wait} · {ap.who}</div>
+                  {agent.icon}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' }}>
+                    {agent.name}
                   </div>
-                  <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                    <GlassButton variant="primary" size="sm">APPROVE</GlassButton>
-                    <GlassButton variant="danger" size="sm">REJECT</GlassButton>
+                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)' }}>
+                    {status} · {state?.taskCount || 0} tasks
                   </div>
                 </div>
-              ))}
-            </div>
-          </GlassCard>
+              </div>
+            );
+          })}
         </div>
+      </div>
+
+      {/* Workflows */}
+      <div>
+        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 10, letterSpacing: '0.06em' }}>
+          Recent Workflows
+        </div>
+        {workflows.length === 0 ? (
+          <div style={{
+            padding: 20, background: 'var(--bg-tile)', border: '1px solid var(--border)',
+            borderRadius: 4, color: 'var(--text-secondary)', fontFamily: 'var(--font-body)', fontSize: 13,
+          }}>
+            No workflows yet. <span onClick={() => navigate('/workflows')} style={{ cursor: 'pointer', textDecoration: 'underline' }}>Create one</span>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+            {workflows.slice(0, 10).map((wf, i) => (
+              <div
+                key={wf.id || i}
+                onClick={() => navigate('/workflows')}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 12,
+                  padding: '10px 14px', background: 'var(--bg-tile)',
+                  border: '1px solid var(--border)', borderRadius: 4,
+                  cursor: 'pointer',
+                }}
+                onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--text-secondary)')}
+                onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border)')}
+              >
+                <div style={{ fontFamily: 'var(--font-body)', fontSize: 13, flex: 1 }}>
+                  {wf.name || 'Unnamed workflow'}
+                </div>
+                <span style={{
+                  fontFamily: 'var(--font-mono)', fontSize: 9, padding: '2px 6px',
+                  border: '1px solid var(--border)', borderRadius: 2,
+                  color: wf.status === 'active' ? 'var(--text-primary)' : 'var(--text-muted)',
+                }}>
+                  {wf.status || 'draft'}
+                </span>
+                {wf.nodeCount != null && (
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)' }}>
+                    {wf.nodeCount} nodes
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

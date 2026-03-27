@@ -16,14 +16,12 @@ const AuditCompliance: React.FC<{ auditEntries: unknown[] }> = ({ auditEntries }
   ];
 
   const mockEntries = [
-    { agent: 'Invoice Processor', agentColor: '#FFB800', event: 'agent_execution', description: 'Invoice INV-2024-441 processed. Auto-approved: $48,816 within policy threshold.', decision: 'AUTO-APPROVE', why: 'Amount under $50K threshold, vendor CloudSphere LLC verified, no anomalies detected', time: '14:32:01', processingTime: 2340 },
-    { agent: 'Security Monitor', agentColor: '#FF4488', event: 'threat_detection', description: 'MFA bypass attempt detected from IP 203.0.113.42. Critical severity classified.', decision: 'CRITICAL', why: 'Suspicious privileged login pattern matches known attack vector CVE-2024-1234', time: '14:28:15', processingTime: 1890 },
-    { agent: 'HR Operations', agentColor: '#00E676', event: 'onboarding_plan', description: 'Onboarding plan generated for Alex Chen — Senior Backend Engineer, Payments team.', decision: 'APPROVED', why: 'Standard onboarding flow, least-privilege access model applied, buddy assigned', time: '14:22:44', processingTime: 3120 },
-    { agent: 'Compliance Agent', agentColor: '#A78BFA', event: 'compliance_check', description: 'GDPR compliance gap detected: payments launch handles EU card data without SOC2.', decision: 'FLAG', why: 'PCI-DSS scope expansion required, TLS 1.0 in transit detected, 34% EU user base', time: '14:18:09', processingTime: 2780 },
-    { agent: 'Procurement', agentColor: '#FF6B6B', event: 'approval_routing', description: 'Kubernetes observability platform — $43,000. Routed to VP Engineering for approval.', decision: 'FLAG', why: 'Amount above department threshold ($25K), requires C-level approval chain', time: '14:15:33', processingTime: 1560 },
-    { agent: 'Meeting Intelligence', agentColor: '#00D4FF', event: 'transcript_analysis', description: 'Q4 Planning Meeting analyzed: 3 decisions, 5 action items, 2 risks identified.', decision: 'APPROVED', why: 'All action items assigned with deadlines, budget decision within authority', time: '14:10:22', processingTime: 4200 },
-    { agent: 'Workflow Intelligence', agentColor: '#34D399', event: 'optimization_detected', description: 'Invoice-to-Payment workflow: sequential approval bottleneck identified.', decision: 'FLAG', why: 'Parallel approval possible for amounts under $25K, reducing SLA by 40%', time: '14:05:18', processingTime: 2100 },
-    { agent: 'IT Operations', agentColor: '#F472B6', event: 'access_request', description: 'Developer laptop reported stolen. Remote wipe initiated, credentials rotated.', decision: 'CRITICAL', why: 'Device had SSH keys and VPN certificates, immediate containment required', time: '13:58:41', processingTime: 1200 },
+    { agent: 'Invoice Processor', agentColor: '#888888', event: 'agent_execution', description: 'Invoice INV-2024-441 processed. Auto-approved: $48,816 within policy threshold.', decision: 'AUTO-APPROVE', why: 'Amount under $50K threshold, vendor CloudSphere LLC verified, no anomalies detected', time: '14:32:01', processingTime: 2340 },
+    { agent: 'Meeting Intelligence', agentColor: '#666666', event: 'transcript_analysis', description: 'Q4 Planning Meeting analyzed: 3 decisions, 5 action items, 2 risks identified.', decision: 'APPROVED', why: 'All action items assigned with deadlines, budget decision within authority', time: '14:28:15', processingTime: 1890 },
+    { agent: 'Document Intelligence', agentColor: '#AAAAAA', event: 'document_classification', description: 'Classified 12 documents: 4 contracts, 3 invoices, 5 reports.', decision: 'APPROVED', why: 'All documents matched known templates with >95% confidence', time: '14:22:44', processingTime: 3120 },
+    { agent: 'Invoice Processor', agentColor: '#888888', event: 'compliance_check', description: 'Invoice INV-2024-442 flagged: vendor not in approved list.', decision: 'FLAG', why: 'New vendor requires procurement approval before payment processing', time: '14:18:09', processingTime: 2780 },
+    { agent: 'Meeting Intelligence', agentColor: '#666666', event: 'action_tracking', description: 'Sprint retrospective: 2 overdue action items detected from previous meeting.', decision: 'FLAG', why: 'Items assigned to engineering team exceed 7-day SLA', time: '14:15:33', processingTime: 1560 },
+    { agent: 'Document Intelligence', agentColor: '#AAAAAA', event: 'anomaly_detection', description: 'Contract CLT-2024-089 contains non-standard liability clause.', decision: 'CRITICAL', why: 'Unlimited liability exposure detected, requires legal review', time: '14:10:22', processingTime: 4200 },
   ];
 
   const decisionColors: Record<string, { bg: string; border: string; color: string }> = {
@@ -258,11 +256,11 @@ const AuditCompliance: React.FC<{ auditEntries: unknown[] }> = ({ auditEntries }
           <div style={{ padding: 16 }}>
             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 12 }}>DECISIONS THIS WEEK</div>
             {[
-              { icon: '✅', label: 'Approved', count: 652, maxW: 100 },
-              { icon: '⚠️', label: 'Flagged', count: 143, maxW: 100 },
-              { icon: '❌', label: 'Rejected', count: 38, maxW: 100 },
-              { icon: '🚨', label: 'Escalated', count: 14, maxW: 100 },
-              { icon: '👤', label: 'Human Review', count: 52, maxW: 100 },
+              { icon: '◈', label: 'Approved', count: 652, maxW: 100 },
+              { icon: '◇', label: 'Flagged', count: 143, maxW: 100 },
+              { icon: '✕', label: 'Rejected', count: 38, maxW: 100 },
+              { icon: '!', label: 'Escalated', count: 14, maxW: 100 },
+              { icon: '◎', label: 'Human Review', count: 52, maxW: 100 },
             ].map((d, i) => (
               <div key={i} style={{ height: 32, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ fontSize: 12, width: 20 }}>{d.icon}</span>

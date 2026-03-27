@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import StatusDot from '../components/shared/StatusDot';
 import ProgressBar from '../components/shared/ProgressBar';
 
 const OperationsMonitor: React.FC = () => {
@@ -30,16 +29,9 @@ const OperationsMonitor: React.FC = () => {
   const maxMs = Math.max(...bottlenecks.map(b => b.avgMs));
 
   const agents = [
-    { name: 'Meeting Intel', color: '#00D4FF' },
-    { name: 'Invoice Proc', color: '#FFB800' },
-    { name: 'HR Ops', color: '#00E676' },
-    { name: 'Procurement', color: '#FF6B6B' },
-    { name: 'Security', color: '#FF4488' },
-    { name: 'Compliance', color: '#A78BFA' },
-    { name: 'Document', color: '#F59E0B' },
-    { name: 'Monitoring', color: '#60A5FA' },
-    { name: 'Workflow', color: '#34D399' },
-    { name: 'IT Ops', color: '#F472B6' },
+    { name: 'Meeting Intel', color: '#666666' },
+    { name: 'Invoice Proc', color: '#888888' },
+    { name: 'Document Intel', color: '#AAAAAA' },
   ];
 
   const slaTrackers = [

@@ -76,7 +76,7 @@ app.listen(PORT, () => {
 ║  Server:    http://localhost:${PORT}        ║
 ║  AI:        Groq (llama-3.3-70b)       ║
 ║  Database:  SQLite (offline-first)     ║
-║  Agents:    10 active                  ║
+║  Agents:    3 default                  ║
 ║  Status:    OPERATIONAL                ║
 ╚════════════════════════════════════════╝
 `);

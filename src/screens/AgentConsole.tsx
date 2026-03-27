@@ -1,8 +1,10 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Agent, AgentState, Message } from '../types/agent';
+import { Agent, AgentState } from '../types/agent';
 import { SAMPLES } from '../constants/samples';
-import StatusDot from '../components/shared/StatusDot';
+import { NODE_GROUPS, NodeDefinition, getNodeColor, getNodeName, getNodeIcon } from '../constants/nodes';
+import { WorkflowNodeInstance, WorkflowEdge } from '../types/workflow';
+import { v4 as uuid } from 'uuid';
 
 interface AgentConsoleProps {
   agents: Agent[];
@@ -12,512 +14,601 @@ interface AgentConsoleProps {
   onRunAll: () => Promise<void>;
 }
 
+/* ─── Canvas Constants ─── */
+const GRID_SIZE = 20;
+const NODE_W = 200;
+const NODE_H = 64;
+
+/* ─── Helpers ─── */
+function snap(v: number) { return Math.round(v / GRID_SIZE) * GRID_SIZE; }
+
+function getEdgePath(from: WorkflowNodeInstance, to: WorkflowNodeInstance): string {
+  const sx = from.position.x + NODE_W;
+  const sy = from.position.y + NODE_H / 2;
+  const ex = to.position.x;
+  const ey = to.position.y + NODE_H / 2;
+  const dx = Math.abs(ex - sx) * 0.5;
+  return `M${sx},${sy} C${sx + dx},${sy} ${ex - dx},${ey} ${ex},${ey}`;
+}
+
+/* ─── Main Component ─── */
 const AgentConsole: React.FC<AgentConsoleProps> = ({
   agents, agentStates, onExecuteAgent, runAllProgress, onRunAll,
 }) => {
   const navigate = useNavigate();
   const { agentId } = useParams<{ agentId?: string }>();
-  const [search, setSearch] = useState('');
-  const [inputText, setInputText] = useState('');
-  const [showSampleMenu, setShowSampleMenu] = useState(false);
+  const canvasRef = useRef<HTMLDivElement>(null);
 
+  // Agent list state
+  const [search, setSearch] = useState('');
+  const [showCreate, setShowCreate] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newDesc, setNewDesc] = useState('');
+
+  // Canvas state for selected agent
   const selectedId = agentId || null;
   const selectedAgent = selectedId ? agents.find(a => a.id === selectedId) || null : null;
   const selectedState = selectedAgent ? agentStates[selectedAgent.id] : null;
 
+  const [nodes, setNodes] = useState<WorkflowNodeInstance[]>([]);
+  const [edges, setEdges] = useState<WorkflowEdge[]>([]);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const [connecting, setConnecting] = useState<string | null>(null);
+  const [nodePaletteOpen, setNodePaletteOpen] = useState(true);
+  const [inputText, setInputText] = useState('');
+
   const filtered = agents.filter(a => a.name.toLowerCase().includes(search.toLowerCase()));
 
-  const handleSend = async () => {
-    if (!selectedId || !inputText.trim()) return;
-    const text = inputText;
+  // Load agent's backing workflow nodes (placeholder for now)
+  useEffect(() => {
+    if (selectedId) {
+      // Default starter nodes for agents if none exist
+      if (nodes.length === 0) {
+        setNodes([
+          { instanceId: uuid(), nodeType: 'manual_trigger', name: 'Trigger', config: {}, position: { x: 60, y: 160 } },
+          { instanceId: uuid(), nodeType: 'llm_analysis', name: 'LLM Analysis', config: {}, position: { x: 340, y: 160 } },
+          { instanceId: uuid(), nodeType: 'notification', name: 'Notify', config: {}, position: { x: 620, y: 160 } },
+        ]);
+        // Auto-connect after setting nodes
+        setTimeout(() => {
+          setNodes(prev => {
+            if (prev.length >= 3) {
+              setEdges([
+                { id: uuid(), fromNodeId: prev[0].instanceId, toNodeId: prev[1].instanceId },
+                { id: uuid(), fromNodeId: prev[1].instanceId, toNodeId: prev[2].instanceId },
+              ]);
+            }
+            return prev;
+          });
+        }, 0);
+      }
+    } else {
+      setNodes([]);
+      setEdges([]);
+    }
+  }, [selectedId]);
+
+  // Node drag handlers
+  const handleNodeMouseDown = useCallback((e: React.MouseEvent, nodeId: string) => {
+    e.stopPropagation();
+    const node = nodes.find(n => n.instanceId === nodeId);
+    if (!node) return;
+    setDraggingNodeId(nodeId);
+    setSelectedNodeId(nodeId);
+    setDragOffset({ x: e.clientX - node.position.x, y: e.clientY - node.position.y });
+  }, [nodes]);
+
+  const handleCanvasMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!draggingNodeId) return;
+    setNodes(prev => prev.map(n =>
+      n.instanceId === draggingNodeId
+        ? { ...n, position: { x: snap(e.clientX - dragOffset.x), y: snap(e.clientY - dragOffset.y) } }
+        : n
+    ));
+  }, [draggingNodeId, dragOffset]);
+
+  const handleCanvasMouseUp = useCallback(() => {
+    setDraggingNodeId(null);
+  }, []);
+
+  // Add node from palette
+  const addNode = useCallback((def: NodeDefinition) => {
+    const newNode: WorkflowNodeInstance = {
+      instanceId: uuid(),
+      nodeType: def.type,
+      name: def.name,
+      config: {},
+      position: { x: 200 + Math.random() * 200, y: 100 + Math.random() * 200 },
+    };
+    setNodes(prev => [...prev, newNode]);
+    setSelectedNodeId(newNode.instanceId);
+  }, []);
+
+  // Connect nodes
+  const handleConnectorClick = useCallback((nodeId: string, isOutput: boolean) => {
+    if (isOutput) {
+      setConnecting(nodeId);
+    } else if (connecting && connecting !== nodeId) {
+      setEdges(prev => [...prev, { id: uuid(), fromNodeId: connecting, toNodeId: nodeId }]);
+      setConnecting(null);
+    }
+  }, [connecting]);
+
+  // Delete node
+  const deleteNode = useCallback((nodeId: string) => {
+    setNodes(prev => prev.filter(n => n.instanceId !== nodeId));
+    setEdges(prev => prev.filter(e => e.fromNodeId !== nodeId && e.toNodeId !== nodeId));
+    if (selectedNodeId === nodeId) setSelectedNodeId(null);
+  }, [selectedNodeId]);
+
+  // Run agent
+  const handleRun = async () => {
+    if (!selectedId) return;
+    const input = inputText.trim() || SAMPLES[selectedId] || '';
     setInputText('');
-    await onExecuteAgent(selectedId, text);
+    await onExecuteAgent(selectedId, input);
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
+  // Create agent
+  const handleCreate = async () => {
+    if (!newName.trim()) return;
+    try {
+      const res = await fetch('/api/agent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newName.trim(), description: newDesc.trim() }),
+      });
+      if (res.ok) {
+        setShowCreate(false);
+        setNewName('');
+        setNewDesc('');
+        // TODO: refresh agent list from API
+        window.location.reload();
+      }
+    } catch (err) {
+      console.error('Create agent failed:', err);
     }
   };
 
-  const renderResult = (result: Record<string, any>) => {
-    if (!result) return null;
+  /* ─── Render ─── */
+
+  // If no agent selected, show agent list
+  if (!selectedId) {
     return (
-      <div style={{ fontFamily: 'var(--font-body)', fontSize: 13, lineHeight: 1.6 }}>
-        {result.summary && <p style={{ marginBottom: 12 }}>{String(result.summary)}</p>}
-        {result.decision && (
+      <div style={{ height: '100%', overflow: 'auto', padding: 24 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+          <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 700, margin: 0 }}>
+            Agent Studio
+          </h2>
+          <button
+            onClick={() => setShowCreate(true)}
+            style={{
+              height: 36, padding: '0 16px', borderRadius: 4,
+              border: '1px solid var(--border)', background: 'var(--bg-tile)',
+              color: 'var(--text-primary)', cursor: 'pointer',
+              fontFamily: 'var(--font-mono)', fontSize: 12,
+            }}
+          >
+            + New Agent
+          </button>
+        </div>
+
+        {/* Search */}
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search agents..."
+          style={{
+            width: '100%', maxWidth: 400, height: 36, padding: '0 12px',
+            background: 'var(--bg-input)', border: '1px solid var(--border)',
+            borderRadius: 4, fontFamily: 'var(--font-body)', fontSize: 13,
+            color: 'var(--text-primary)', marginBottom: 20, outline: 'none',
+          }}
+        />
+
+        {/* Agent grid */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280, 1fr))', gap: 16 }}>
+          {filtered.map(agent => {
+            const state = agentStates[agent.id];
+            return (
+              <div
+                key={agent.id}
+                onClick={() => navigate(`/agents/${agent.id}`)}
+                style={{
+                  padding: 20,
+                  background: 'var(--bg-tile)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 4,
+                  cursor: 'pointer',
+                  transition: 'border-color 150ms',
+                }}
+                onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--text-secondary)')}
+                onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border)')}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                  <div style={{
+                    width: 40, height: 40, borderRadius: 4,
+                    background: agent.color || 'var(--bg-input)',
+                    display: 'grid', placeItems: 'center',
+                    fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 700,
+                    color: '#fff',
+                  }}>
+                    {agent.icon}
+                  </div>
+                  <div>
+                    <div style={{ fontFamily: 'var(--font-body)', fontSize: 14, fontWeight: 600 }}>
+                      {agent.name}
+                    </div>
+                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-secondary)' }}>
+                      {agent.subtitle}
+                    </div>
+                  </div>
+                </div>
+                <div style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8 }}>
+                  {agent.description}
+                </div>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {(agent.capabilities || []).map((cap, i) => (
+                    <span key={i} style={{
+                      fontFamily: 'var(--font-mono)', fontSize: 9, padding: '2px 6px',
+                      border: '1px solid var(--border)', borderRadius: 2,
+                      color: 'var(--text-secondary)',
+                    }}>
+                      {cap}
+                    </span>
+                  ))}
+                </div>
+                <div style={{ marginTop: 12, fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)' }}>
+                  Status: {state?.status || 'idle'}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Create Modal */}
+        {showCreate && (
           <div style={{
-            padding: '8px 12px', marginBottom: 8,
-            background: String(result.decision).includes('APPROVE') ? 'var(--green-dim)' : String(result.decision).includes('REJECT') ? 'rgba(255,45,85,0.1)' : 'rgba(255,184,0,0.1)',
-            border: `1px solid ${String(result.decision).includes('APPROVE') ? 'var(--green-border)' : String(result.decision).includes('REJECT') ? 'var(--border-danger)' : 'var(--border-warning)'}`,
-          }}>
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700 }}>{String(result.decision)}</span>
-          </div>
-        )}
-        {result.tasks && Array.isArray(result.tasks) && result.tasks.length > 0 && (
-          <div style={{ border: '1px solid var(--border)', marginBottom: 8 }}>
-            <div style={{ padding: '6px 12px', borderBottom: '1px solid var(--border)', fontFamily: 'var(--font-mono)', fontSize: 9, textTransform: 'uppercase', color: 'var(--text-secondary)' }}>
-              ACTION ITEMS ({(result.tasks as unknown[]).length})
-            </div>
-            {(result.tasks as Array<Record<string, any>>).map((t: any, i: number) => (
-              <div key={i} style={{ padding: '6px 12px', borderBottom: '1px solid var(--border-subtle)', fontSize: 12 }}>
-                <span style={{ color: 'var(--green-primary)', fontFamily: 'var(--font-mono)', marginRight: 8 }}>{i + 1}.</span>
-                {String(t.task || t.description || t)}
-                {t.owner && <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-secondary)', marginLeft: 8 }}>→ {String(t.owner)}</span>}
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 200,
+            display: 'grid', placeItems: 'center',
+          }} onClick={() => setShowCreate(false)}>
+            <div
+              style={{
+                background: 'var(--bg-panel)', border: '1px solid var(--border)',
+                borderRadius: 4, padding: 24, width: 400, maxWidth: '90vw',
+              }}
+              onClick={e => e.stopPropagation()}
+            >
+              <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 16, margin: '0 0 16px' }}>Create Agent</h3>
+              <input
+                value={newName}
+                onChange={e => setNewName(e.target.value)}
+                placeholder="Agent name"
+                style={{
+                  width: '100%', height: 36, padding: '0 12px', marginBottom: 12,
+                  background: 'var(--bg-input)', border: '1px solid var(--border)',
+                  borderRadius: 4, fontFamily: 'var(--font-body)', fontSize: 13,
+                  color: 'var(--text-primary)', outline: 'none',
+                }}
+              />
+              <textarea
+                value={newDesc}
+                onChange={e => setNewDesc(e.target.value)}
+                placeholder="Description"
+                rows={3}
+                style={{
+                  width: '100%', padding: '8px 12px', marginBottom: 16,
+                  background: 'var(--bg-input)', border: '1px solid var(--border)',
+                  borderRadius: 4, fontFamily: 'var(--font-body)', fontSize: 13,
+                  color: 'var(--text-primary)', resize: 'vertical', outline: 'none',
+                }}
+              />
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                <button
+                  onClick={() => setShowCreate(false)}
+                  style={{
+                    height: 36, padding: '0 16px', borderRadius: 4,
+                    border: '1px solid var(--border)', background: 'transparent',
+                    color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13,
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCreate}
+                  style={{
+                    height: 36, padding: '0 16px', borderRadius: 4,
+                    border: '1px solid var(--border)', background: 'var(--bg-tile)',
+                    color: 'var(--text-primary)', cursor: 'pointer', fontSize: 13,
+                    fontWeight: 600,
+                  }}
+                >
+                  Create
+                </button>
               </div>
-            ))}
-          </div>
-        )}
-        {result.decisions && Array.isArray(result.decisions) && (
-          <div style={{ border: '1px solid var(--border)', marginBottom: 8 }}>
-            <div style={{ padding: '6px 12px', borderBottom: '1px solid var(--border)', fontFamily: 'var(--font-mono)', fontSize: 9, textTransform: 'uppercase', color: 'var(--text-secondary)' }}>
-              DECISIONS ({(result.decisions as unknown[]).length})
             </div>
-            {(result.decisions as Array<Record<string, any>>).map((d: any, i: number) => (
-              <div key={i} style={{ padding: '6px 12px', borderBottom: '1px solid var(--border-subtle)', fontSize: 12 }}>
-                {String(d.decision || d.text || d)}
-              </div>
-            ))}
-          </div>
-        )}
-        {result.risks && Array.isArray(result.risks) && result.risks.length > 0 && (
-          <div style={{ border: '1px solid var(--border-danger)', background: 'rgba(255,45,85,0.05)', marginBottom: 8 }}>
-            <div style={{ padding: '6px 12px', borderBottom: '1px solid var(--border-danger)', fontFamily: 'var(--font-mono)', fontSize: 9, textTransform: 'uppercase', color: 'var(--status-danger)' }}>
-              RISKS ({(result.risks as unknown[]).length})
-            </div>
-            {(result.risks as Array<Record<string, any>>).map((r: any, i: number) => (
-              <div key={i} style={{ padding: '6px 12px', borderBottom: '1px solid var(--border-subtle)', fontSize: 12, borderLeft: '2px solid var(--status-danger)' }}>
-                {String(r.risk || r.description || r)}
-              </div>
-            ))}
-          </div>
-        )}
-        {/* Render any other non-rendered object fields as key-value */}
-        {Object.entries(result).filter(([k]) => !['summary', 'decision', 'tasks', 'decisions', 'risks', 'reason'].includes(k)).map(([key, val]) => {
-          if (val === null || val === undefined) return null;
-          if (typeof val === 'object' && !Array.isArray(val)) return null;
-          if (Array.isArray(val) && val.length === 0) return null;
-          return (
-            <div key={key} style={{ marginBottom: 6 }}>
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, textTransform: 'uppercase', color: 'var(--text-secondary)' }}>{key}: </span>
-              <span style={{ fontSize: 12 }}>{Array.isArray(val) ? val.join(', ') : String(val)}</span>
-            </div>
-          );
-        })}
-        {result.reason && (
-          <div style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'var(--text-secondary)', fontStyle: 'italic', marginTop: 8 }}>
-            WHY: {String(result.reason)}
           </div>
         )}
       </div>
     );
-  };
+  }
 
+  // Agent Studio view with canvas
   return (
-    <div style={{ height: '100%', display: 'flex', animation: 'fadeScale 220ms ease' }}>
-      {/* Left Panel — Agent List */}
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      {/* Toolbar */}
       <div style={{
-        width: 260, borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column',
-        background: 'var(--bg-panel)', flexShrink: 0,
+        height: 48, display: 'flex', alignItems: 'center', padding: '0 16px', gap: 12,
+        borderBottom: '1px solid var(--border)', flexShrink: 0,
       }}>
+        <button
+          onClick={() => navigate('/agents')}
+          style={{
+            height: 32, padding: '0 10px', borderRadius: 4,
+            border: '1px solid var(--border)', background: 'transparent',
+            color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 14,
+          }}
+        >
+          ← Back
+        </button>
         <div style={{
-          height: 56, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center',
-          justifyContent: 'space-between', padding: '0 16px',
+          width: 32, height: 32, borderRadius: 4,
+          background: selectedAgent?.color || '#666',
+          display: 'grid', placeItems: 'center',
+          fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, color: '#fff',
         }}>
-          <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 14, textTransform: 'uppercase', letterSpacing: '0.1em' }}>AGENTS</span>
-          <span style={{
-            fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--green-primary)',
-            background: 'var(--green-dim)', border: '1px solid var(--green-border)', padding: '2px 8px',
-          }}>{agents.length} ACTIVE</span>
+          {selectedAgent?.icon}
         </div>
-        <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)' }}>
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Search agents..."
-            style={{ width: '100%', height: 32, fontSize: 12 }}
-          />
+        <div>
+          <div style={{ fontFamily: 'var(--font-body)', fontSize: 14, fontWeight: 600 }}>
+            {selectedAgent?.name}
+          </div>
+          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)' }}>
+            {selectedAgent?.subtitle}
+          </div>
         </div>
-        <div style={{ flex: 1, overflowY: 'auto' }}>
-          {filtered.map(agent => {
-            const state = agentStates[agent.id];
-            const isSelected = selectedId === agent.id;
+        <div style={{ flex: 1 }} />
+
+        {/* Input + Run */}
+        <input
+          value={inputText}
+          onChange={e => setInputText(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') handleRun(); }}
+          placeholder="Input data (or use sample)..."
+          style={{
+            width: 300, height: 32, padding: '0 10px',
+            background: 'var(--bg-input)', border: '1px solid var(--border)',
+            borderRadius: 4, fontFamily: 'var(--font-body)', fontSize: 12,
+            color: 'var(--text-primary)', outline: 'none',
+          }}
+        />
+        <button
+          onClick={handleRun}
+          disabled={selectedState?.status === 'processing'}
+          style={{
+            height: 32, padding: '0 16px', borderRadius: 4,
+            border: '1px solid var(--border)',
+            background: selectedState?.status === 'processing' ? 'var(--bg-tile)' : 'var(--accent-dim)',
+            color: selectedState?.status === 'processing' ? 'var(--text-muted)' : 'var(--accent)',
+            cursor: selectedState?.status === 'processing' ? 'wait' : 'pointer',
+            fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 600,
+          }}
+        >
+          {selectedState?.status === 'processing' ? 'Running...' : '▶ Run'}
+        </button>
+        <button
+          onClick={() => setNodePaletteOpen(!nodePaletteOpen)}
+          style={{
+            height: 32, padding: '0 10px', borderRadius: 4,
+            border: '1px solid var(--border)', background: nodePaletteOpen ? 'var(--accent-dim)' : 'transparent',
+            color: nodePaletteOpen ? 'var(--accent)' : 'var(--text-secondary)',
+            cursor: 'pointer', fontFamily: 'var(--font-mono)', fontSize: 11,
+          }}
+        >
+          Nodes
+        </button>
+      </div>
+
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative' }}>
+        {/* Canvas */}
+        <div
+          ref={canvasRef}
+          style={{
+            flex: 1,
+            position: 'relative',
+            overflow: 'auto',
+            background: 'var(--bg-base)',
+            backgroundImage: `radial-gradient(circle, var(--border) 1px, transparent 1px)`,
+            backgroundSize: `${GRID_SIZE}px ${GRID_SIZE}px`,
+            cursor: draggingNodeId ? 'grabbing' : 'default',
+          }}
+          onMouseMove={handleCanvasMouseMove}
+          onMouseUp={handleCanvasMouseUp}
+          onClick={() => { setSelectedNodeId(null); setConnecting(null); }}
+        >
+          {/* Edges */}
+          <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}>
+            {edges.map(edge => {
+              const fromNode = nodes.find(n => n.instanceId === edge.fromNodeId);
+              const toNode = nodes.find(n => n.instanceId === edge.toNodeId);
+              if (!fromNode || !toNode) return null;
+              return (
+                <path
+                  key={edge.id}
+                  d={getEdgePath(fromNode, toNode)}
+                  stroke="var(--text-muted)"
+                  strokeWidth={2}
+                  fill="none"
+                  strokeDasharray={connecting ? '4,4' : 'none'}
+                />
+              );
+            })}
+          </svg>
+
+          {/* Nodes */}
+          {nodes.map(node => {
+            const isSelected = selectedNodeId === node.instanceId;
+            const isConnecting = connecting === node.instanceId;
             return (
-              <button
-                key={agent.id}
-                onClick={() => navigate(`/agents/${agent.id}`)}
+              <div
+                key={node.instanceId}
                 style={{
-                  width: '100%', height: 60, borderBottom: '1px solid var(--border-subtle)',
-                  padding: '0 16px', display: 'flex', alignItems: 'center', gap: 10,
-                  background: isSelected ? 'var(--bg-tile-active)' : 'transparent',
-                  borderLeft: isSelected ? `2px solid ${agent.color}` : '2px solid transparent',
-                  textAlign: 'left',
+                  position: 'absolute',
+                  left: node.position.x,
+                  top: node.position.y,
+                  width: NODE_W,
+                  height: NODE_H,
+                  background: 'var(--bg-panel)',
+                  border: `1px solid ${isSelected ? 'var(--accent)' : isConnecting ? 'var(--text-secondary)' : 'var(--border)'}`,
+                  borderRadius: 4,
+                  display: 'flex',
+                  alignItems: 'center',
+                  padding: '0 12px',
+                  gap: 10,
+                  cursor: 'grab',
+                  userSelect: 'none',
+                  zIndex: isSelected ? 10 : 1,
+                  boxShadow: isSelected ? '0 0 0 1px var(--accent)' : 'none',
                 }}
-                onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = 'var(--bg-tile-hover)'; }}
-                onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = 'transparent'; }}
+                onMouseDown={(e) => handleNodeMouseDown(e, node.instanceId)}
+                onClick={(e) => { e.stopPropagation(); setSelectedNodeId(node.instanceId); }}
               >
-                <div style={{
-                  width: 36, height: 36, borderRadius: '50%',
-                  background: `${agent.color}15`, border: `1px solid ${agent.color}66`,
-                  display: 'grid', placeItems: 'center',
-                  fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 13, color: agent.color,
-                  boxShadow: state?.status === 'processing' ? `0 0 10px ${agent.color}66` : undefined,
-                }}>{agent.icon}</div>
+                {/* Input connector */}
+                <div
+                  style={{
+                    position: 'absolute', left: -6, top: '50%', transform: 'translateY(-50%)',
+                    width: 12, height: 12, borderRadius: '50%',
+                    background: 'var(--bg-panel)', border: '2px solid var(--border)',
+                    cursor: 'pointer', zIndex: 20,
+                  }}
+                  onClick={(e) => { e.stopPropagation(); handleConnectorClick(node.instanceId, false); }}
+                />
+
+                {/* Node content */}
+                <span style={{ fontSize: 16 }}>{getNodeIcon(node.nodeType)}</span>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontFamily: 'var(--font-body)', fontWeight: 500, fontSize: 13, color: 'var(--text-primary)' }}>{agent.name}</span>
-                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)' }}>
-                      {state?.lastActivity ? new Date(state.lastActivity).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
-                    </span>
+                  <div style={{
+                    fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 600,
+                    color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                  }}>
+                    {node.name}
                   </div>
-                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {agent.subtitle}
+                  <div style={{
+                    fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)',
+                  }}>
+                    {node.nodeType}
                   </div>
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                  {state?.taskCount ? (
-                    <span style={{
-                      fontFamily: 'var(--font-mono)', fontSize: 9,
-                      background: `${agent.color}25`, border: `1px solid ${agent.color}66`,
-                      padding: '1px 6px', color: agent.color,
-                    }}>{state.taskCount}</span>
-                  ) : null}
-                  <StatusDot
-                    status={state?.status === 'processing' ? 'processing' : state?.status === 'complete' ? 'active' : state?.status === 'error' ? 'error' : 'idle'}
-                    color={agent.color}
-                    size={6}
-                  />
-                </div>
-              </button>
+
+                {/* Delete button */}
+                {isSelected && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); deleteNode(node.instanceId); }}
+                    style={{
+                      position: 'absolute', top: -8, right: -8,
+                      width: 18, height: 18, borderRadius: '50%',
+                      background: 'var(--status-danger)', color: '#fff',
+                      border: 'none', cursor: 'pointer', fontSize: 10,
+                      display: 'grid', placeItems: 'center', zIndex: 20,
+                    }}
+                  >
+                    ✕
+                  </button>
+                )}
+
+                {/* Output connector */}
+                <div
+                  style={{
+                    position: 'absolute', right: -6, top: '50%', transform: 'translateY(-50%)',
+                    width: 12, height: 12, borderRadius: '50%',
+                    background: connecting === node.instanceId ? 'var(--accent)' : 'var(--bg-panel)',
+                    border: `2px solid ${connecting === node.instanceId ? 'var(--accent)' : 'var(--border)'}`,
+                    cursor: 'pointer', zIndex: 20,
+                  }}
+                  onClick={(e) => { e.stopPropagation(); handleConnectorClick(node.instanceId, true); }}
+                />
+              </div>
             );
           })}
         </div>
-        <div style={{ height: 56, borderTop: '1px solid var(--border)', padding: 12 }}>
-          <button
-            onClick={() => onRunAll()}
-            disabled={!!runAllProgress}
-            style={{
-              width: '100%', height: 32, background: 'var(--green-dim)',
-              border: '1px solid var(--green-border)', fontFamily: 'var(--font-mono)',
-              fontSize: 10, textTransform: 'uppercase', color: 'var(--green-primary)',
-            }}
-          >{runAllProgress || '▶ RUN ALL AGENTS'}</button>
-        </div>
-      </div>
 
-      {/* Center Panel — Chat */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-        {selectedAgent ? (
-          <>
-            {/* Chat Header */}
-            <div style={{
-              height: 56, borderBottom: '1px solid var(--border)', display: 'flex',
-              alignItems: 'center', justifyContent: 'space-between', padding: '0 20px', flexShrink: 0,
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{
-                  width: 40, height: 40, borderRadius: '50%',
-                  background: `${selectedAgent.color}15`, border: `1px solid ${selectedAgent.color}66`,
-                  display: 'grid', placeItems: 'center',
-                  fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 15, color: selectedAgent.color,
-                }}>{selectedAgent.icon}</div>
-                <div>
-                  <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 15 }}>{selectedAgent.name}</div>
-                  <div style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'var(--text-secondary)' }}>
-                    {selectedState?.status === 'processing' ? 'Processing...' : selectedState?.status === 'complete' ? 'Completed' : 'Ready'}
-                  </div>
-                </div>
-              </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button
-                  onClick={() => onExecuteAgent(selectedAgent.id)}
-                  style={{
-                    height: 28, padding: '0 12px', background: 'transparent',
-                    border: '1px solid var(--border)', fontFamily: 'var(--font-mono)',
-                    fontSize: 10, color: 'var(--text-secondary)',
-                  }}
-                >USE SAMPLE</button>
-                <button
-                  onClick={() => onExecuteAgent(selectedAgent.id)}
-                  style={{
-                    height: 28, padding: '0 12px', background: 'var(--green-dim)',
-                    border: '1px solid var(--green-border)', fontFamily: 'var(--font-mono)',
-                    fontSize: 10, color: 'var(--green-primary)',
-                  }}
-                >▶ EXECUTE</button>
-              </div>
-            </div>
-
-            {/* Messages */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {selectedState?.messages.map((msg, i) => {
-                if (msg.type === 'user') {
-                  return (
-                    <div key={i} style={{ alignSelf: 'flex-end', maxWidth: '65%', animation: 'slideInBottom 200ms ease' }}>
-                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 8, color: 'var(--text-muted)', textAlign: 'right', marginBottom: 4 }}>YOU · INPUT</div>
-                      <div style={{
-                        background: 'var(--bg-msg-out)', border: '1px solid var(--border)',
-                        borderRight: '2px solid var(--text-muted)', padding: '10px 14px',
-                      }}>
-                        <div style={{ fontFamily: 'var(--font-body)', fontSize: 13, whiteSpace: 'pre-wrap' }}>{msg.content}</div>
-                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', textAlign: 'right', marginTop: 4 }}>
-                          {new Date(msg.timestamp).toLocaleTimeString()}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                }
-                if (msg.type === 'agent') {
-                  return (
-                    <div key={i} style={{ alignSelf: 'flex-start', maxWidth: '80%', animation: 'slideInBottom 200ms ease' }}>
-                      <div style={{
-                        background: 'var(--bg-msg-in)', border: '1px solid var(--border)',
-                        borderLeft: `2px solid ${selectedAgent.color}`, padding: '14px 16px',
-                      }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-                          <div style={{ width: 16, height: 16, borderRadius: '50%', background: `${selectedAgent.color}25`, display: 'grid', placeItems: 'center', fontSize: 8, color: selectedAgent.color }}>{selectedAgent.icon[0]}</div>
-                          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: selectedAgent.color, textTransform: 'uppercase' }}>{selectedAgent.name}</span>
-                          <span style={{ color: 'var(--text-muted)' }}>·</span>
-                          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)' }}>{new Date(msg.timestamp).toLocaleTimeString()}</span>
-                        </div>
-                        {msg.processingTime && (
-                          <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, border: '1px solid var(--border)', padding: '1px 6px', color: 'var(--text-muted)' }}>{msg.processingTime}ms</span>
-                            {msg.model && <span style={{ fontFamily: 'var(--font-mono)', fontSize: 8, color: 'var(--text-muted)' }}>{msg.model}</span>}
-                          </div>
-                        )}
-                        <div style={{ height: 1, background: 'var(--border-subtle)', margin: '8px 0' }} />
-                        {msg.result ? renderResult(msg.result) : <p style={{ fontFamily: 'var(--font-body)', fontSize: 13 }}>{msg.content}</p>}
-                      </div>
-                    </div>
-                  );
-                }
-                if (msg.type === 'insight') {
-                  return (
-                    <div key={i} style={{
-                      alignSelf: 'flex-start', maxWidth: '80%',
-                      background: 'rgba(0,212,255,0.05)', border: '1px solid rgba(0,212,255,0.3)',
-                      borderLeft: '2px solid var(--status-info)', padding: '10px 14px',
-                    }}>
-                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--status-info)', textTransform: 'uppercase', marginBottom: 4 }}>◆ NIYANTA INSIGHT</div>
-                      <div style={{ fontFamily: 'var(--font-body)', fontSize: 13 }}>{msg.content}</div>
-                    </div>
-                  );
-                }
-                if (msg.type === 'error') {
-                  return (
-                    <div key={i} style={{
-                      alignSelf: 'flex-start', maxWidth: '80%',
-                      background: 'rgba(255,45,85,0.05)', border: '1px solid var(--border-danger)',
-                      borderLeft: '2px solid var(--status-danger)', padding: '10px 14px',
-                    }}>
-                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--status-danger)', textTransform: 'uppercase', marginBottom: 4 }}>AGENT ERROR</div>
-                      <div style={{ fontFamily: 'var(--font-body)', fontSize: 13 }}>{msg.content}</div>
-                      <button
-                        onClick={() => onExecuteAgent(selectedAgent.id)}
-                        style={{
-                          marginTop: 8, height: 24, padding: '0 10px',
-                          background: 'rgba(255,45,85,0.1)', border: '1px solid var(--border-danger)',
-                          fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--status-danger)',
-                        }}
-                      >RETRY</button>
-                    </div>
-                  );
-                }
-                return null;
-              })}
-              {selectedState?.status === 'processing' && (
-                <div style={{
-                  alignSelf: 'flex-start', borderLeft: `2px solid ${selectedAgent.color}`,
-                  background: 'var(--bg-msg-in)', border: '1px solid var(--border)', padding: '14px 16px',
-                }}>
-                  <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
-                    {[0, 1, 2].map(j => (
-                      <span key={j} style={{
-                        width: 8, height: 8, borderRadius: '50%', background: selectedAgent.color,
-                        animation: `blink 1.2s ${j * 0.15}s infinite`,
-                      }} />
-                    ))}
-                  </div>
-                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)' }}>Niyanta agent processing...</span>
-                </div>
-              )}
-              {(!selectedState?.messages || selectedState.messages.length === 0) && selectedState?.status !== 'processing' && (
-                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12 }}>
-                  <div style={{
-                    width: 60, height: 60, borderRadius: '50%', border: `1px solid ${selectedAgent.color}33`,
-                    display: 'grid', placeItems: 'center', fontFamily: 'var(--font-display)', fontWeight: 800,
-                    fontSize: 20, color: `${selectedAgent.color}44`,
-                  }}>{selectedAgent.icon}</div>
-                  <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 16, color: 'var(--text-muted)' }}>{selectedAgent.name}</span>
-                  <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--text-muted)' }}>Send a message or use sample data to begin</span>
-                </div>
-              )}
-            </div>
-
-            {/* Input Bar */}
-            <div style={{
-              borderTop: '1px solid var(--border)', padding: '10px 16px',
-              display: 'flex', alignItems: 'flex-end', gap: 10,
-            }}>
-              <div style={{ position: 'relative' }}>
-                <button
-                  onClick={() => setShowSampleMenu(!showSampleMenu)}
-                  style={{
-                    width: 36, height: 36, background: 'var(--bg-tile)',
-                    border: '1px solid var(--border)', display: 'grid', placeItems: 'center',
-                    fontSize: 16, color: 'var(--text-secondary)',
-                  }}
-                >📎</button>
-                {showSampleMenu && (
-                  <div style={{
-                    position: 'absolute', bottom: '100%', left: 0, zIndex: 10,
-                    background: 'var(--bg-panel)', border: '1px solid var(--border)', minWidth: 180,
-                  }}>
-                    <button
-                      onClick={() => {
-                        setInputText(SAMPLES[selectedAgent.id] || '');
-                        setShowSampleMenu(false);
-                      }}
-                      style={{
-                        width: '100%', padding: '8px 12px', textAlign: 'left',
-                        fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-primary)',
-                      }}
-                      onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-tile-hover)')}
-                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                    >📋 Use Sample Data</button>
-                  </div>
-                )}
-              </div>
-              <textarea
-                value={inputText}
-                onChange={e => setInputText(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder={`Message ${selectedAgent.name}...`}
-                rows={1}
-                style={{
-                  flex: 1, minHeight: 40, maxHeight: 160, resize: 'vertical',
-                  background: 'var(--bg-input)', border: '1px solid var(--border)',
-                  fontFamily: 'var(--font-body)', fontSize: 14, padding: '10px 12px',
-                  lineHeight: 1.4,
-                }}
-              />
-              <button
-                onClick={handleSend}
-                disabled={!inputText.trim() || selectedState?.status === 'processing'}
-                style={{
-                  width: 36, height: 36,
-                  background: inputText.trim() ? 'var(--green-dim)' : 'var(--bg-tile)',
-                  border: inputText.trim() ? '1px solid var(--green-border)' : '1px solid var(--border)',
-                  display: 'grid', placeItems: 'center', fontSize: 14,
-                  color: inputText.trim() ? 'var(--green-primary)' : 'var(--text-muted)',
-                }}
-              >▶</button>
-            </div>
-          </>
-        ) : (
+        {/* Node Palette — right side */}
+        {nodePaletteOpen && (
           <div style={{
-            flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            flexDirection: 'column', gap: 16,
-            backgroundImage: 'radial-gradient(circle, var(--accent-glow) 1px, transparent 1px)',
-            backgroundSize: '28px 28px',
+            width: 240, borderLeft: '1px solid var(--border)',
+            background: 'var(--bg-panel)', overflowY: 'auto',
+            flexShrink: 0,
           }}>
             <div style={{
-              width: 80, height: 80, borderRadius: '50%', border: '1px solid var(--border)',
-              display: 'grid', placeItems: 'center', fontFamily: 'var(--font-display)',
-              fontWeight: 800, fontSize: 24, color: 'var(--text-muted)',
-            }}>नि</div>
-            <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 24, color: 'var(--text-muted)', letterSpacing: '0.3em' }}>NIYANTA</span>
-            <span style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: 'var(--text-muted)' }}>Select an agent to begin</span>
-            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-              {agents.map(a => (
-                <span key={a.id} style={{ width: 8, height: 8, borderRadius: '50%', background: a.color, cursor: 'pointer' }}
-                  onClick={() => navigate(`/agents/${a.id}`)}
-                />
-              ))}
+              padding: '12px 16px', borderBottom: '1px solid var(--border)',
+              fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 600,
+              color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em',
+            }}>
+              Node Palette
             </div>
+            {NODE_GROUPS.map(group => (
+              <div key={group.id}>
+                <div style={{
+                  padding: '10px 16px 4px', fontFamily: 'var(--font-mono)',
+                  fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                }}>
+                  {group.icon} {group.name}
+                </div>
+                {group.nodes.map(node => (
+                  <button
+                    key={node.type}
+                    onClick={() => addNode(node)}
+                    style={{
+                      width: '100%', height: 36, padding: '0 16px',
+                      textAlign: 'left', display: 'flex', alignItems: 'center', gap: 8,
+                      background: 'transparent', border: 'none', cursor: 'pointer',
+                      fontFamily: 'var(--font-body)', fontSize: 12, color: 'var(--text-primary)',
+                    }}
+                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-tile-hover)')}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                    title={node.description}
+                  >
+                    <span style={{ fontSize: 14 }}>{node.icon}</span>
+                    <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {node.name}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Execution result panel — bottom overlay */}
+        {selectedState?.result && (
+          <div style={{
+            position: 'absolute', bottom: 0, left: 0, right: nodePaletteOpen ? 240 : 0,
+            maxHeight: 200, overflowY: 'auto',
+            background: 'var(--bg-panel)', borderTop: '1px solid var(--border)',
+            padding: 16,
+          }}>
+            <div style={{
+              fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)',
+              textTransform: 'uppercase', marginBottom: 8,
+            }}>
+              Last Execution Result
+              {selectedState.processingTime && (
+                <span style={{ marginLeft: 8 }}>{selectedState.processingTime}ms</span>
+              )}
+            </div>
+            <pre style={{
+              fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-primary)',
+              whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0,
+              maxHeight: 140, overflow: 'auto',
+            }}>
+              {JSON.stringify(selectedState.result, null, 2)}
+            </pre>
           </div>
         )}
       </div>
-
-      {/* Right Panel — Agent Info */}
-      {selectedAgent && (
-        <div style={{
-          width: 300, borderLeft: '1px solid var(--border)', overflowY: 'auto',
-          background: 'var(--bg-panel)', flexShrink: 0,
-        }}>
-          <div style={{ padding: 16 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-              <div style={{
-                width: 48, height: 48, borderRadius: '50%',
-                background: `${selectedAgent.color}15`, border: `1px solid ${selectedAgent.color}66`,
-                display: 'grid', placeItems: 'center',
-                fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 18, color: selectedAgent.color,
-              }}>{selectedAgent.icon}</div>
-              <div>
-                <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 16 }}>{selectedAgent.name}</div>
-                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)' }}>{selectedAgent.subtitle}</div>
-              </div>
-            </div>
-
-            {/* Status */}
-            <div style={{ display: 'flex', gap: 8, marginBottom: 16, alignItems: 'center' }}>
-              <span style={{
-                fontFamily: 'var(--font-mono)', fontSize: 9, padding: '2px 8px',
-                background: selectedState?.status === 'complete' ? 'var(--green-dim)' : 'var(--bg-tile)',
-                border: selectedState?.status === 'complete' ? '1px solid var(--green-border)' : '1px solid var(--border)',
-                color: selectedState?.status === 'complete' ? 'var(--green-primary)' : 'var(--text-secondary)',
-                textTransform: 'uppercase',
-              }}>{selectedState?.status || 'IDLE'}</span>
-            </div>
-
-            {/* Capabilities */}
-            <div style={{ marginBottom: 16 }}>
-              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 8 }}>CAPABILITIES</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                {selectedAgent.capabilities.map((c, i) => (
-                  <span key={i} style={{
-                    fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-secondary)',
-                    border: '1px solid var(--border)', padding: '2px 8px',
-                  }}>{c}</span>
-                ))}
-              </div>
-            </div>
-
-            {/* Stats */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
-              {[
-                { label: 'Total Runs', value: selectedState?.messages.filter(m => m.type === 'agent').length || 0 },
-                { label: 'Success Rate', value: '98%' },
-                { label: 'Avg Time', value: selectedState?.processingTime ? `${selectedState.processingTime}ms` : '—' },
-                { label: 'Last Active', value: selectedState?.lastActivity ? new Date(selectedState.lastActivity).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—' },
-              ].map((s, i) => (
-                <div key={i} className="stat-tile" style={{ padding: '8px 12px' }}>
-                  <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 18, color: 'var(--text-primary)' }}>{s.value}</div>
-                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase' }}>{s.label}</div>
-                </div>
-              ))}
-            </div>
-
-            {/* Description */}
-            <div style={{ marginBottom: 16 }}>
-              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 4 }}>DESCRIPTION</div>
-              <div style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>{selectedAgent.description}</div>
-            </div>
-
-            {/* Direct URL */}
-            <div style={{ marginBottom: 16 }}>
-              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 4 }}>DIRECT ACCESS</div>
-              <div style={{
-                fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--green-primary)',
-                background: 'var(--bg-input)', border: '1px solid var(--border)', padding: '6px 10px',
-                wordBreak: 'break-all',
-              }}>/agents/{selectedAgent.id}</div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
