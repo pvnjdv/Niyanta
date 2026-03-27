@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { AgentState } from '../types/agent';
 import { AGENT_LIST } from '../constants/agents';
+import { GlassCard, GlassPanel, GlassBadge, GlassButton } from '../components/shared/GlassCard';
 import StatusDot from '../components/shared/StatusDot';
 import ProgressBar from '../components/shared/ProgressBar';
 
@@ -60,26 +62,33 @@ const CommandCenter: React.FC<CommandCenterProps> = ({ agentStates, metrics, wor
       {/* Stat Tiles */}
       <div style={{ display: 'flex', gap: 12, flexShrink: 0, padding: '12px 12px 0' }}>
         {statTiles.map((s, i) => (
-          <div
+          <motion.div
             key={i}
-            onClick={() => {
-              if (i === 0) navigate('/workflows');
-              if (i === 1) navigate('/monitor');
-              if (i === 2) navigate('/audit');
-              if (i === 3) navigate('/audit');
-            }}
-            className="stat-tile"
-            style={{
-              flex: 1, height: 88, padding: '0 20px', display: 'flex', flexDirection: 'column',
-              justifyContent: 'center', gap: 4, cursor: 'pointer',
-              borderLeft: `3px solid ${s.accent}`,
-              animation: s.flash ? 'criticalFlash 2s infinite' : undefined,
-            }}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: i * 0.1 }}
+            style={{ flex: 1 }}
           >
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, textTransform: 'uppercase', color: 'var(--text-secondary)' }}>{s.label}</span>
-            <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 40, color: s.color, lineHeight: 1 }}>{s.value}</span>
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: i === 1 && failedToday > 0 ? s.color : 'var(--text-secondary)' }}>{s.sub}</span>
-          </div>
+            <GlassCard
+              noPadding
+              onClick={() => {
+                if (i === 0) navigate('/workflows');
+                if (i === 1) navigate('/monitor');
+                if (i === 2) navigate('/audit');
+                if (i === 3) navigate('/audit');
+              }}
+              style={{
+                borderLeft: `3px solid ${s.accent}`,
+                animation: s.flash ? 'criticalFlash 2s infinite' : undefined,
+              }}
+            >
+              <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, textTransform: 'uppercase', color: 'var(--text-secondary)' }}>{s.label}</span>
+                <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 40, color: s.color, lineHeight: 1 }}>{s.value}</span>
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: i === 1 && failedToday > 0 ? s.color : 'var(--text-secondary)' }}>{s.sub}</span>
+              </div>
+            </GlassCard>
+          </motion.div>
         ))}
       </div>
 
@@ -88,17 +97,14 @@ const CommandCenter: React.FC<CommandCenterProps> = ({ agentStates, metrics, wor
         {/* Left 60% */}
         <div style={{ flex: 6, display: 'flex', flexDirection: 'column', gap: 12, overflow: 'hidden' }}>
           {/* Live Workflow Feed */}
-          <div className="tile" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <GlassCard noPadding style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             <div style={{
               height: 40, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center',
               justifyContent: 'space-between', padding: '0 16px', flexShrink: 0,
             }}>
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, textTransform: 'uppercase', color: 'var(--green-primary)' }}>LIVE WORKFLOW FEED</span>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, textTransform: 'uppercase', color: 'var(--accent)' }}>LIVE WORKFLOW FEED</span>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <span style={{
-                  fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--green-primary)',
-                  background: 'var(--green-dim)', border: '1px solid var(--green-border)', padding: '2px 8px',
-                }}>{totalRuns} RUNNING</span>
+                <GlassBadge variant="success">{totalRuns} RUNNING</GlassBadge>
                 <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)' }}>↻ AUTO-REFRESH</span>
               </div>
             </div>
@@ -134,12 +140,10 @@ const CommandCenter: React.FC<CommandCenterProps> = ({ agentStates, metrics, wor
                 );
               })}
             </div>
-          </div>
+          </GlassCard>
 
           {/* Niyanta Insights */}
-          <div className="tile" style={{
-            height: 160, display: 'flex', flexDirection: 'column', flexShrink: 0,
-          }}>
+          <GlassCard noPadding style={{ height: 160, display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
             <div style={{
               height: 40, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center',
               justifyContent: 'space-between', padding: '0 16px',
@@ -166,65 +170,55 @@ const CommandCenter: React.FC<CommandCenterProps> = ({ agentStates, metrics, wor
                 </div>
               ))}
             </div>
-          </div>
+          </GlassCard>
         </div>
 
         {/* Right 40% */}
         <div style={{ flex: 4, display: 'flex', flexDirection: 'column', gap: 12, overflow: 'hidden' }}>
           {/* Agent Health Grid */}
-          <div className="tile" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <GlassCard noPadding style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             <div style={{
               height: 40, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center',
               justifyContent: 'space-between', padding: '0 16px', flexShrink: 0,
             }}>
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, textTransform: 'uppercase', color: 'var(--green-primary)' }}>AGENT HEALTH</span>
-              <span style={{
-                fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--green-primary)',
-                background: 'var(--green-dim)', border: '1px solid var(--green-border)', padding: '2px 8px',
-              }}>{agents.length}/{agents.length} ACTIVE</span>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, textTransform: 'uppercase', color: 'var(--accent)' }}>AGENT HEALTH</span>
+              <GlassBadge variant="success">{agents.length}/{agents.length} ACTIVE</GlassBadge>
             </div>
             <div style={{ flex: 1, overflowY: 'auto', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, padding: 16 }}>
               {agents.map(agent => {
                 const state = agentStates[agent.id];
                 const isProc = state?.status === 'processing';
                 return (
-                  <div
+                  <GlassPanel
                     key={agent.id}
                     onClick={() => navigate(`/agents/${agent.id}`)}
+                    noPadding
                     style={{
-                      height: 48, background: 'var(--bg-tile)', border: '1px solid var(--border)',
-                      padding: '0 12px', display: 'flex', alignItems: 'center', gap: 10,
+                      height: 48, padding: '0 12px', display: 'flex', alignItems: 'center', gap: 10,
                       cursor: 'pointer', transition: 'border-color 150ms',
                     }}
-                    onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--accent-border)')}
-                    onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border)')}
                   >
                     <StatusDot status={isProc ? 'processing' : 'active'} color={agent.color} size={6} />
                     <span style={{ fontFamily: 'var(--font-body)', fontWeight: 500, fontSize: 12, color: 'var(--text-primary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{agent.name}</span>
                     <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-secondary)' }}>98%</span>
                     <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)' }}>{state?.taskCount || 0}</span>
-                  </div>
+                  </GlassPanel>
                 );
               })}
             </div>
-          </div>
+          </GlassCard>
 
           {/* Pending Approvals */}
-          <div className="tile" style={{
-            height: 200, display: 'flex', flexDirection: 'column', flexShrink: 0, overflow: 'hidden',
-          }}>
+          <GlassCard noPadding style={{ height: 200, display: 'flex', flexDirection: 'column', flexShrink: 0, overflow: 'hidden' }}>
             <div style={{
               height: 40, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center',
               justifyContent: 'space-between', padding: '0 16px',
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, textTransform: 'uppercase', color: 'var(--status-warning)' }}>PENDING APPROVALS</span>
-                <span style={{
-                  fontFamily: 'var(--font-mono)', fontSize: 9,
-                  background: 'rgba(255,184,0,0.15)', border: '1px solid var(--border-warning)', padding: '2px 6px', color: 'var(--status-warning)',
-                }}>{mockApprovals.length}</span>
+                <GlassBadge variant="warning">{mockApprovals.length}</GlassBadge>
               </div>
-              <button onClick={() => navigate('/audit')} style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--green-primary)' }}>VIEW ALL →</button>
+              <GlassButton variant="outline" size="sm" onClick={() => navigate('/audit')}>VIEW ALL →</GlassButton>
             </div>
             <div style={{ flex: 1, overflowY: 'auto' }}>
               {mockApprovals.map((ap, i) => (
@@ -241,21 +235,13 @@ const CommandCenter: React.FC<CommandCenterProps> = ({ agentStates, metrics, wor
                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-secondary)', marginTop: 2 }}>Waiting {ap.wait} · {ap.who}</div>
                   </div>
                   <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                    <button style={{
-                      height: 26, padding: '0 12px', background: 'var(--green-dim)',
-                      border: '1px solid var(--green-border)', color: 'var(--green-primary)',
-                      fontFamily: 'var(--font-mono)', fontSize: 10,
-                    }}>APPROVE</button>
-                    <button style={{
-                      height: 26, padding: '0 12px', background: 'rgba(255,45,85,0.08)',
-                      border: '1px solid var(--border-danger)', color: 'var(--status-danger)',
-                      fontFamily: 'var(--font-mono)', fontSize: 10,
-                    }}>REJECT</button>
+                    <GlassButton variant="primary" size="sm">APPROVE</GlassButton>
+                    <GlassButton variant="danger" size="sm">REJECT</GlassButton>
                   </div>
                 </div>
               ))}
             </div>
-          </div>
+          </GlassCard>
         </div>
       </div>
     </div>

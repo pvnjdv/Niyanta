@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { LogoText } from '../shared/Logo';
 
 interface TopBarProps {
   onOpenNiyantaChat: () => void;
@@ -65,15 +66,7 @@ const TopBar: React.FC<TopBarProps> = ({ onOpenNiyantaChat, alertCount = 0, them
     }}>
       {/* Left */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-        <div style={{
-          width: 28, height: 28, border: '1px solid var(--accent)', borderRadius: '50%',
-          display: 'grid', placeItems: 'center', fontFamily: 'var(--font-display)',
-          fontWeight: 700, fontSize: 12, color: 'var(--accent)',
-        }}>नि</div>
-        <span style={{
-          fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 15,
-          color: 'var(--text-primary)', letterSpacing: '0.2em',
-        }}>NIYANTA</span>
+        <LogoText size="sm" variant="green" />
         <span style={{ width: 1, height: 16, background: 'var(--border)', margin: '0 4px' }} />
         <span style={{
           fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-secondary)',

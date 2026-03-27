@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { GlassCard, GlassPanel, GlassButton, GlassBadge, GlassInput } from '../components/shared/GlassCard';
 import StatusDot from '../components/shared/StatusDot';
 
 interface WorkflowStudioProps {
@@ -315,19 +317,15 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
       }}>
         <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 18 }}>WORKFLOWS</span>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button
+          <GlassButton
+            variant="primary"
             onClick={() => { setShowBuilder(true); setSelectedWorkflow(null); setCanvasNodes([]); }}
-            style={{
-              height: 28, padding: '0 12px', background: 'var(--green-dim)',
-              border: '1px solid var(--green-border)', fontFamily: 'var(--font-mono)',
-              fontSize: 11, textTransform: 'uppercase', color: 'var(--green-primary)',
-            }}
-          >+ NEW WORKFLOW</button>
-          <button style={{
-            height: 28, padding: '0 12px', background: 'transparent',
-            border: '1px solid var(--border)', fontFamily: 'var(--font-mono)',
-            fontSize: 11, color: 'var(--text-secondary)',
-          }}>IMPORT</button>
+          >
+            + NEW WORKFLOW
+          </GlassButton>
+          <GlassButton variant="outline">
+            IMPORT
+          </GlassButton>
         </div>
       </div>
 
@@ -340,96 +338,111 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
           {filterTabs.map(t => (
             <button key={t} onClick={() => setFilterTab(t)} style={{
               padding: '4px 12px', fontFamily: 'var(--font-mono)', fontSize: 10, textTransform: 'uppercase',
-              color: filterTab === t ? 'var(--green-primary)' : 'var(--text-muted)',
-              borderBottom: filterTab === t ? '2px solid var(--green-primary)' : '2px solid transparent',
+              color: filterTab === t ? 'var(--accent)' : 'var(--text-muted)',
+              background: 'transparent',
+              border: 'none',
+              borderBottom: filterTab === t ? '2px solid var(--accent)' : '2px solid transparent',
             }}>{t}</button>
           ))}
         </div>
-        <input
+        <GlassInput
           value={search}
-          onChange={e => setSearch(e.target.value)}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
           placeholder="Search..."
           style={{ width: 200, height: 26, fontSize: 11 }}
         />
       </div>
 
       {/* Workflow Cards */}
-      <div style={{ flex: 1, overflowY: 'auto' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
         {filtered.map((wf, i) => (
-          <div key={wf.id} style={{
-            height: 88, borderBottom: '1px solid var(--border)', padding: '0 20px',
-            display: 'flex', alignItems: 'center', gap: 16, background: 'var(--bg-tile)',
-            cursor: 'pointer', animation: `slideInBottom ${50 + i * 40}ms ease both`,
-          }}
-          onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-tile-hover)'; e.currentTarget.style.borderLeft = '2px solid var(--green-border)'; }}
-          onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-tile)'; e.currentTarget.style.borderLeft = 'none'; }}
+          <motion.div
+            key={wf.id}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: i * 0.05 }}
           >
-            {/* Status */}
-            <div style={{ width: 32, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-              <StatusDot status={wf.status === 'ACTIVE' ? 'active' : wf.status === 'FAILED' ? 'error' : 'idle'} size={12} />
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 8, textTransform: 'uppercase', color: wf.status === 'ACTIVE' ? 'var(--green-primary)' : 'var(--text-muted)' }}>{wf.status}</span>
-            </div>
+            <GlassCard noPadding>
+              <div style={{
+                padding: '20px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 16,
+                cursor: 'pointer',
+              }}>
+                {/* Status */}
+                <div style={{ width: 32, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                  <StatusDot status={wf.status === 'ACTIVE' ? 'active' : wf.status === 'FAILED' ? 'error' : 'idle'} size={12} />
+                  <GlassBadge 
+                    variant={wf.status === 'ACTIVE' ? 'success' : wf.status === 'FAILED' ? 'danger' : 'neutral'}
+                    style={{ fontSize: 8 }}
+                  >
+                    {wf.status}
+                  </GlassBadge>
+                </div>
 
-            {/* Info */}
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
-                <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 15 }}>{wf.name}</span>
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, border: '1px solid var(--border)', padding: '2px 8px', color: 'var(--text-secondary)' }}>{wf.category}</span>
-              </div>
-              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-secondary)', marginBottom: 2 }}>
-                {wf.nodes} nodes · {wf.runs} runs · {wf.success}% success · Avg {wf.avgTime}
-              </div>
-              <div style={{ display: 'flex', gap: 4 }}>
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', marginRight: 4 }}>Agents:</span>
-                {wf.agents.map((a, j) => (
-                  <span key={j} style={{
-                    fontFamily: 'var(--font-body)', fontSize: 11, padding: '2px 8px',
-                    background: `${a.color}18`, border: `1px solid ${a.color}44`, color: a.color,
-                  }}>{a.name}</span>
-                ))}
-              </div>
-            </div>
+                {/* Info */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                    <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 15 }}>{wf.name}</span>
+                    <GlassBadge variant="neutral" style={{ fontSize: 9 }}>{wf.category}</GlassBadge>
+                  </div>
+                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-secondary)', marginBottom: 6 }}>
+                    {wf.nodes} nodes · {wf.runs} runs · {wf.success}% success · Avg {wf.avgTime}
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)' }}>Agents:</span>
+                    {wf.agents.map((a, j) => (
+                      <GlassBadge key={j} style={{ 
+                        background: `${a.color}18`, 
+                        border: `1px solid ${a.color}44`, 
+                        color: a.color,
+                        fontSize: 10,
+                      }}>
+                        {a.name}
+                      </GlassBadge>
+                    ))}
+                  </div>
+                </div>
 
-            {/* Actions */}
-            <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-              <button
-                onClick={(e) => { e.stopPropagation(); setSelectedWorkflow(wf.id); setShowBuilder(true); }}
-                style={{
-                  height: 28, padding: '0 12px', background: 'var(--green-dim)',
-                  border: '1px solid var(--green-border)', fontFamily: 'var(--font-mono)',
-                  fontSize: 10, color: 'var(--green-primary)',
-                }}
-              >OPEN</button>
-              <button style={{
-                height: 28, padding: '0 12px', background: 'transparent',
-                border: '1px solid var(--border)', fontFamily: 'var(--font-mono)',
-                fontSize: 10, color: 'var(--text-secondary)',
-              }}>RUN</button>
-              <button style={{
-                height: 28, padding: '0 12px', background: 'transparent',
-                border: '1px solid var(--border)', fontFamily: 'var(--font-mono)',
-                fontSize: 10, color: 'var(--text-secondary)',
-              }}>···</button>
-            </div>
-          </div>
+                {/* Actions */}
+                <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                  <GlassButton
+                    variant="primary"
+                    size="sm"
+                    onClick={() => { setSelectedWorkflow(wf.id); setShowBuilder(true); }}
+                  >
+                    OPEN
+                  </GlassButton>
+                  <GlassButton variant="secondary" size="sm">RUN</GlassButton>
+                  <GlassButton variant="outline" size="sm">···</GlassButton>
+                </div>
+              </div>
+            </GlassCard>
+          </motion.div>
         ))}
 
         {/* Templates */}
-        <div style={{ padding: 20 }}>
+        <div style={{ padding: '0 16px 16px' }}>
           <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, textTransform: 'uppercase', color: 'var(--text-secondary)', marginBottom: 12 }}>WORKFLOW TEMPLATES</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
             {templates.map((t, i) => (
-              <button
+              <GlassPanel
                 key={i}
-                onClick={() => { setShowBuilder(true); setSelectedWorkflow(null); }}
-                className="tile"
                 style={{
-                  height: 72, display: 'grid', placeItems: 'center', fontFamily: 'var(--font-body)', fontSize: 13,
-                  color: 'var(--text-primary)', textAlign: 'center', padding: 8,
+                  height: 72,
+                  display: 'grid',
+                  placeItems: 'center',
+                  cursor: 'pointer',
+                  padding: 12,
+                  textAlign: 'center',
                 }}
-                onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--border-hover)')}
-                onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border)')}
-              >{t}</button>
+                onClick={() => { setShowBuilder(true); setSelectedWorkflow(null); }}
+              >
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--text-primary)' }}>
+                  {t}
+                </span>
+              </GlassPanel>
             ))}
           </div>
         </div>
