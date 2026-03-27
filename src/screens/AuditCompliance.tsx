@@ -115,7 +115,7 @@ const AuditCompliance: React.FC<{ auditEntries: unknown[] }> = ({ auditEntries }
       </div>
 
       {/* Content */}
-      <div style={{ flex: 1, display: 'flex', gap: 1, overflow: 'hidden' }}>
+      <div style={{ flex: 1, display: 'flex', gap: 12, overflow: 'hidden', padding: '12px 12px 0' }}>
         {/* Left — Main content */}
         <div style={{ flex: 65, overflowY: 'auto' }}>
           {activeTab === 'log' && filteredEntries.map((entry, i) => {
@@ -155,9 +155,8 @@ const AuditCompliance: React.FC<{ auditEntries: unknown[] }> = ({ auditEntries }
           {activeTab === 'decisions' && filteredEntries.filter(e => e.decision).map((entry, i) => {
             const dc = decisionColors[entry.decision] || decisionColors.FLAG;
             return (
-              <div key={i} style={{
-                height: 80, background: 'var(--bg-tile)', border: '1px solid var(--border)',
-                marginBottom: 1, padding: 16, display: 'flex', flexDirection: 'column', justifyContent: 'center',
+              <div key={i} className="tile" style={{
+                height: 80, marginBottom: 12, padding: 16, display: 'flex', flexDirection: 'column', justifyContent: 'center',
               }}
               onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--border-hover)')}
               onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border)')}
@@ -212,7 +211,7 @@ const AuditCompliance: React.FC<{ auditEntries: unknown[] }> = ({ auditEntries }
           )}
 
           {activeTab === 'metrics' && (
-            <div style={{ padding: 20, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 1 }}>
+            <div style={{ padding: 20, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
               {[
                 { label: 'Total Decisions', value: '847' },
                 { label: 'Auto-Approved', value: '652' },
@@ -221,7 +220,7 @@ const AuditCompliance: React.FC<{ auditEntries: unknown[] }> = ({ auditEntries }
                 { label: 'Escalated', value: '14' },
                 { label: 'Automation Rate', value: '77%' },
               ].map((m, i) => (
-                <div key={i} style={{ background: 'var(--bg-tile)', border: '1px solid var(--border)', padding: 16 }}>
+                <div key={i} className="tile" style={{ padding: 16 }}>
                   <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 28, color: i === 5 ? 'var(--green-primary)' : 'var(--text-primary)' }}>{m.value}</div>
                   <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, textTransform: 'uppercase', color: 'var(--text-muted)' }}>{m.label}</div>
                 </div>

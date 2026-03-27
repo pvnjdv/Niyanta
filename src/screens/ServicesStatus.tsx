@@ -71,9 +71,9 @@ const ServicesStatus: React.FC<ServicesStatusProps> = ({ agents }) => {
         </div>
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '12px 12px 0' }}>
         {/* System Services */}
-        <div style={{ background: 'var(--bg-tile)', border: '1px solid var(--border)' }}>
+        <div className="tile">
           <div style={{ height: 40, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', padding: '0 20px' }}>
             <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, textTransform: 'uppercase', color: 'var(--text-secondary)' }}>SYSTEM SERVICES</span>
           </div>
@@ -107,7 +107,7 @@ const ServicesStatus: React.FC<ServicesStatusProps> = ({ agents }) => {
         </div>
 
         {/* Agent Services */}
-        <div style={{ background: 'var(--bg-tile)', border: '1px solid var(--border)', marginTop: 1 }}>
+        <div className="tile" style={{ marginTop: 12 }}>
           <div style={{ height: 40, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', padding: '0 20px' }}>
             <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, textTransform: 'uppercase', color: 'var(--text-secondary)' }}>AGENT SERVICES</span>
           </div>
@@ -145,9 +145,9 @@ const ServicesStatus: React.FC<ServicesStatusProps> = ({ agents }) => {
         </div>
 
         {/* Resource Usage */}
-        <div style={{ display: 'flex', gap: 1, marginTop: 1 }}>
+        <div style={{ display: 'flex', gap: 12, marginTop: 12 }}>
           {/* Compute */}
-          <div style={{ flex: 1, background: 'var(--bg-tile)', border: '1px solid var(--border)', padding: 16 }}>
+          <div className="tile" style={{ flex: 1, padding: 16 }}>
             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 12 }}>COMPUTE RESOURCES</div>
             <div style={{ marginBottom: 8 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
@@ -167,7 +167,7 @@ const ServicesStatus: React.FC<ServicesStatusProps> = ({ agents }) => {
           </div>
 
           {/* Storage */}
-          <div style={{ flex: 1, background: 'var(--bg-tile)', border: '1px solid var(--border)', padding: 16 }}>
+          <div className="tile" style={{ flex: 1, padding: 16 }}>
             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 12 }}>STORAGE</div>
             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-secondary)', marginBottom: 6 }}>Database: <span style={{ color: 'var(--text-primary)' }}>128 MB</span></div>
             <div style={{ marginBottom: 8 }}>
@@ -182,7 +182,7 @@ const ServicesStatus: React.FC<ServicesStatusProps> = ({ agents }) => {
           </div>
 
           {/* Groq API */}
-          <div style={{ flex: 1, background: 'var(--bg-tile)', border: '1px solid var(--border)', padding: 16 }}>
+          <div className="tile" style={{ flex: 1, padding: 16 }}>
             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 12 }}>GROQ API</div>
             <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 20, color: 'var(--text-primary)', marginBottom: 4 }}>847</div>
             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', marginBottom: 8 }}>REQUESTS TODAY</div>

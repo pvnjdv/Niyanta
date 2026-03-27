@@ -486,14 +486,14 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
             </div>
 
             {/* Stats */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, marginBottom: 16 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
               {[
                 { label: 'Total Runs', value: selectedState?.messages.filter(m => m.type === 'agent').length || 0 },
                 { label: 'Success Rate', value: '98%' },
                 { label: 'Avg Time', value: selectedState?.processingTime ? `${selectedState.processingTime}ms` : '—' },
                 { label: 'Last Active', value: selectedState?.lastActivity ? new Date(selectedState.lastActivity).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—' },
               ].map((s, i) => (
-                <div key={i} style={{ background: 'var(--bg-tile)', border: '1px solid var(--border)', padding: '8px 12px' }}>
+                <div key={i} className="stat-tile" style={{ padding: '8px 12px' }}>
                   <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 18, color: 'var(--text-primary)' }}>{s.value}</div>
                   <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase' }}>{s.label}</div>
                 </div>

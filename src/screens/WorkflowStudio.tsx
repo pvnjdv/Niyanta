@@ -417,14 +417,14 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
         {/* Templates */}
         <div style={{ padding: 20 }}>
           <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, textTransform: 'uppercase', color: 'var(--text-secondary)', marginBottom: 12 }}>WORKFLOW TEMPLATES</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 1 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
             {templates.map((t, i) => (
               <button
                 key={i}
                 onClick={() => { setShowBuilder(true); setSelectedWorkflow(null); }}
+                className="tile"
                 style={{
-                  height: 72, background: 'var(--bg-tile)', border: '1px solid var(--border)',
-                  display: 'grid', placeItems: 'center', fontFamily: 'var(--font-body)', fontSize: 13,
+                  height: 72, display: 'grid', placeItems: 'center', fontFamily: 'var(--font-body)', fontSize: 13,
                   color: 'var(--text-primary)', textAlign: 'center', padding: 8,
                 }}
                 onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--border-hover)')}
