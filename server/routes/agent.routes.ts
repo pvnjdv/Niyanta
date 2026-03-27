@@ -51,6 +51,160 @@ router.get('/list', (_req: Request, res: Response) => {
   res.json({ agents });
 });
 
+// ── Create a new agent ───────────────────────────────────────────────
+router.post('/', (req: Request, res: Response) => {
+  const { name, description, icon, capabilities, systemPrompt, subtitle } = req.body;
+
+  if (!name || typeof name !== 'string' || name.trim().length === 0) {
+    return res.status(400).json({ error: 'ValidationError', message: 'name is required' });
+  }
+  if (!systemPrompt || typeof systemPrompt !== 'string' || systemPrompt.trim().length === 0) {
+    return res.status(400).json({ error: 'ValidationError', message: 'systemPrompt is required' });
+  }
+
+  try {
+    const orchestrator = getOrchestrator();
+    const agentManager = orchestrator.getAgentManager();
+    const agentDef = agentManager.createAgent({
+      name: name.trim(),
+      description: description || '',
+      icon: icon || name.slice(0, 2).toUpperCase(),
+      capabilities: Array.isArray(capabilities) ? capabilities : [],
+      systemPrompt: systemPrompt.trim(),
+      subtitle: subtitle || '',
+    });
+
+    // Create backing workflow in DB
+    const { getDB } = require('../db/database');
+    const db = getDB();
+    const workflowId = `wf_agent_${agentDef.agent_id}`;
+    const triggerId = `${agentDef.agent_id}_trigger`;
+    const llmId = `${agentDef.agent_id}_llm`;
+    const notifyId = `${agentDef.agent_id}_notify`;
+
+    const nodes = [
+      { instanceId: triggerId, nodeType: 'manual_trigger', name: 'Input Trigger', config: {}, position: { x: 100, y: 200 } },
+      { instanceId: llmId, nodeType: 'llm_analysis', name: `${agentDef.name} Analysis`, config: { prompt: agentDef.systemPrompt }, position: { x: 400, y: 200 } },
+      { instanceId: notifyId, nodeType: 'notification', name: 'Result Output', config: { channel: 'internal', message: 'Agent execution complete' }, position: { x: 700, y: 200 } },
+    ];
+    const edges = [
+      { id: `e_${triggerId}_${llmId}`, fromNodeId: triggerId, toNodeId: llmId },
+      { id: `e_${llmId}_${notifyId}`, fromNodeId: llmId, toNodeId: notifyId },
+    ];
+
+    db.prepare(
+      `INSERT INTO workflows (id, name, description, nodes, edges, status, category, is_agent, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, 'active', 'agent', 1, datetime('now'), datetime('now'))`
+    ).run(workflowId, `${agentDef.name} Workflow`, `Backing workflow for ${agentDef.name}`, JSON.stringify(nodes), JSON.stringify(edges));
+
+    db.prepare(
+      `INSERT INTO agents (id, name, subtitle, capabilities, status, color, icon, glow, description, system_prompt, workflow_id, created_at)
+       VALUES (?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, datetime('now'))`
+    ).run(agentDef.agent_id, agentDef.name, agentDef.subtitle, JSON.stringify(agentDef.capabilities), agentDef.color, agentDef.icon, agentDef.glow, agentDef.description, agentDef.systemPrompt, workflowId);
+
+    return res.status(201).json({ success: true, agent: { ...agentDef, workflow_id: workflowId } });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return res.status(500).json({ success: false, error: 'AgentCreationFailed', message });
+  }
+});
+
+// ── Update an agent ──────────────────────────────────────────────────
+router.put('/:id', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { name, description, icon, capabilities, systemPrompt, subtitle, status } = req.body;
+
+  try {
+    const orchestrator = getOrchestrator();
+    const agentManager = orchestrator.getAgentManager();
+    const existing = agentManager.getAgent(id);
+    if (!existing) {
+      return res.status(404).json({ error: 'NotFound', message: `Agent ${id} not found` });
+    }
+
+    const updates: Record<string, unknown> = {};
+    if (name !== undefined) updates.name = name;
+    if (description !== undefined) updates.description = description;
+    if (icon !== undefined) updates.icon = icon;
+    if (capabilities !== undefined) updates.capabilities = capabilities;
+    if (systemPrompt !== undefined) updates.systemPrompt = systemPrompt;
+    if (subtitle !== undefined) updates.subtitle = subtitle;
+    if (status !== undefined) updates.status = status;
+
+    agentManager.updateAgent(id, updates as any);
+
+    // Update DB
+    const { getDB } = require('../db/database');
+    const db = getDB();
+    const setClauses: string[] = [];
+    const values: unknown[] = [];
+    if (name !== undefined) { setClauses.push('name = ?'); values.push(name); }
+    if (description !== undefined) { setClauses.push('description = ?'); values.push(description); }
+    if (icon !== undefined) { setClauses.push('icon = ?'); values.push(icon); }
+    if (capabilities !== undefined) { setClauses.push('capabilities = ?'); values.push(JSON.stringify(capabilities)); }
+    if (systemPrompt !== undefined) { setClauses.push('system_prompt = ?'); values.push(systemPrompt); }
+    if (subtitle !== undefined) { setClauses.push('subtitle = ?'); values.push(subtitle); }
+    if (status !== undefined) { setClauses.push('status = ?'); values.push(status); }
+
+    if (setClauses.length > 0) {
+      values.push(id);
+      db.prepare(`UPDATE agents SET ${setClauses.join(', ')} WHERE id = ?`).run(...values);
+    }
+
+    // Update backing workflow LLM prompt if systemPrompt changed
+    if (systemPrompt !== undefined) {
+      const workflowId = `wf_agent_${id}`;
+      const wf = db.prepare('SELECT nodes FROM workflows WHERE id = ?').get(workflowId) as any;
+      if (wf) {
+        const nodes = JSON.parse(wf.nodes);
+        const llmNode = nodes.find((n: any) => n.nodeType === 'llm_analysis');
+        if (llmNode) {
+          llmNode.config.prompt = systemPrompt;
+          db.prepare('UPDATE workflows SET nodes = ?, updated_at = datetime(\'now\') WHERE id = ?').run(JSON.stringify(nodes), workflowId);
+        }
+      }
+    }
+
+    return res.json({ success: true, agent: agentManager.getAgent(id) });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return res.status(500).json({ success: false, error: 'AgentUpdateFailed', message });
+  }
+});
+
+// ── Delete an agent ──────────────────────────────────────────────────
+router.delete('/:id', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const PROTECTED = ['meeting', 'invoice', 'document'];
+  if (PROTECTED.includes(id)) {
+    return res.status(403).json({ error: 'Forbidden', message: 'Cannot delete default agents' });
+  }
+
+  try {
+    const orchestrator = getOrchestrator();
+    const agentManager = orchestrator.getAgentManager();
+    const existing = agentManager.getAgent(id);
+    if (!existing) {
+      return res.status(404).json({ error: 'NotFound', message: `Agent ${id} not found` });
+    }
+
+    agentManager.deleteAgent(id);
+
+    const { getDB } = require('../db/database');
+    const db = getDB();
+    const workflowId = `wf_agent_${id}`;
+    db.prepare('DELETE FROM workflow_runs WHERE workflow_id = ?').run(workflowId);
+    db.prepare('DELETE FROM workflow_logs WHERE workflow_id = ?').run(workflowId);
+    db.prepare('DELETE FROM workflows WHERE id = ?').run(workflowId);
+    db.prepare('DELETE FROM agents WHERE id = ?').run(id);
+
+    return res.json({ success: true, message: `Agent ${id} deleted` });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return res.status(500).json({ success: false, error: 'AgentDeletionFailed', message });
+  }
+});
+
 // ── Inter-agent messaging ────────────────────────────────────────────
 
 router.post('/message', (req: Request, res: Response) => {
