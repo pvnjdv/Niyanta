@@ -9,7 +9,6 @@ import { useWorkflows } from './hooks/useWorkflows';
 import { useTheme } from './hooks/useTheme';
 import { AGENT_LIST } from './constants/agents';
 import { fetchCrossWorkflowInsights } from './services/api';
-import TopBar from './components/layout/TopBar';
 import NavigationSidebar from './components/layout/NavigationSidebar';
 import NiyantaChatModal from './components/modals/NiyantaChatModal';
 import CommandCenter from './screens/CommandCenter';
@@ -53,18 +52,13 @@ const AppContent: React.FC = () => {
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--bg-base)', color: 'var(--text-primary)' }}>
-      <TopBar
-        onOpenNiyantaChat={() => setShowNiyantaChat(true)}
-        theme={theme}
-        onToggleTheme={toggleTheme}
-      />
       <NavigationSidebar
         onOpenNiyantaChat={() => setShowNiyantaChat(true)}
         theme={theme}
         onToggleTheme={toggleTheme}
         alertCount={0}
       />
-      <div style={{ flex: 1, overflow: 'hidden', marginTop: 48, marginLeft: 384 }}>
+      <div style={{ flex: 1, overflow: 'hidden', marginLeft: 384 }}>
         <Routes>
           <Route path="/" element={
             <CommandCenter

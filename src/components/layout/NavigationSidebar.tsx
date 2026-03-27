@@ -1,6 +1,21 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ActiveView } from '../../types/ui';
+import {
+  DashboardIcon,
+  WorkflowsIcon,
+  AgentsIcon,
+  MonitorIcon,
+  AuditIcon,
+  ServicesIcon,
+  FilesIcon,
+  SettingsIcon,
+  NiyantaChatIcon,
+  SearchIcon,
+  ThemeIcon,
+  NotificationIcon,
+  ProfileIcon,
+} from '../shared/AnimatedIcons';
 
 const softSpringEasing = 'cubic-bezier(0.25, 1.1, 0.4, 1)';
 
@@ -195,9 +210,10 @@ function SearchContainer({ isCollapsed = false }: { isCollapsed?: boolean }) {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
+              color: 'var(--text-secondary)',
             }}
           >
-            <span style={{ fontSize: 14 }}>🔍</span>
+            <SearchIcon size={18} />
           </div>
         </div>
 
@@ -459,18 +475,26 @@ function IconNavButton({
 function IconNavigation({
   activeSection,
   onSectionChange,
+  onOpenNiyantaChat,
+  theme,
+  onToggleTheme,
+  alertCount,
 }: {
   activeSection: string;
   onSectionChange: (section: string) => void;
+  onOpenNiyantaChat?: () => void;
+  theme?: 'dark' | 'light';
+  onToggleTheme?: () => void;
+  alertCount?: number;
 }) {
   const navItems = [
-    { id: 'dashboard', icon: '⌂', label: 'Dashboard' },
-    { id: 'tasks', icon: '✓', label: 'Tasks' },
-    { id: 'projects', icon: '📁', label: 'Projects' },
-    { id: 'calendar', icon: '📅', label: 'Calendar' },
-    { id: 'teams', icon: '👥', label: 'Teams' },
-    { id: 'analytics', icon: '📊', label: 'Analytics' },
-    { id: 'files', icon: '📄', label: 'Files' },
+    { id: 'dashboard', Icon: DashboardIcon, label: 'Dashboard' },
+    { id: 'tasks', Icon: WorkflowsIcon, label: 'Workflows' },
+    { id: 'projects', Icon: AgentsIcon, label: 'AI Agents' },
+    { id: 'calendar', Icon: MonitorIcon, label: 'Monitoring' },
+    { id: 'teams', Icon: AuditIcon, label: 'Audit' },
+    { id: 'analytics', Icon: ServicesIcon, label: 'Services' },
+    { id: 'files', Icon: FilesIcon, label: 'Files' },
   ];
 
   return (
@@ -524,7 +548,7 @@ function IconNavigation({
             isActive={activeSection === item.id}
             onClick={() => onSectionChange(item.id)}
           >
-            <span style={{ fontSize: 16 }}>{item.icon}</span>
+            <item.Icon size={20} isActive={activeSection === item.id} />
           </IconNavButton>
         ))}
       </div>
@@ -541,12 +565,30 @@ function IconNavigation({
           alignItems: 'center',
         }}
       >
+        {/* Niyanta Chat Button */}
+        <IconNavButton onClick={onOpenNiyantaChat}>
+          <NiyantaChatIcon size={20} isActive={false} />
+        </IconNavButton>
+        
+        {/* Theme Toggle */}
+        <IconNavButton onClick={onToggleTheme}>
+          <ThemeIcon size={20} isDark={theme === 'dark'} />
+        </IconNavButton>
+
+        {/* Notifications */}
+        <IconNavButton>
+          <NotificationIcon size={20} hasNotif={alertCount ? alertCount > 0 : false} count={alertCount || 0} />
+        </IconNavButton>
+
+        {/* Settings */}
         <IconNavButton
           isActive={activeSection === 'settings'}
           onClick={() => onSectionChange('settings')}
         >
-          <span style={{ fontSize: 16 }}>⚙</span>
+          <SettingsIcon size={20} isActive={activeSection === 'settings'} />
         </IconNavButton>
+
+        {/* User Profile */}
         <div
           style={{
             width: 32,
@@ -1245,7 +1287,7 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
       style={{
         position: 'fixed',
         left: 0,
-        top: 48,
+        top: 0,
         bottom: 0,
         display: 'flex',
         flexDirection: 'row',
@@ -1255,6 +1297,10 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
       <IconNavigation
         activeSection={activeSection}
         onSectionChange={setActiveSection}
+        onOpenNiyantaChat={onOpenNiyantaChat}
+        theme={theme}
+        onToggleTheme={onToggleTheme}
+        alertCount={alertCount}
       />
       <DetailSidebar
         activeSection={activeSection}
