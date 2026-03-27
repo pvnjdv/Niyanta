@@ -11,6 +11,7 @@ import { AGENT_LIST } from './constants/agents';
 import { fetchCrossWorkflowInsights } from './services/api';
 import NavigationSidebar from './components/layout/NavigationSidebar';
 import NiyantaChatModal from './components/modals/NiyantaChatModal';
+import FloatingNiyantaAssistant from './components/chat/FloatingNiyantaAssistant';
 import CommandCenter from './screens/CommandCenter';
 import WorkflowStudio from './screens/WorkflowStudio';
 import AgentConsole from './screens/AgentConsole';
@@ -120,6 +121,10 @@ const AppContent: React.FC = () => {
         isSending={isSending}
         messages={messages}
         agentStates={agentStates}
+      />
+      <FloatingNiyantaAssistant
+        onSend={(msg) => sendMessage(msg, agentResults as Record<string, unknown>)}
+        isSending={isSending}
       />
     </div>
   );

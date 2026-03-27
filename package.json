@@ -22,6 +22,7 @@
     "framer-motion": "^12.38.0",
     "groq-sdk": "^0.30.0",
     "helmet": "^7.2.0",
+    "lucide-react": "^1.7.0",
     "morgan": "^1.10.0",
     "pdfkit": "^0.14.0",
     "react": "^18.3.1",
