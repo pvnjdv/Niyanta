@@ -10,7 +10,7 @@ import { useTheme } from './hooks/useTheme';
 import { AGENT_LIST } from './constants/agents';
 import { fetchCrossWorkflowInsights } from './services/api';
 import TopBar from './components/layout/TopBar';
-import NewBottomDock from './components/layout/NewBottomDock';
+import NavigationSidebar from './components/layout/NavigationSidebar';
 import NiyantaChatModal from './components/modals/NiyantaChatModal';
 import CommandCenter from './screens/CommandCenter';
 import WorkflowStudio from './screens/WorkflowStudio';
@@ -58,7 +58,13 @@ const AppContent: React.FC = () => {
         theme={theme}
         onToggleTheme={toggleTheme}
       />
-      <div style={{ flex: 1, overflow: 'hidden', marginTop: 48, marginBottom: 88 }}>
+      <NavigationSidebar
+        onOpenNiyantaChat={() => setShowNiyantaChat(true)}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+        alertCount={0}
+      />
+      <div style={{ flex: 1, overflow: 'hidden', marginTop: 48, marginLeft: 384 }}>
         <Routes>
           <Route path="/" element={
             <CommandCenter
@@ -113,7 +119,6 @@ const AppContent: React.FC = () => {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>
-      <NewBottomDock />
       <NiyantaChatModal
         isOpen={showNiyantaChat}
         onClose={() => setShowNiyantaChat(false)}
