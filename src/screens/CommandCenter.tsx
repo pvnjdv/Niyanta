@@ -58,7 +58,7 @@ const CommandCenter: React.FC<CommandCenterProps> = ({ agentStates, metrics, wor
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', animation: 'fadeScale 220ms ease' }}>
       {/* Stat Tiles */}
-      <div style={{ display: 'flex', gap: 1, flexShrink: 0 }}>
+      <div style={{ display: 'flex', gap: 12, flexShrink: 0, padding: '12px 12px 0' }}>
         {statTiles.map((s, i) => (
           <div
             key={i}
@@ -68,14 +68,13 @@ const CommandCenter: React.FC<CommandCenterProps> = ({ agentStates, metrics, wor
               if (i === 2) navigate('/audit');
               if (i === 3) navigate('/audit');
             }}
+            className="stat-tile"
             style={{
-              flex: 1, height: 88, background: 'var(--bg-tile)', border: '1px solid var(--border)',
-              padding: '0 24px', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 4,
-              cursor: 'pointer', borderLeft: `2px solid ${s.accent}`, transition: 'border-color 150ms ease',
+              flex: 1, height: 88, padding: '0 20px', display: 'flex', flexDirection: 'column',
+              justifyContent: 'center', gap: 4, cursor: 'pointer',
+              borderLeft: `3px solid ${s.accent}`,
               animation: s.flash ? 'criticalFlash 2s infinite' : undefined,
             }}
-            onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--border-hover)')}
-            onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border)')}
           >
             <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, textTransform: 'uppercase', color: 'var(--text-secondary)' }}>{s.label}</span>
             <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 40, color: s.color, lineHeight: 1 }}>{s.value}</span>
@@ -198,8 +197,8 @@ const CommandCenter: React.FC<CommandCenterProps> = ({ agentStates, metrics, wor
                       padding: '0 12px', display: 'flex', alignItems: 'center', gap: 10,
                       cursor: 'pointer', transition: 'border-color 150ms',
                     }}
-                    onMouseEnter={e => (e.currentTarget.style.borderColor = 'rgba(0,255,136,0.35)')}
-                    onMouseLeave={e => (e.currentTarget.style.borderColor = 'rgba(0,255,136,0.15)')}
+                    onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--accent-border)')}
+                    onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border)')}
                   >
                     <StatusDot status={isProc ? 'processing' : 'active'} color={agent.color} size={6} />
                     <span style={{ fontFamily: 'var(--font-body)', fontWeight: 500, fontSize: 12, color: 'var(--text-primary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{agent.name}</span>

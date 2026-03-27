@@ -41,7 +41,7 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
   // Node palette for builder
   const nodeCategories = [
     { name: 'TRIGGER', color: '#00D4FF', items: ['Webhook Trigger', 'File Upload Trigger', 'Timer Trigger', 'Manual Trigger', 'API Trigger', 'Event Trigger'] },
-    { name: 'AI PROCESSING', color: '#00FF88', items: ['LLM Analysis', 'Document Classification', 'Summarization', 'Decision Generation', 'Risk Analysis'] },
+    { name: 'AI PROCESSING', color: '#00BFA5', items: ['LLM Analysis', 'Document Classification', 'Summarization', 'Decision Generation', 'Risk Analysis'] },
     { name: 'DECISION', color: '#FFB800', items: ['Conditional Routing', 'Threshold Decision', 'Approval Gate', 'Rule Engine', 'Duplicate Detection'] },
     { name: 'ACTION', color: '#FF6B6B', items: ['Invoice Processing', 'Task Assignment', 'Notification', 'Report Generation', 'Purchase Order'] },
     { name: 'DATA', color: '#A78BFA', items: ['Data Storage', 'Data Retrieval', 'File Storage', 'Audit Storage'] },
@@ -163,7 +163,7 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
           {/* Canvas */}
           <div style={{
             flex: 1, position: 'relative', overflow: 'hidden', background: 'var(--bg-base)',
-            backgroundImage: 'radial-gradient(circle, rgba(0,255,136,0.08) 1px, transparent 1px)',
+            backgroundImage: 'radial-gradient(circle, var(--accent-glow) 1px, transparent 1px)',
             backgroundSize: '28px 28px',
           }}
           onClick={(e) => { if (e.target === e.currentTarget) setSelectedNode(null); }}
@@ -186,7 +186,7 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
                     <path
                       key={i}
                       d={`M ${n.x + 180} ${n.y + 32} C ${n.x + 240} ${n.y + 32}, ${next.x - 60} ${next.y + 32}, ${next.x} ${next.y + 32}`}
-                      stroke="rgba(0,255,136,0.3)" strokeWidth={1.5} fill="none"
+                      stroke="var(--accent-border)" strokeWidth={1.5} fill="none"
                     />
                   );
                 })}

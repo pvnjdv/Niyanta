@@ -40,11 +40,9 @@ const BottomDock: React.FC = () => {
       position: 'fixed', bottom: 16, left: '50%', transform: 'translateX(-50%)',
       zIndex: 100,
     }}>
-      <div style={{
-        background: 'var(--bg-dock)', border: '1px solid var(--border)',
-        boxShadow: 'var(--shadow-dock)', backdropFilter: 'blur(20px) saturate(180%)',
-        padding: '0 20px', height: 64,
-        display: 'flex', alignItems: 'center', gap: 4,
+      <div className="dock-container" style={{
+        padding: '0 20px', height: 56,
+        display: 'flex', alignItems: 'center', gap: 2,
       }}>
         {DOCK_ITEMS.map((item, i) => {
           const isActive = active === item.id;
@@ -63,11 +61,12 @@ const BottomDock: React.FC = () => {
               >
                 <div style={{
                   width: 36, height: 36,
-                  background: isActive ? 'var(--green-dim)' : 'transparent',
-                  border: isActive ? '1px solid var(--green-border)' : '1px solid transparent',
+                  background: isActive ? 'var(--accent-dim)' : 'transparent',
+                  border: isActive ? '1px solid var(--accent-border)' : '1px solid transparent',
+                  borderRadius: 4,
                   display: 'grid', placeItems: 'center',
                   fontSize: 18,
-                  color: isActive ? 'var(--green-primary)' : 'var(--text-secondary)',
+                  color: isActive ? 'var(--accent)' : 'var(--text-secondary)',
                   transition: 'all 150ms ease',
                   animation: bouncing === item.id ? 'dockBounce 300ms ease' : undefined,
                 }}>
@@ -76,12 +75,12 @@ const BottomDock: React.FC = () => {
                 <span style={{
                   fontFamily: 'var(--font-mono)', fontSize: 8, textTransform: 'uppercase',
                   letterSpacing: '0.08em',
-                  color: isActive ? 'var(--green-primary)' : 'var(--text-muted)',
+                  color: isActive ? 'var(--accent)' : 'var(--text-muted)',
                 }}>{item.label}</span>
                 {isActive && (
                   <span style={{
                     position: 'absolute', bottom: 4, left: '50%', transform: 'translateX(-50%)',
-                    width: 3, height: 3, borderRadius: '50%', background: 'var(--green-primary)',
+                    width: 3, height: 3, borderRadius: '50%', background: 'var(--accent)',
                     animation: 'fadeIn 200ms ease',
                   }} />
                 )}

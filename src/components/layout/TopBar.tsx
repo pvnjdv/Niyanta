@@ -4,9 +4,11 @@ import { useNavigate, useLocation } from 'react-router-dom';
 interface TopBarProps {
   onOpenNiyantaChat: () => void;
   alertCount?: number;
+  theme?: 'dark' | 'light';
+  onToggleTheme?: () => void;
 }
 
-const TopBar: React.FC<TopBarProps> = ({ onOpenNiyantaChat, alertCount = 0 }) => {
+const TopBar: React.FC<TopBarProps> = ({ onOpenNiyantaChat, alertCount = 0, theme = 'dark', onToggleTheme }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [search, setSearch] = useState('');
@@ -56,17 +58,17 @@ const TopBar: React.FC<TopBarProps> = ({ onOpenNiyantaChat, alertCount = 0 }) =>
     : [];
 
   return (
-    <div style={{
-      height: 48, background: 'var(--bg-panel)', borderBottom: '1px solid var(--border)',
+    <div className="topbar" style={{
+      height: 48,
       position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100,
       display: 'flex', alignItems: 'center', padding: '0 20px', gap: 16,
     }}>
       {/* Left */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
         <div style={{
-          width: 28, height: 28, border: '1px solid var(--green-primary)', borderRadius: '50%',
+          width: 28, height: 28, border: '1px solid var(--accent)', borderRadius: '50%',
           display: 'grid', placeItems: 'center', fontFamily: 'var(--font-display)',
-          fontWeight: 700, fontSize: 12, color: 'var(--green-primary)',
+          fontWeight: 700, fontSize: 12, color: 'var(--accent)',
         }}>नि</div>
         <span style={{
           fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 15,
@@ -121,14 +123,52 @@ const TopBar: React.FC<TopBarProps> = ({ onOpenNiyantaChat, alertCount = 0 }) =>
       </div>
 
       {/* Right */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
         {/* LIVE */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           <span style={{
-            width: 6, height: 6, borderRadius: '50%', background: 'var(--green-primary)',
-            animation: 'greenPulse 2s infinite',
+            width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)',
+            animation: 'accentPulse 2s infinite',
           }} />
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--green-primary)', letterSpacing: '0.15em' }}>LIVE</span>
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--accent)', letterSpacing: '0.15em' }}>LIVE</span>
+        </div>
+
+        {/* Niyanta AI Button */}
+        <button
+          onClick={onOpenNiyantaChat}
+          style={{
+            height: 28, padding: '0 10px',
+            background: 'var(--accent-dim)',
+            border: '1px solid var(--accent-border)',
+            borderRadius: 3,
+            display: 'flex', alignItems: 'center', gap: 5,
+            fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--accent)',
+            letterSpacing: '0.08em', textTransform: 'uppercase',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = 'var(--accent-glow)'; }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'var(--accent-dim)'; }}
+        >
+          <span style={{ fontSize: 11 }}>⚡</span> NIYANTA AI
+          <span style={{
+            fontFamily: 'var(--font-mono)', fontSize: 8,
+            background: 'var(--bg-tile)', border: '1px solid var(--border)',
+            padding: '1px 4px', borderRadius: 2, color: 'var(--text-secondary)',
+          }}>⌘K</span>
+        </button>
+
+        {/* Theme toggle */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)' }}>
+            {theme === 'dark' ? '🌙' : '☀️'}
+          </span>
+          <button
+            className="theme-toggle"
+            onClick={onToggleTheme}
+            title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            aria-label="Toggle theme"
+          >
+            <div className="theme-toggle__knob" />
+          </button>
         </div>
 
         {/* Alert bell */}
@@ -175,9 +215,9 @@ const TopBar: React.FC<TopBarProps> = ({ onOpenNiyantaChat, alertCount = 0 }) =>
             }}
           >
             <div style={{
-              width: 20, height: 20, borderRadius: '50%', background: 'var(--green-dim)',
-              border: '1px solid var(--green-border)', display: 'grid', placeItems: 'center',
-              fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--green-primary)',
+              width: 20, height: 20, borderRadius: '50%', background: 'var(--accent-dim)',
+              border: '1px solid var(--accent-border)', display: 'grid', placeItems: 'center',
+              fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--accent)',
             }}>AD</div>
             <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--text-secondary)' }}>Admin</span>
             <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>▾</span>

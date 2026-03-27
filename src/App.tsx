@@ -6,6 +6,7 @@ import { useAuditLog } from './hooks/useAuditLog';
 import { useNiyantaChat } from './hooks/useNiyantaChat';
 import { useMetrics } from './hooks/useMetrics';
 import { useWorkflows } from './hooks/useWorkflows';
+import { useTheme } from './hooks/useTheme';
 import { AGENT_LIST } from './constants/agents';
 import { fetchCrossWorkflowInsights } from './services/api';
 import TopBar from './components/layout/TopBar';
@@ -19,6 +20,7 @@ import AuditCompliance from './screens/AuditCompliance';
 import ServicesStatus from './screens/ServicesStatus';
 
 const AppContent: React.FC = () => {
+  const { theme, toggleTheme } = useTheme();
   const { agentStates, executeAgent, runAllAgents, runAllProgress, addMessage } = useAgents();
   const { entries } = useAuditLog();
   const { messages, isSending, sendMessage } = useNiyantaChat();
@@ -29,8 +31,8 @@ const AppContent: React.FC = () => {
   const [insights, setInsights] = useState<string[]>([]);
 
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', 'dark');
-  }, []);
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
 
   useEffect(() => {
     if (insights.length === 0) return;
@@ -53,8 +55,10 @@ const AppContent: React.FC = () => {
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--bg-base)', color: 'var(--text-primary)' }}>
       <TopBar
         onOpenNiyantaChat={() => setShowNiyantaChat(true)}
+        theme={theme}
+        onToggleTheme={toggleTheme}
       />
-      <div style={{ flex: 1, overflow: 'hidden', marginTop: 48, marginBottom: 64 }}>
+      <div style={{ flex: 1, overflow: 'hidden', marginTop: 48, marginBottom: 88 }}>
         <Routes>
           <Route path="/" element={
             <CommandCenter

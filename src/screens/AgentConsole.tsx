@@ -420,7 +420,7 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
           <div style={{
             flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
             flexDirection: 'column', gap: 16,
-            backgroundImage: 'radial-gradient(circle, rgba(0,255,136,0.04) 1px, transparent 1px)',
+            backgroundImage: 'radial-gradient(circle, var(--accent-glow) 1px, transparent 1px)',
             backgroundSize: '28px 28px',
           }}>
             <div style={{
