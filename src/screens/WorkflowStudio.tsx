@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import StatusDot from '../shared/StatusDot';
+import StatusDot from '../components/shared/StatusDot';
 
 interface WorkflowStudioProps {
   workflows: Array<{ id?: string; name?: string; status?: string; description?: string; category?: string }>;

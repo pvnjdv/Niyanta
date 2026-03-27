@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import StatusDot from '../shared/StatusDot';
-import ProgressBar from '../shared/ProgressBar';
+import StatusDot from '../components/shared/StatusDot';
+import ProgressBar from '../components/shared/ProgressBar';
 
 const OperationsMonitor: React.FC = () => {
   const [timeRange, setTimeRange] = useState('LIVE');

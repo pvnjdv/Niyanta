@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Agent } from '../../types/agent';
-import { fetchHealth } from '../../services/api';
-import StatusDot from '../shared/StatusDot';
-import ProgressBar from '../shared/ProgressBar';
+import { Agent } from '../types/agent';
+import { fetchHealth } from '../services/api';
+import StatusDot from '../components/shared/StatusDot';
+import ProgressBar from '../components/shared/ProgressBar';
 
 interface ServicesStatusProps {
   agents: Agent[];

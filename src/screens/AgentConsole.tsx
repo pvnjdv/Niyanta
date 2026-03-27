@@ -1,21 +1,19 @@
 import React, { useState, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Agent, AgentState, Message } from '../../types/agent';
-import { SAMPLES } from '../../constants/samples';
-import StatusDot from '../shared/StatusDot';
+import { Agent, AgentState, Message } from '../types/agent';
+import { SAMPLES } from '../constants/samples';
+import StatusDot from '../components/shared/StatusDot';
 
 interface AgentConsoleProps {
   agents: Agent[];
   agentStates: Record<string, AgentState>;
-  onSelectAgent: (id: string) => void;
   onExecuteAgent: (id: string, input?: string) => Promise<void>;
-  onUseSample: (id: string) => Promise<void>;
   runAllProgress: string | null;
   onRunAll: () => Promise<void>;
 }
 
 const AgentConsole: React.FC<AgentConsoleProps> = ({
-  agents, agentStates, onSelectAgent, onExecuteAgent, onUseSample, runAllProgress, onRunAll,
+  agents, agentStates, onExecuteAgent, runAllProgress, onRunAll,
 }) => {
   const navigate = useNavigate();
   const { agentId } = useParams<{ agentId?: string }>();
@@ -43,7 +41,7 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
     }
   };
 
-  const renderResult = (result: Record<string, unknown>) => {
+  const renderResult = (result: Record<string, any>) => {
     if (!result) return null;
     return (
       <div style={{ fontFamily: 'var(--font-body)', fontSize: 13, lineHeight: 1.6 }}>
@@ -60,12 +58,12 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
         {result.tasks && Array.isArray(result.tasks) && result.tasks.length > 0 && (
           <div style={{ border: '1px solid var(--border)', marginBottom: 8 }}>
             <div style={{ padding: '6px 12px', borderBottom: '1px solid var(--border)', fontFamily: 'var(--font-mono)', fontSize: 9, textTransform: 'uppercase', color: 'var(--text-secondary)' }}>
-              ACTION ITEMS ({result.tasks.length})
+              ACTION ITEMS ({(result.tasks as unknown[]).length})
             </div>
-            {(result.tasks as Array<Record<string, unknown>>).map((t, i) => (
+            {(result.tasks as Array<Record<string, any>>).map((t: any, i: number) => (
               <div key={i} style={{ padding: '6px 12px', borderBottom: '1px solid var(--border-subtle)', fontSize: 12 }}>
                 <span style={{ color: 'var(--green-primary)', fontFamily: 'var(--font-mono)', marginRight: 8 }}>{i + 1}.</span>
-                {t.task || t.description || String(t)}
+                {String(t.task || t.description || t)}
                 {t.owner && <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-secondary)', marginLeft: 8 }}>→ {String(t.owner)}</span>}
               </div>
             ))}
@@ -74,11 +72,11 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
         {result.decisions && Array.isArray(result.decisions) && (
           <div style={{ border: '1px solid var(--border)', marginBottom: 8 }}>
             <div style={{ padding: '6px 12px', borderBottom: '1px solid var(--border)', fontFamily: 'var(--font-mono)', fontSize: 9, textTransform: 'uppercase', color: 'var(--text-secondary)' }}>
-              DECISIONS ({result.decisions.length})
+              DECISIONS ({(result.decisions as unknown[]).length})
             </div>
-            {(result.decisions as Array<Record<string, unknown>>).map((d, i) => (
+            {(result.decisions as Array<Record<string, any>>).map((d: any, i: number) => (
               <div key={i} style={{ padding: '6px 12px', borderBottom: '1px solid var(--border-subtle)', fontSize: 12 }}>
-                {d.decision || d.text || String(d)}
+                {String(d.decision || d.text || d)}
               </div>
             ))}
           </div>
@@ -86,11 +84,11 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
         {result.risks && Array.isArray(result.risks) && result.risks.length > 0 && (
           <div style={{ border: '1px solid var(--border-danger)', background: 'rgba(255,45,85,0.05)', marginBottom: 8 }}>
             <div style={{ padding: '6px 12px', borderBottom: '1px solid var(--border-danger)', fontFamily: 'var(--font-mono)', fontSize: 9, textTransform: 'uppercase', color: 'var(--status-danger)' }}>
-              RISKS ({result.risks.length})
+              RISKS ({(result.risks as unknown[]).length})
             </div>
-            {(result.risks as Array<Record<string, unknown>>).map((r, i) => (
+            {(result.risks as Array<Record<string, any>>).map((r: any, i: number) => (
               <div key={i} style={{ padding: '6px 12px', borderBottom: '1px solid var(--border-subtle)', fontSize: 12, borderLeft: '2px solid var(--status-danger)' }}>
-                {r.risk || r.description || String(r)}
+                {String(r.risk || r.description || r)}
               </div>
             ))}
           </div>
@@ -233,7 +231,7 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button
-                  onClick={() => onUseSample(selectedAgent.id)}
+                  onClick={() => onExecuteAgent(selectedAgent.id)}
                   style={{
                     height: 28, padding: '0 12px', background: 'transparent',
                     border: '1px solid var(--border)', fontFamily: 'var(--font-mono)',

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { v4 as uuid } from 'uuid';
-import { useTheme } from './hooks/useTheme';
 import { useAgents } from './hooks/useAgents';
 import { useAuditLog } from './hooks/useAuditLog';
 import { useNiyantaChat } from './hooks/useNiyantaChat';
@@ -8,36 +8,37 @@ import { useMetrics } from './hooks/useMetrics';
 import { useWorkflows } from './hooks/useWorkflows';
 import { AGENT_LIST } from './constants/agents';
 import { fetchCrossWorkflowInsights } from './services/api';
-import { ActiveView, RightPanelTab } from './types/ui';
-import AppShell from './components/layout/AppShell';
+import TopBar from './components/layout/TopBar';
+import NewBottomDock from './components/layout/NewBottomDock';
 import NiyantaChatModal from './components/modals/NiyantaChatModal';
+import CommandCenter from './screens/CommandCenter';
+import WorkflowStudio from './screens/WorkflowStudio';
+import AgentConsole from './screens/AgentConsole';
+import OperationsMonitor from './screens/OperationsMonitor';
+import AuditCompliance from './screens/AuditCompliance';
+import ServicesStatus from './screens/ServicesStatus';
 
-const App: React.FC = () => {
-  const { theme, toggleTheme } = useTheme();
+const AppContent: React.FC = () => {
   const { agentStates, executeAgent, runAllAgents, runAllProgress, addMessage } = useAgents();
   const { entries } = useAuditLog();
   const { messages, isSending, sendMessage } = useNiyantaChat();
   const { metrics } = useMetrics();
   const { workflows, saveWorkflow } = useWorkflows();
 
-  const [selectedAgentId, setSelectedAgentId] = useState<string | null>('meeting');
   const [showNiyantaChat, setShowNiyantaChat] = useState(false);
-  const [activeView, setActiveView] = useState<ActiveView>('home');
-  const [rightPanelTab, setRightPanelTab] = useState<RightPanelTab>('execution');
   const [insights, setInsights] = useState<string[]>([]);
 
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
-  }, [theme]);
+    document.documentElement.setAttribute('data-theme', 'dark');
+  }, []);
 
   useEffect(() => {
     if (insights.length === 0) return;
-    const target = selectedAgentId || 'it_ops';
     insights.forEach((insight) => {
-      addMessage(target, { id: uuid(), type: 'insight', content: insight, timestamp: new Date().toISOString() });
+      addMessage('it_ops', { id: uuid(), type: 'insight', content: insight, timestamp: new Date().toISOString() });
     });
     setInsights([]);
-  }, [insights, selectedAgentId, addMessage]);
+  }, [insights, addMessage]);
 
   const handleRunAll = async () => {
     await runAllAgents();
@@ -46,44 +47,69 @@ const App: React.FC = () => {
     setInsights(computedInsights);
   };
 
-  const handleUseSample = async (agentId: string) => {
-    await executeAgent(agentId);
-    setSelectedAgentId(agentId);
-  };
-
   const agentResults = Object.fromEntries(Object.entries(agentStates).map(([k, v]) => [k, v.result]).filter(([, v]) => v));
 
   return (
-    <>
-      <AppShell
-        agents={AGENT_LIST}
-        agentStates={agentStates}
-        selectedAgentId={selectedAgentId}
-        onSelectAgent={setSelectedAgentId}
-        onRunAll={handleRunAll}
-        runAllProgress={runAllProgress}
-        activeView={activeView}
-        onChangeView={setActiveView}
-        theme={theme}
-        onToggleTheme={toggleTheme}
-        metrics={metrics}
-        auditEntries={entries}
-        rightPanelTab={rightPanelTab}
-        onRightPanelTabChange={setRightPanelTab}
-        onExecuteAgent={executeAgent}
-        onUseSample={handleUseSample}
+    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--bg-base)', color: 'var(--text-primary)' }}>
+      <TopBar
         onOpenNiyantaChat={() => setShowNiyantaChat(true)}
-        onSaveWorkflow={async (nodes, edges) => {
-          await saveWorkflow({
-            name: `Workflow ${new Date().toISOString()}`,
-            description: 'Generated from workflow builder',
-            nodes,
-            edges,
-            category: 'custom',
-          });
-        }}
-        workflows={workflows}
       />
+      <div style={{ flex: 1, overflow: 'hidden', marginTop: 48, marginBottom: 64 }}>
+        <Routes>
+          <Route path="/" element={
+            <CommandCenter
+              agentStates={agentStates}
+              metrics={metrics}
+              workflows={workflows}
+              onRunAll={handleRunAll}
+              runAllProgress={runAllProgress}
+            />
+          } />
+          <Route path="/workflows" element={
+            <WorkflowStudio
+              workflows={workflows}
+              onSaveWorkflow={async (nodes, edges) => {
+                await saveWorkflow({
+                  name: `Workflow ${new Date().toISOString()}`,
+                  description: 'Generated from workflow builder',
+                  nodes,
+                  edges,
+                  category: 'custom',
+                });
+              }}
+            />
+          } />
+          <Route path="/agents" element={
+            <AgentConsole
+              agents={AGENT_LIST}
+              agentStates={agentStates}
+              onExecuteAgent={executeAgent}
+              onRunAll={handleRunAll}
+              runAllProgress={runAllProgress}
+            />
+          } />
+          <Route path="/agents/:agentId" element={
+            <AgentConsole
+              agents={AGENT_LIST}
+              agentStates={agentStates}
+              onExecuteAgent={executeAgent}
+              onRunAll={handleRunAll}
+              runAllProgress={runAllProgress}
+            />
+          } />
+          <Route path="/monitor" element={
+            <OperationsMonitor />
+          } />
+          <Route path="/audit" element={
+            <AuditCompliance auditEntries={entries} />
+          } />
+          <Route path="/services" element={
+            <ServicesStatus agents={AGENT_LIST} />
+          } />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </div>
+      <NewBottomDock />
       <NiyantaChatModal
         isOpen={showNiyantaChat}
         onClose={() => setShowNiyantaChat(false)}
@@ -92,7 +118,15 @@ const App: React.FC = () => {
         messages={messages}
         agentStates={agentStates}
       />
-    </>
+    </div>
+  );
+};
+
+const App: React.FC = () => {
+  return (
+    <BrowserRouter>
+      <AppContent />
+    </BrowserRouter>
   );
 };
 

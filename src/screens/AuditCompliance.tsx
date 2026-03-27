@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import ProgressBar from '../shared/ProgressBar';
+import ProgressBar from '../components/shared/ProgressBar';
 
 const AuditCompliance: React.FC<{ auditEntries: unknown[] }> = ({ auditEntries }) => {
   const [activeTab, setActiveTab] = useState('log');

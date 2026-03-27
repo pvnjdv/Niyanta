@@ -9,7 +9,7 @@ export function useTheme() {
     localStorage.setItem('niyanta-theme', theme);
   }, [theme]);
 
-  const toggleTheme = () => setTheme((t) => (t === 'dark' ? 'light' : 'dark'));
+  const toggleTheme = () => setTheme('dark' as Theme);
 
   return { theme, toggleTheme, isDark: theme === 'dark' };
 }

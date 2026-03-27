@@ -1,20 +1,21 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AgentState } from '../../types/agent';
-import { Agent } from '../../types/agent';
-import StatusDot from '../shared/StatusDot';
-import ProgressBar from '../shared/ProgressBar';
+import { AgentState } from '../types/agent';
+import { AGENT_LIST } from '../constants/agents';
+import StatusDot from '../components/shared/StatusDot';
+import ProgressBar from '../components/shared/ProgressBar';
 
 interface CommandCenterProps {
-  agents: Agent[];
   agentStates: Record<string, AgentState>;
   metrics: Record<string, unknown>;
-  auditEntries: unknown[];
   workflows: Array<{ id?: string; name?: string; status?: string; nodeCount?: number; runCount?: number; successRate?: number }>;
+  onRunAll?: () => Promise<void>;
+  runAllProgress?: string | null;
 }
 
-const CommandCenter: React.FC<CommandCenterProps> = ({ agents, agentStates, metrics, auditEntries, workflows }) => {
+const CommandCenter: React.FC<CommandCenterProps> = ({ agentStates, metrics, workflows }) => {
   const navigate = useNavigate();
+  const agents = AGENT_LIST;
   const m = metrics as Record<string, number>;
   const totalRuns = m.totalRuns || 47;
   const failedToday = m.failedToday || 3;

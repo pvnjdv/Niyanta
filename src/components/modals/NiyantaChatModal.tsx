@@ -14,6 +14,8 @@ const SUGGESTIONS = [
   'Cross-workflow risk report',
   'Summarize pending escalations',
   'Top bottlenecks across workflows',
+  'Show all active agent statuses',
+  'SLA compliance summary',
 ];
 
 const NiyantaChatModal: React.FC<NiyantaChatModalProps> = ({ isOpen, onClose, onSend, isSending, messages }) => {
@@ -35,39 +37,60 @@ const NiyantaChatModal: React.FC<NiyantaChatModalProps> = ({ isOpen, onClose, on
   if (!isOpen) return null;
 
   return (
-    <div className="nyt-modal-overlay" onClick={onClose}>
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 9999,
+        background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        animation: 'fadeScale 180ms ease',
+      }}
+    >
       <div
-        className="nyt-modal"
-        style={{ width: 'min(680px, 92vw)', height: 'min(560px, 85vh)' }}
         onClick={(e) => e.stopPropagation()}
+        style={{
+          width: 'min(700px, 92vw)', height: 'min(580px, 85vh)',
+          background: 'var(--bg-panel)', border: '1px solid var(--border)',
+          display: 'flex', flexDirection: 'column',
+        }}
       >
         {/* Header */}
-        <div className="nyt-modal__header">
-          <div className="nyt-modal__title">Niyanta Command</div>
-          <button className="nyt-btn nyt-btn--ghost nyt-btn--sm" onClick={onClose}>
-            ✕
-          </button>
+        <div style={{
+          height: 48, borderBottom: '1px solid var(--border)',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 15, color: 'var(--green-primary)' }}>⚡</span>
+            <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 14, textTransform: 'uppercase' }}>Niyanta Command</span>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, padding: '2px 6px', background: 'var(--green-dim)', border: '1px solid var(--green-border)', color: 'var(--green-primary)' }}>AI</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)' }}>llama-3.3-70b</span>
+            <button onClick={onClose} style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)', padding: '4px 8px', border: '1px solid var(--border)' }}>ESC</button>
+          </div>
         </div>
 
         {/* Messages */}
-        <div ref={ref} className="nyt-modal__body" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div ref={ref} style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
           {messages.length === 0 && (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, padding: '40px 0' }}>
-              <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--text-primary)' }}>
-                Niyanta AI
-              </div>
-              <div style={{ fontSize: 13, color: 'var(--text-tertiary)', textAlign: 'center', maxWidth: 400 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, padding: '48px 0' }}>
+              <div style={{ fontSize: 36, opacity: 0.3 }}>⚡</div>
+              <div style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 800, color: 'var(--text-primary)' }}>NIYANTA AI</div>
+              <div style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--text-secondary)', textAlign: 'center', maxWidth: 420, lineHeight: 1.6 }}>
                 Ask the orchestrator for cross-workflow insights, risk reports, or operational summaries.
               </div>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
-                {SUGGESTIONS.map((s) => (
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center', marginTop: 8 }}>
+                {SUGGESTIONS.map(s => (
                   <button
                     key={s}
-                    className="nyt-btn nyt-btn--sm"
                     onClick={() => setText(s)}
-                  >
-                    {s}
-                  </button>
+                    style={{
+                      padding: '6px 14px', background: 'var(--bg-tile)', border: '1px solid var(--border)',
+                      fontFamily: 'var(--font-body)', fontSize: 12, color: 'var(--text-primary)',
+                    }}
+                    onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--green-border)')}
+                    onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border)')}
+                  >{s}</button>
                 ))}
               </div>
             </div>
@@ -78,48 +101,49 @@ const NiyantaChatModal: React.FC<NiyantaChatModalProps> = ({ isOpen, onClose, on
               key={i}
               style={{
                 alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start',
-                maxWidth: '80%',
-                padding: '10px 14px',
-                borderRadius: m.role === 'user' ? '12px 12px 4px 12px' : '12px 12px 12px 4px',
-                background: m.role === 'user' ? 'var(--bg-surface-raised)' : 'var(--bg-surface)',
-                border: '1px solid var(--border-default)',
-                fontSize: 13,
-                lineHeight: 1.6,
-                whiteSpace: 'pre-wrap',
+                maxWidth: '80%', padding: '10px 14px',
+                background: m.role === 'user' ? 'var(--bg-tile)' : 'var(--bg-panel)',
+                border: m.role === 'user' ? '1px solid var(--green-border)' : '1px solid var(--border)',
+                fontFamily: 'var(--font-body)', fontSize: 13, lineHeight: 1.6, whiteSpace: 'pre-wrap',
+                color: 'var(--text-primary)',
               }}
             >
+              {m.role === 'assistant' && (
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--green-primary)', marginBottom: 4, textTransform: 'uppercase' }}>NIYANTA</div>
+              )}
               {m.content}
             </div>
           ))}
 
           {isSending && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: 8, color: 'var(--text-tertiary)', fontSize: 13 }}>
-              <span className="nyt-spinner nyt-spinner--sm" />
-              Thinking...
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px',
+              background: 'var(--bg-panel)', border: '1px solid var(--border)', alignSelf: 'flex-start',
+            }}>
+              <span style={{ width: 6, height: 6, background: 'var(--green-primary)', animation: 'greenPulse 1s infinite' }} />
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-secondary)' }}>Processing...</span>
             </div>
           )}
         </div>
 
         {/* Input */}
-        <div className="nyt-modal__footer" style={{ gap: 10 }}>
+        <div style={{
+          height: 52, borderTop: '1px solid var(--border)', display: 'flex',
+          alignItems: 'center', padding: '0 12px', gap: 10,
+        }}>
           <input
-            className="nyt-input"
             value={text}
-            onChange={(e) => setText(e.target.value)}
+            onChange={e => setText(e.target.value)}
             placeholder="Ask Niyanta..."
-            style={{ flex: 1 }}
-            onKeyDown={(e) => {
+            style={{ flex: 1, height: 34, border: '1px solid var(--border)', padding: '0 12px', fontFamily: 'var(--font-body)', fontSize: 13 }}
+            onKeyDown={e => {
               if (e.key === 'Enter' && text.trim() && !isSending) {
                 void onSend(text.trim());
                 setText('');
               }
             }}
           />
-          <span style={{ fontSize: 10, color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono)' }}>
-            llama-3.3-70b
-          </span>
           <button
-            className="nyt-btn nyt-btn--primary nyt-btn--sm"
             disabled={!text.trim() || isSending}
             onClick={async () => {
               if (text.trim()) {
@@ -127,9 +151,14 @@ const NiyantaChatModal: React.FC<NiyantaChatModalProps> = ({ isOpen, onClose, on
                 setText('');
               }
             }}
-          >
-            {isSending ? '...' : 'Send'}
-          </button>
+            style={{
+              height: 34, padding: '0 16px', fontFamily: 'var(--font-mono)', fontSize: 11,
+              textTransform: 'uppercase',
+              background: text.trim() && !isSending ? 'var(--green-dim)' : 'transparent',
+              border: text.trim() && !isSending ? '1px solid var(--green-border)' : '1px solid var(--border)',
+              color: text.trim() && !isSending ? 'var(--green-primary)' : 'var(--text-muted)',
+            }}
+          >{isSending ? '...' : 'SEND'}</button>
         </div>
       </div>
     </div>
