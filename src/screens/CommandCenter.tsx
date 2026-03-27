@@ -189,20 +189,24 @@ const CommandCenter: React.FC<CommandCenterProps> = ({ agentStates, metrics, wor
                 const state = agentStates[agent.id];
                 const isProc = state?.status === 'processing';
                 return (
-                  <GlassPanel
+                  <div
                     key={agent.id}
                     onClick={() => navigate(`/agents/${agent.id}`)}
-                    noPadding
-                    style={{
-                      height: 48, padding: '0 12px', display: 'flex', alignItems: 'center', gap: 10,
-                      cursor: 'pointer', transition: 'border-color 150ms',
-                    }}
+                    style={{ cursor: 'pointer' }}
                   >
-                    <StatusDot status={isProc ? 'processing' : 'active'} color={agent.color} size={6} />
-                    <span style={{ fontFamily: 'var(--font-body)', fontWeight: 500, fontSize: 12, color: 'var(--text-primary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{agent.name}</span>
-                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-secondary)' }}>98%</span>
-                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)' }}>{state?.taskCount || 0}</span>
-                  </GlassPanel>
+                    <GlassPanel
+                      noPadding
+                      style={{
+                        height: 48, padding: '0 12px', display: 'flex', alignItems: 'center', gap: 10,
+                        transition: 'border-color 150ms',
+                      }}
+                    >
+                      <StatusDot status={isProc ? 'processing' : 'active'} color={agent.color} size={6} />
+                      <span style={{ fontFamily: 'var(--font-body)', fontWeight: 500, fontSize: 12, color: 'var(--text-primary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{agent.name}</span>
+                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-secondary)' }}>98%</span>
+                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)' }}>{state?.taskCount || 0}</span>
+                    </GlassPanel>
+                  </div>
                 );
               })}
             </div>

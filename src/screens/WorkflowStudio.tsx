@@ -427,22 +427,25 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
           <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, textTransform: 'uppercase', color: 'var(--text-secondary)', marginBottom: 12 }}>WORKFLOW TEMPLATES</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
             {templates.map((t, i) => (
-              <GlassPanel
+              <div
                 key={i}
-                style={{
-                  height: 72,
-                  display: 'grid',
-                  placeItems: 'center',
-                  cursor: 'pointer',
-                  padding: 12,
-                  textAlign: 'center',
-                }}
                 onClick={() => { setShowBuilder(true); setSelectedWorkflow(null); }}
+                style={{ cursor: 'pointer' }}
               >
-                <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--text-primary)' }}>
-                  {t}
-                </span>
-              </GlassPanel>
+                <GlassPanel
+                  style={{
+                    height: 72,
+                    display: 'grid',
+                    placeItems: 'center',
+                    padding: 12,
+                    textAlign: 'center',
+                  }}
+                >
+                  <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--text-primary)' }}>
+                    {t}
+                  </span>
+                </GlassPanel>
+              </div>
             ))}
           </div>
         </div>
