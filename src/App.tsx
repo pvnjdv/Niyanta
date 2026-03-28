@@ -140,6 +140,23 @@ const AppContent: React.FC = () => {
             }
           />
           <Route
+            path="/workflows/:workflowId"
+            element={
+              <WorkflowStudio
+                workflows={workflows}
+                onSaveWorkflow={async (nodes, edges) => {
+                  await saveWorkflow({
+                    name: `Workflow ${new Date().toISOString()}`,
+                    description: 'Generated from workflow builder',
+                    nodes,
+                    edges,
+                    category: 'custom',
+                  });
+                }}
+              />
+            }
+          />
+          <Route
             path="/agents"
             element={
               <AgentConsole

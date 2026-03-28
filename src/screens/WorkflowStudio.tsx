@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { TemplateGallery } from '../components/workflow/TemplateGallery';
 
 
@@ -8,9 +9,11 @@ interface WorkflowStudioProps {
 }
 
 const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkflow }) => {
+  const navigate = useNavigate();
+  const { workflowId } = useParams<{ workflowId?: string }>();
+  
   // State management
   const [selectedWorkflow, setSelectedWorkflow] = useState<string | null>(null);
-  const [workflowId, setWorkflowId] = useState<string | null>(null);
   const [workflowName, setWorkflowName] = useState('New Workflow');
   const [environment, setEnvironment] = useState<'test' | 'staging' | 'production'>('test');
   const [workflowStatus, setWorkflowStatus] = useState<'idle' | 'running' | 'paused' | 'error'>('idle');
@@ -29,8 +32,10 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-  const [showTemplateGallery, setShowTemplateGallery] = useState(false);
   const [linkedAgents, setLinkedAgents] = useState<Array<{agent_id: string; name: string; icon: string; color: string}>>([]);
+  const [searchFilter, setSearchFilter] = useState('');
+  const [allWorkflows, setAllWorkflows] = useState<any[]>([]);
+  const [loadingWorkflows, setLoadingWorkflows] = useState(true);
   
   // Mock execution data
   const mockLogs = [
@@ -66,7 +71,7 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
   // Fetch linked agents when workflow is loaded (Phase 8)
   React.useEffect(() => {
     const fetchLinkedAgents = async () => {
-      if (!workflowId) {
+      if (!workflowId || workflowId === 'new') {
         setLinkedAgents([]);
         return;
       }
@@ -82,6 +87,27 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
       }
     };
     fetchLinkedAgents();
+  }, [workflowId]);
+
+  React.useEffect(() => {
+    const fetchWorkflows = async () => {
+      if (workflowId) {
+        return;
+      }
+      setLoadingWorkflows(true);
+      try {
+        const res = await fetch('http://localhost:3001/api/workflow');
+        if (res.ok) {
+          const data = await res.json();
+          setAllWorkflows(data.workflows || []);
+        }
+      } catch (err) {
+        console.error('Failed to fetch workflows:', err);
+      } finally {
+        setLoadingWorkflows(false);
+      }
+    };
+    fetchWorkflows();
   }, [workflowId]);
 
   // Mock data
@@ -434,7 +460,7 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
       addLog('SUCCESS', node.name, `Execution completed in ${(processingTime / 1000).toFixed(2)}s`, output);
       
       // Update context
-      setExecutionContext(prev => ({ ...prev, [node.id]: output }));
+      setExecutionContext((prev: Record<string, any>) => ({ ...prev, [node.id]: output }));
     } else {
       setNodeExecutionState(prev => ({ ...prev, [node.id]: 'error' }));
       const errorMsg = 'Simulated execution error';
@@ -528,7 +554,7 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
       const result = await response.json();
       
       if (!workflowId && result.id) {
-        setWorkflowId(result.id);
+        navigate(`/workflows/${result.id}`);
       }
 
       setLastSaved(new Date());
@@ -629,8 +655,8 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
         });
         setNodeConfigs(configs);
 
-        // Clear workflow ID to create new on save
-        setWorkflowId(null);
+        // Imported workflow becomes a new draft workflow until saved
+        navigate('/workflows/new');
         setIsPublished(false);
         setHasUnsavedChanges(true); // Mark as modified since it's a new import
         setLastSaved(null);
@@ -654,7 +680,6 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
       const data = await response.json();
       const wf = data.workflow;
 
-      setWorkflowId(wf.id);
       setWorkflowName(wf.name);
       setWorkflowDescription(wf.description || '');
       setWorkflowCategory(wf.category || 'General');
@@ -874,6 +899,247 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
 
   const selNode = canvasNodes.find(n => n.id === selectedNode);
 
+  // ===== WORKFLOW LIST VIEW =====
+  if (!workflowId) {
+    const filteredWorkflows = allWorkflows.filter(wf => 
+      wf.name.toLowerCase().includes(searchFilter.toLowerCase()) ||
+      (wf.description || '').toLowerCase().includes(searchFilter.toLowerCase()) ||
+      (wf.category || '').toLowerCase().includes(searchFilter.toLowerCase())
+    );
+
+    const handleDelete = async (id: string, name: string) => {
+      if (!confirm(`Delete workflow "${name}"? This cannot be undone.`)) return;
+      
+      try {
+        const res = await fetch(`http://localhost:3001/api/workflow/${id}`, {
+          method: 'DELETE',
+        });
+        if (res.ok) {
+          setAllWorkflows(prev => prev.filter(w => w.id !== id));
+        }
+      } catch (err) {
+        console.error('Failed to delete workflow:', err);
+      }
+    };
+
+    const getCategoryColor = (category: string) => {
+      const colors: Record<string, string> = {
+        'Finance': '#10B981',
+        'HR': '#EC4899',
+        'Operations': '#3B82F6',
+        'Security': '#EF4444',
+        'Compliance': '#F59E0B',
+        'IT': '#8B5CF6',
+        'Document Processing': '#06B6D4',
+        'General': '#6B7280',
+      };
+      return colors[category] || '#6B7280';
+    };
+
+    return (
+      <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--bg-base)' }}>
+        {/* Top Bar */}
+        <div style={{
+          height: 56, display: 'flex', alignItems: 'center', padding: '0 24px', gap: 12,
+          borderBottom: '1px solid var(--border)', background: 'var(--bg-dock)', flexShrink: 0,
+        }}>
+          <input
+            value={searchFilter}
+            onChange={(e) => setSearchFilter(e.target.value)}
+            placeholder="Search workflows..."
+            style={{
+              flex: 1, maxWidth: 400, height: 36, padding: '0 14px', fontSize: 13,
+              background: 'var(--bg-input)', border: '1px solid var(--border)',
+              borderRadius: 4, color: 'var(--text-primary)', outline: 'none',
+            }}
+          />
+          <button
+            onClick={() => navigate('/workflows/new')}
+            style={{
+              height: 36, padding: '0 20px', borderRadius: 4, fontWeight: 600,
+              background: 'var(--accent-dim)', border: '1px solid var(--accent-border)',
+              color: 'var(--accent)', cursor: 'pointer', fontSize: 13,
+              fontFamily: 'var(--font-mono)',
+            }}
+          >
+            + CREATE NEW WORKFLOW
+          </button>
+        </div>
+
+        {/* Workflow Grid */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
+          {loadingWorkflows ? (
+            <div style={{ display: 'grid', placeItems: 'center', height: '100%' }}>
+              <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Loading workflows...</div>
+            </div>
+          ) : filteredWorkflows.length === 0 ? (
+            <div style={{ display: 'grid', placeItems: 'center', height: '100%', textAlign: 'center' }}>
+              <div>
+                <div style={{ fontSize: 48, opacity: 0.1, marginBottom: 16 }}>◈</div>
+                <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 8 }}>
+                  {searchFilter ? 'No workflows found' : 'No workflows yet'}
+                </div>
+                {!searchFilter && (
+                  <button
+                    onClick={() => navigate('/workflows/new')}
+                    style={{
+                      marginTop: 12, height: 36, padding: '0 20px', borderRadius: 4,
+                      background: 'var(--accent-dim)', border: '1px solid var(--accent-border)',
+                      color: 'var(--accent)', cursor: 'pointer', fontSize: 13, fontWeight: 600,
+                    }}
+                  >
+                    Create Your First Workflow
+                  </button>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))',
+              gap: 16,
+            }}>
+              {filteredWorkflows.map(workflow => {
+                const categoryColor = getCategoryColor(workflow.category || 'General');
+                return (
+                  <div
+                    key={workflow.id}
+                    style={{
+                      background: 'var(--bg-panel)',
+                      border: '1px solid var(--border)',
+                      borderRadius: 8,
+                      padding: 20,
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      position: 'relative',
+                    }}
+                    onMouseEnter={e => {
+                      e.currentTarget.style.borderColor = categoryColor;
+                      e.currentTarget.style.transform = 'translateY(-2px)';
+                      e.currentTarget.style.boxShadow = `0 8px 24px ${categoryColor}30`;
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.borderColor = 'var(--border)';
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.boxShadow = 'none';
+                    }}
+                    onClick={(e) => {
+                      // Don't navigate if clicking delete button
+                      if (!(e.target as HTMLElement).closest('.delete-btn')) {
+                        navigate(`/workflows/${workflow.id}`);
+                      }
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'start', gap: 12, marginBottom: 12 }}>
+                      <div style={{
+                        width: 48, height: 48, borderRadius: 8,
+                        background: categoryColor,
+                        display: 'grid', placeItems: 'center',
+                        fontSize: 20, flexShrink: 0,
+                        boxShadow: `0 4px 12px ${categoryColor}40`,
+                      }}>
+                        ◈
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {workflow.name}
+                        </div>
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>
+                          {workflow.category || 'General'}
+                        </div>
+                      </div>
+                      <button
+                        className="delete-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete(workflow.id, workflow.name);
+                        }}
+                        style={{
+                          width: 28, height: 28, borderRadius: 4,
+                          background: 'transparent',
+                          border: '1px solid var(--border)',
+                          color: 'var(--text-muted)',
+                          cursor: 'pointer',
+                          fontSize: 14,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0,
+                        }}
+                        onMouseEnter={e => {
+                          e.currentTarget.style.borderColor = 'var(--status-danger)';
+                          e.currentTarget.style.color = 'var(--status-danger)';
+                        }}
+                        onMouseLeave={e => {
+                          e.currentTarget.style.borderColor = 'var(--border)';
+                          e.currentTarget.style.color = 'var(--text-muted)';
+                        }}
+                        title="Delete workflow"
+                      >
+                        🗑
+                      </button>
+                    </div>
+
+                    <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12, lineHeight: 1.5, minHeight: 36 }}>
+                      {workflow.description || 'No description'}
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+                      <div style={{
+                        padding: '4px 8px', borderRadius: 4, fontSize: 10,
+                        background: workflow.status === 'active' ? 'rgba(0, 255, 136, 0.1)' : 'rgba(255, 165, 0, 0.1)',
+                        color: workflow.status === 'active' ? '#00ff88' : '#ffa500',
+                        fontFamily: 'var(--font-mono)', textTransform: 'uppercase', fontWeight: 600,
+                      }}>
+                        {workflow.status || 'draft'}
+                      </div>
+                      {workflow.allow_agent_invocation === 1 && (
+                        <div style={{
+                          padding: '4px 8px', borderRadius: 4, fontSize: 10,
+                          background: 'rgba(0, 212, 255, 0.1)',
+                          color: '#00d4ff',
+                          fontFamily: 'var(--font-mono)', textTransform: 'uppercase',
+                        }}>
+                          🤖 AGENT-READY
+                        </div>
+                      )}
+                    </div>
+
+                    <div style={{
+                      fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)',
+                      paddingTop: 12, borderTop: '1px solid var(--border)',
+                    }}>
+                      Updated {new Date(workflow.updated_at).toLocaleDateString()}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ===== WORKFLOW CANVAS EDITOR =====
+  // Load workflow data when workflowId changes
+  React.useEffect(() => {
+    if (workflowId && workflowId !== 'new') {
+      loadWorkflow(workflowId);
+    } else if (workflowId === 'new') {
+      // Reset for new workflow
+      setWorkflowName('New Workflow');
+      setWorkflowDescription('');
+      setWorkflowCategory('General');
+      setWorkflowTags([]);
+      setWorkflowTriggers([]);
+      setCanvasNodes([]);
+      setNodeConfigs({});
+      setIsPublished(false);
+      setSelectedNode(null);
+    }
+  }, [workflowId]);
+
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       {/* ===== TOP BAR ===== */}
@@ -881,38 +1147,18 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
         height: 56, borderBottom: '1px solid var(--border)', display: 'flex',
         alignItems: 'center', padding: '0 16px', gap: 12, flexShrink: 0, background: 'var(--bg-dock)',
       }}>
-        {/* Workflow Selector */}
-        <select 
-          value={selectedWorkflow || ''}
-          onChange={(e) => {
-            const id = e.target.value;
-            setSelectedWorkflow(id || null);
-            if (id) {
-              loadWorkflow(id);
-            } else {
-              // New workflow - reset state
-              setWorkflowId(null);
-              setWorkflowName('New Workflow');
-              setWorkflowDescription('');
-              setWorkflowCategory('General');
-              setWorkflowTags([]);
-              setWorkflowTriggers([]);
-              setCanvasNodes([]);
-              setNodeConfigs({});
-              setIsPublished(false);
-            }
-          }}
-          style={{ 
-            height: 32, padding: '0 12px', fontFamily: 'var(--font-mono)', fontSize: 11,
-            background: 'var(--bg-tile)', border: '1px solid var(--border)', 
-            minWidth: 200, cursor: 'pointer',
+        {/* Back Button */}
+        <button
+          onClick={() => navigate('/workflows')}
+          style={{
+            height: 36, padding: '0 12px', borderRadius: 4,
+            border: '1px solid var(--border)', background: 'transparent',
+            color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 14,
+            display: 'flex', alignItems: 'center', gap: 6,
           }}
         >
-          <option value="">+ New Workflow</option>
-          {mockWorkflows.map(w => (
-            <option key={w.id} value={w.id}>{w.name}</option>
-          ))}
-        </select>
+          ← Back
+        </button>
 
         {/* Workflow Name (Editable) */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, maxWidth: 500 }}>
@@ -1017,19 +1263,10 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
               color: 'var(--text-secondary)', cursor: 'pointer',
             }}
           >IMPORT</button>
-
-          <button 
-            onClick={() => setShowTemplateGallery(true)}
-            style={{
-              height: 32, padding: '0 12px', fontFamily: 'var(--font-mono)', fontSize: 10,
-              background: 'linear-gradient(135deg, #8B5CF6 0%, #6366F1 100%)', 
-              border: '1px solid #8B5CF6',
-              color: 'white', cursor: 'pointer', fontWeight: 600,
-            }}
-          >📚 TEMPLATES</button>
         </div>
 
         <div style={{ width: 1, height: 24, background: 'var(--border)' }} />
+
 
         {/* Undo/Redo */}
         <div style={{ display: 'flex', gap: 4 }}>
@@ -1741,7 +1978,6 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
                   </div>
                 )}
               </div>
-              </div>
             </div>
           )}
         </div>
@@ -1996,14 +2232,6 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
             fontWeight: 600,
           }}
         >SHOW LOGS</button>
-      )}
-
-      {/* Template Gallery Modal (Phase 6) */}
-      {showTemplateGallery && (
-        <TemplateGallery 
-          onTemplateSelect={handleTemplateSelect}
-          onClose={() => setShowTemplateGallery(false)}
-        />
       )}
     </div>
   );
