@@ -157,14 +157,15 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
 
   // Node categories with icons
   const nodeCategories = [
-    { name: 'TRIGGER', color: '#8B5CF6', icon: '⚡', items: ['Manual Trigger', 'File Upload', 'API Trigger', 'Timer', 'Schedule', 'Webhook'] },
-    { name: 'DOCUMENT', color: '#EC4899', icon: '📄', items: ['OCR', 'PDF Reader', 'Document Classifier', 'Field Extractor', 'Validation', 'Header/Footer Cleaner'] },
-    { name: 'DATA', color: '#10B981', icon: '💾', items: ['Save Data', 'Read Data', 'Cache', 'Metadata', 'Dataset Loader'] },
-    { name: 'AI', color: '#F59E0B', icon: '🧠', items: ['LLM Reasoning', 'Classification', 'Summarization', 'Decision', 'Risk Analysis'] },
-    { name: 'LOGIC', color: '#3B82F6', icon: '🔀', items: ['If/Else', 'Switch', 'Loop', 'Parallel', 'Merge', 'Delay', 'Retry'] },
-    { name: 'BUSINESS', color: '#EF4444', icon: '💼', items: ['Invoice Processor', 'Approval', 'Notification', 'Task Assignment', 'Purchase Order', 'Payment'] },
-    { name: 'MONITORING', color: '#F97316', icon: '📊', items: ['SLA Timer', 'Alert', 'Metrics', 'Bottleneck Detector'] },
-    { name: 'OUTPUT', color: '#06B6D4', icon: '📤', items: ['CSV Export', 'Excel Export', 'PDF Report', 'JSON Export', 'Dashboard Update'] },
+    { name: 'TRIGGER', color: '#8B5CF6', icon: '▶', items: ['Manual Trigger', 'File Upload', 'API Trigger', 'Timer', 'Schedule', 'Webhook'] },
+    { name: 'DOCUMENT', color: '#EC4899', icon: '■', items: ['OCR', 'PDF Reader', 'Document Classifier', 'Field Extractor', 'Validation', 'Header/Footer Cleaner'] },
+    { name: 'DATA', color: '#10B981', icon: '●', items: ['Save Data', 'Read Data', 'Cache', 'Metadata'] },
+    { name: 'AI', color: '#F59E0B', icon: '◆', items: ['LLM Reasoning', 'Classification', 'Summarization', 'Decision', 'Risk Analysis'] },
+    { name: 'LOGIC', color: '#3B82F6', icon: '◈', items: ['If/Else', 'Switch', 'Loop', 'Parallel', 'Merge', 'Delay', 'Retry'] },
+    { name: 'BUSINESS', color: '#EF4444', icon: '▲', items: ['Invoice Processor', 'Approval', 'Task Assignment', 'Purchase Order', 'Payment'] },
+    { name: 'NOTIFICATION', color: '#8B5CF6', icon: '◉', items: ['Notification', 'Alert'] },
+    { name: 'MONITORING', color: '#F97316', icon: '◐', items: ['SLA Timer', 'Metrics', 'Bottleneck Detector'] },
+    { name: 'OUTPUT', color: '#06B6D4', icon: '◧', items: ['CSV Export', 'Excel Export', 'PDF Report', 'JSON Export', 'Dashboard Update'] },
   ];
 
   // Node descriptions for tooltips
@@ -185,7 +186,6 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
     'Read Data': 'Retrieve data from the database',
     'Cache': 'Cache intermediate results for performance',
     'Metadata': 'Extract and store document metadata',
-    'Dataset Loader': 'Load datasets for processing',
     'LLM Reasoning': 'Use LLM for complex reasoning tasks',
     'Classification': 'Classify content into categories',
     'Summarization': 'Generate summaries of long content',
@@ -200,12 +200,12 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
     'Retry': 'Retry failed operations with backoff',
     'Invoice Processor': 'Process invoices end-to-end',
     'Approval': 'Request approval from designated approvers',
-    'Notification': 'Send notifications to users',
     'Task Assignment': 'Assign tasks to team members',
     'Purchase Order': 'Create and manage purchase orders',
     'Payment': 'Process payment transactions',
-    'SLA Timer': 'Track SLA compliance and timeouts',
+    'Notification': 'Send notifications to users',
     'Alert': 'Send alerts on specific conditions',
+    'SLA Timer': 'Track SLA compliance and timeouts',
     'Metrics': 'Collect and report workflow metrics',
     'Bottleneck Detector': 'Identify performance bottlenecks',
     'CSV Export': 'Export results to CSV format',
@@ -760,6 +760,58 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
       }));
       return newZoom;
     });
+  }, []);
+
+  // ── Drop handler for dragging nodes from library ──────────────────────────────
+  const onCanvasDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    const nodeType = e.dataTransfer.getData('nodeType');
+    const categoryName = e.dataTransfer.getData('categoryName');
+    const categoryColor = e.dataTransfer.getData('categoryColor');
+    
+    if (!nodeType) return;
+    
+    // Get drop position in canvas coordinates
+    const canvasPos = clientToCanvas(e.clientX, e.clientY);
+    const id = `node-${Date.now()}`;
+    
+    let x = canvasPos.x - 120; // Center the node on drop
+    let y = canvasPos.y - 60;
+    
+    // Apply grid snapping if enabled
+    if (gridSnapping) {
+      x = Math.round(x / gridSize) * gridSize;
+      y = Math.round(y / gridSize) * gridSize;
+    }
+    
+    // Initialize default config from schema
+    const schema = nodeSchemas[nodeType];
+    const defaultConfig: any = {};
+    if (schema?.fields) {
+      schema.fields.forEach((field: any) => {
+        if (field.default !== undefined) {
+          defaultConfig[field.name] = field.default;
+        }
+      });
+    }
+    
+    setCanvasNodes(prev => [...prev, { 
+      id, 
+      type: nodeType, 
+      name: nodeType, 
+      x, 
+      y, 
+      category: categoryName, 
+      color: categoryColor, 
+      config: defaultConfig 
+    }]);
+    setNodeConfigs(prev => ({ ...prev, [id]: defaultConfig }));
+    setSelectedNode(id);
+  }, [clientToCanvas, gridSnapping, gridSize, nodeSchemas]);
+
+  const onCanvasDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
   }, []);
 
   // ── Handle connection (output handle mousedown → input handle mouseup) ───────
@@ -1999,7 +2051,7 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
                     }}
                   >
                     <span style={{ fontSize: 8 }}>{expandedCats.has(cat.name) ? '▼' : '▶'}</span>
-                    <span style={{ fontSize: 14 }}>{cat.icon}</span>
+                    <span style={{ fontSize: 14, fontWeight: 600 }}>{cat.icon}</span>
                     <span>{cat.name}</span>
                     <span style={{ marginLeft: 'auto', fontSize: 9, color: 'var(--text-muted)' }}>{items.length}</span>
                   </button>
@@ -2008,6 +2060,12 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
                       key={i}
                       onClick={() => addNode(n, cat)}
                       draggable
+                      onDragStart={(e) => {
+                        e.dataTransfer.effectAllowed = 'copy';
+                        e.dataTransfer.setData('nodeType', n);
+                        e.dataTransfer.setData('categoryName', cat.name);
+                        e.dataTransfer.setData('categoryColor', cat.color);
+                      }}
                       title={nodeDescriptions[n] || n}
                       style={{
                         width: '100%', height: 40, padding: '0 12px 0 32px', display: 'flex', alignItems: 'center', gap: 8,
@@ -2024,13 +2082,36 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
                         e.currentTarget.style.borderLeft = '2px solid transparent'; 
                       }}
                     >
-                      <span style={{ fontSize: 14, flexShrink: 0 }}>{cat.icon}</span>
+                      <span style={{ fontSize: 14, flexShrink: 0, fontWeight: 600 }}>{cat.icon}</span>
                       <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n}</span>
                     </button>
                   ))}
                 </div>
               );
             })}
+          </div>
+
+          {/* Create Node Button */}
+          <div style={{ borderTop: '1px solid var(--border)', padding: 12 }}>
+            <button
+              onClick={() => {
+                // Add a node at the center of the canvas
+                const firstCategory = nodeCategories[0];
+                const firstNode = firstCategory.items[0];
+                addNode(firstNode, firstCategory);
+              }}
+              style={{
+                width: '100%', height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase',
+                background: 'var(--accent)', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+              onMouseEnter={e => e.currentTarget.style.opacity = '0.9'}
+              onMouseLeave={e => e.currentTarget.style.opacity = '1'}
+            >
+              <span style={{ fontSize: 16 }}>+</span>
+              <span>CREATE NODE</span>
+            </button>
           </div>
         </div>
 
@@ -2046,6 +2127,8 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
           onMouseMove={onCanvasMouseMove}
           onMouseUp={onCanvasMouseUp}
           onWheel={onCanvasWheel}
+          onDrop={onCanvasDrop}
+          onDragOver={onCanvasDragOver}
         >
           {/* Dot grid — moves with pan/zoom */}
           <div style={{
