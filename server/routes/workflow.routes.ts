@@ -358,5 +358,33 @@ router.get('/:id/metrics', (req: Request, res: Response) => {
   });
 });
 
+// GET agents linked to workflow (Phase 8)
+router.get('/:id/agents', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const db = getDB();
+
+  // Check if workflow exists
+  const workflow = db.prepare('SELECT id FROM workflows WHERE id = ?').get(id);
+  if (!workflow) {
+    return res.status(404).json({ error: 'NotFound', message: 'Workflow not found' });
+  }
+
+  try {
+    // Get agents linked to this workflow
+    const agents = db.prepare(`
+      SELECT a.id as agent_id, a.name, a.icon, a.color
+      FROM agents a
+      INNER JOIN agent_workflows aw ON a.id = aw.agent_id
+      WHERE aw.workflow_id = ?
+      ORDER BY a.name
+    `).all(id);
+
+    res.json({ success: true, agents, count: (agents as any[]).length });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'DatabaseError';
+    res.status(500).json({ error: 'FetchAgentsFailed', message });
+  }
+});
+
 export default router;
 

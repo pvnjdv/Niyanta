@@ -30,6 +30,7 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showTemplateGallery, setShowTemplateGallery] = useState(false);
+  const [linkedAgents, setLinkedAgents] = useState<Array<{agent_id: string; name: string; icon: string; color: string}>>([]);
   
   // Mock execution data
   const mockLogs = [
@@ -61,6 +62,27 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
   const [nodeExecutionState, setNodeExecutionState] = useState<Record<string, 'pending' | 'running' | 'success' | 'error'>>({});
   const [executionStartTime, setExecutionStartTime] = useState<number | null>(null);
   const [executionContext, setExecutionContext] = useState<any>({});
+
+  // Fetch linked agents when workflow is loaded (Phase 8)
+  React.useEffect(() => {
+    const fetchLinkedAgents = async () => {
+      if (!workflowId) {
+        setLinkedAgents([]);
+        return;
+      }
+      
+      try {
+        const res = await fetch(`http://localhost:3001/api/workflow/${workflowId}/agents`);
+        if (res.ok) {
+          const data = await res.json();
+          setLinkedAgents(data.agents || []);
+        }
+      } catch (err) {
+        console.error('Failed to fetch linked agents:', err);
+      }
+    };
+    fetchLinkedAgents();
+  }, [workflowId]);
 
   // Mock data
   const mockWorkflows = [
@@ -1618,6 +1640,107 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
                     </div>
                   )}
                 </div>
+
+                {/* Linked Agents Section */}
+                {workflowId && (
+                  <div style={{ borderTop: '1px solid var(--border)', marginTop: 16, paddingTop: 16 }}>
+                    <div style={{ 
+                      fontFamily: 'var(--font-mono)', fontSize: 10, 
+                      textTransform: 'uppercase', color: 'var(--text-secondary)', 
+                      marginBottom: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 
+                    }}>
+                      <span>🤖</span>
+                      <span>LINKED AGENTS</span>
+                      {linkedAgents.length > 0 && (
+                        <span style={{ 
+                          marginLeft: 'auto', fontSize: 9, padding: '2px 6px', 
+                          background: 'var(--accent-dim)', color: 'var(--accent)', 
+                          borderRadius: 3, border: '1px solid var(--accent-border)' 
+                        }}>
+                          {linkedAgents.length}
+                        </span>
+                      )}
+                    </div>
+                    
+                    {linkedAgents.length === 0 ? (
+                      <div style={{ 
+                        padding: 12, background: 'rgba(255, 165, 0, 0.05)', 
+                        border: '1px solid rgba(255, 165, 0, 0.2)',
+                        borderRadius: 4, fontSize: 11, color: 'var(--text-muted)',
+                        lineHeight: 1.5
+                      }}>
+                        No agents linked yet. Create agents in Agent Studio and link them to this workflow.
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {linkedAgents.map(agent => (
+                          <div
+                            key={agent.agent_id}
+                            style={{
+                              padding: '10px 12px',
+                              background: 'var(--bg-tile)',
+                              border: '1px solid var(--border)',
+                              borderRadius: 4,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 10,
+                              cursor: 'pointer',
+                              transition: 'all 0.15s ease',
+                            }}
+                            onMouseEnter={e => {
+                              e.currentTarget.style.borderColor = agent.color;
+                              e.currentTarget.style.background = 'var(--bg-tile-hover)';
+                            }}
+                            onMouseLeave={e => {
+                              e.currentTarget.style.borderColor = 'var(--border)';
+                              e.currentTarget.style.background = 'var(--bg-tile)';
+                            }}
+                            onClick={() => window.open(`/agents/${agent.agent_id}`, '_blank')}
+                            title="Click to open agent chat"
+                          >
+                            <div style={{
+                              width: 32, height: 32, borderRadius: 6,
+                              background: agent.color,
+                              display: 'grid', placeItems: 'center',
+                              color: '#fff', fontSize: 14, fontWeight: 700,
+                              flexShrink: 0,
+                            }}>
+                              {agent.icon}
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ 
+                                fontWeight: 500, fontSize: 12, 
+                                color: 'var(--text-primary)',
+                                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
+                              }}>
+                                {agent.name}
+                              </div>
+                              <div style={{ 
+                                fontSize: 9, color: 'var(--text-muted)', 
+                                fontFamily: 'var(--font-mono)' 
+                              }}>
+                                CAN EXECUTE
+                              </div>
+                            </div>
+                            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>→</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    
+                    <div style={{ 
+                      marginTop: 10, padding: 8, 
+                      background: 'rgba(0, 212, 255, 0.05)',
+                      border: '1px solid rgba(0, 212, 255, 0.2)',
+                      borderRadius: 4,
+                      fontSize: 10, color: 'var(--text-muted)', lineHeight: 1.5,
+                      fontFamily: 'var(--font-body)'
+                    }}>
+                      💡 Agents can execute this workflow when it's published and "Allow Agent Invocation" is enabled.
+                    </div>
+                  </div>
+                )}
+              </div>
               </div>
             </div>
           )}

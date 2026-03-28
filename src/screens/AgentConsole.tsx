@@ -215,10 +215,10 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
                   {state && (
                     <div style={{
                       padding: '8px 12px', borderRadius: 4, fontSize: 11,
-                      background: state.status === 'success' ? 'rgba(0, 255, 136, 0.1)' :
+                      background: state.status === 'complete' ? 'rgba(0, 255, 136, 0.1)' :
                                  state.status === 'error' ? 'rgba(255, 68, 68, 0.1)' :
                                  'rgba(255, 165, 0, 0.1)',
-                      color: state.status === 'success' ? '#00ff88' :
+                      color: state.status === 'complete' ? '#00ff88' :
                              state.status === 'error' ? '#ff4444' : '#ffa500',
                       fontFamily: 'var(--font-mono)',
                     }}>
