@@ -1,22 +1,34 @@
 import { INode } from '../../types/node.types';
 import { WorkflowContext } from '../../types/workflow.types';
 
-export class ApprovalNode implements INode {
-  id: string;
-  name: string;
-  type: string;
+export class DecisionApprovalNode implements INode {
+  id: string; name: string; type: string;
   category: 'trigger' | 'data' | 'document' | 'processing' | 'ai' | 'decision' | 'action' | 'monitoring' | 'audit' | 'utility' | 'integration';
   description: string;
 
   constructor() {
-    this.id = 'ApprovalNode';
-    this.name = 'ApprovalNode';
-    this.type = 'ApprovalNode';
+    this.id = 'DecisionApprovalNode';
+    this.name = 'Decision Approval';
+    this.type = 'decision_approval';
     this.category = 'decision' as typeof this.category;
-    this.description = 'ApprovalNode node';
+    this.description = 'Auto-approve or require human approval based on configurable criteria and thresholds';
   }
 
-  async execute(context: WorkflowContext): Promise<WorkflowContext> {
-    return context;
+  async execute(context: WorkflowContext, config?: Record<string, unknown>): Promise<WorkflowContext> {
+    const autoApproveBelow = (config?.autoApproveBelow as number) ?? 0;
+    const approver = (config?.approver as string) || 'admin';
+    const amount = Number((context.invoice as Record<string, unknown>)?.amount ?? 0);
+
+    const autoApproved = autoApproveBelow > 0 && amount < autoApproveBelow;
+
+    return {
+      ...context,
+      metadata: {
+        ...context.metadata,
+        approvalDecision: autoApproved ? 'auto_approved' : 'pending',
+        approvedBy: autoApproved ? 'system' : approver,
+        approvedAt: autoApproved ? new Date().toISOString() : null,
+      },
+    };
   }
 }

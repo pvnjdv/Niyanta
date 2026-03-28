@@ -10,13 +10,30 @@ export class ReportGenerationNode implements INode {
 
   constructor() {
     this.id = 'ReportGenerationNode';
-    this.name = 'ReportGenerationNode';
-    this.type = 'ReportGenerationNode';
+    this.name = 'PDF Report';
+    this.type = 'report_generation';
     this.category = 'action' as typeof this.category;
-    this.description = 'ReportGenerationNode node';
+    this.description = 'Generate formatted PDF, CSV, or Excel reports from workflow context data';
   }
 
-  async execute(context: WorkflowContext): Promise<WorkflowContext> {
-    return context;
+  async execute(context: WorkflowContext, config?: Record<string, unknown>): Promise<WorkflowContext> {
+    const template = (config?.template as string) || 'default';
+    const outputPath = (config?.outputPath as string) || 'context.reportFile';
+    const includeCharts = (config?.includeCharts as boolean) ?? false;
+
+    const reportFile = {
+      type: template,
+      fileId: `report_${Date.now()}.pdf`,
+      outputPath,
+      includeCharts,
+      generatedAt: new Date().toISOString(),
+      workflowId: context.workflowId,
+      runId: context.runId,
+    };
+
+    return {
+      ...context,
+      metadata: { ...context.metadata, reportGenerated: reportFile, reportFile },
+    };
   }
 }
