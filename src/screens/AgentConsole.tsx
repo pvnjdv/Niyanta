@@ -60,9 +60,9 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
 
   const selectedAgent = agentId && agentId !== 'new' ? agents.find(a => a.id === agentId) || null : null;
   const selectedState = selectedAgent ? agentStates[selectedAgent.id] : null;
-  const templateAgents = agents.filter(a => a.isTemplate || a.isDefault);
+  const templateAgents = agents.filter(a => a.isTemplate);
   const filtered = agents.filter(
-    a => !a.isTemplate && !a.isDefault && a.name.toLowerCase().includes(search.toLowerCase())
+    a => !a.isTemplate && a.name.toLowerCase().includes(search.toLowerCase())
   );
 
   // Pre-fill canvas when editing an existing agent (from three-dot Edit)
