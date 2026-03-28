@@ -774,7 +774,7 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
       };
 
       // Call API to save
-      const response = await fetch('/api/workflows' + (workflowId ? `/${workflowId}` : ''), {
+      const response = await fetch('http://localhost:3001/api/workflow' + (workflowId ? `/${workflowId}` : ''), {
         method: workflowId ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(workflowData)
@@ -908,7 +908,7 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
   // Load workflow from selection
   const loadWorkflow = async (id: string) => {
     try {
-      const response = await fetch(`/api/workflows/${id}`);
+      const response = await fetch(`http://localhost:3001/api/workflow/${id}`);
       if (!response.ok) throw new Error('Failed to load workflow');
 
       const data = await response.json();
