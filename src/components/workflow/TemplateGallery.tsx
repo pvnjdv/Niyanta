@@ -61,14 +61,7 @@ export const TemplateGallery: React.FC<TemplateGalleryProps> = ({ onTemplateSele
     t.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
-  const getComplexityColor = (complexity: string) => {
-    switch (complexity) {
-      case 'beginner': return '#10B981';
-      case 'intermediate': return '#F59E0B';
-      case 'advanced': return '#EF4444';
-      default: return '#6B7280';
-    }
-  };
+
 
   const handleUseTemplate = async () => {
     if (!selectedTemplate) return;
@@ -217,14 +210,13 @@ export const TemplateGallery: React.FC<TemplateGalleryProps> = ({ onTemplateSele
             }}>
               {filteredTemplates.map(template => {
                 const isSelected = selectedTemplate?.id === template.id;
-                const complexityColor = getComplexityColor(template.complexity);
+                const nodeCount = (template.nodes || []).length;
                 const catColors: Record<string, string> = {
                   Finance: '#10B981', HR: '#EC4899', Operations: '#3B82F6',
                   Security: '#EF4444', Compliance: '#F59E0B', IT: '#8B5CF6',
                   'Document Processing': '#06B6D4', General: '#6B7280',
                 };
                 const catColor = catColors[template.category] || '#6B7280';
-                const nodeCount = (template.nodes || []).length;
 
                 return (
                   <div
@@ -233,33 +225,24 @@ export const TemplateGallery: React.FC<TemplateGalleryProps> = ({ onTemplateSele
                     style={{
                       display: 'flex', flexDirection: 'column', gap: 0,
                       border: `1px solid ${isSelected ? catColor : 'var(--border)'}`,
-                      borderTop: `3px solid ${catColor}`,
-                      background: isSelected ? `${catColor}0d` : 'var(--bg-panel)',
-                      cursor: 'pointer', transition: 'all 0.15s', borderRadius: 6,
-                      boxShadow: isSelected ? `0 4px 20px ${catColor}30` : 'none',
+                      borderTop: `2px solid ${catColor}`,
+                      background: isSelected ? 'var(--bg-tile)' : 'var(--bg-panel)',
+                      cursor: 'pointer', transition: 'border-color 0.15s', borderRadius: 6,
                       overflow: 'hidden',
                     }}
                     onMouseEnter={(e) => {
-                      if (!isSelected) {
-                        e.currentTarget.style.borderColor = catColor;
-                        e.currentTarget.style.boxShadow = `0 4px 16px ${catColor}20`;
-                        e.currentTarget.style.transform = 'translateY(-2px)';
-                      }
+                      if (!isSelected) e.currentTarget.style.borderColor = catColor;
                     }}
                     onMouseLeave={(e) => {
-                      if (!isSelected) {
-                        e.currentTarget.style.borderColor = 'var(--border)';
-                        e.currentTarget.style.boxShadow = 'none';
-                        e.currentTarget.style.transform = 'translateY(0)';
-                      }
+                      if (!isSelected) e.currentTarget.style.borderColor = 'var(--border)';
                     }}
                   >
                     {/* Card header strip */}
                     <div style={{ padding: '14px 16px 12px', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
                       <div style={{
-                        width: 48, height: 48, borderRadius: 10, flexShrink: 0,
-                        background: `${catColor}20`, border: `1px solid ${catColor}44`,
-                        display: 'grid', placeItems: 'center', fontSize: 24,
+                        width: 40, height: 40, borderRadius: 6, flexShrink: 0,
+                        background: 'var(--bg-base)', border: '1px solid var(--border)',
+                        display: 'grid', placeItems: 'center', fontSize: 20,
                       }}>
                         {template.icon}
                       </div>
@@ -268,8 +251,8 @@ export const TemplateGallery: React.FC<TemplateGalleryProps> = ({ onTemplateSele
                           {template.name}
                         </div>
                         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: catColor, textTransform: 'uppercase', fontWeight: 700, padding: '1px 5px', background: `${catColor}18`, borderRadius: 3 }}>{template.category}</span>
-                          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: complexityColor, textTransform: 'uppercase', fontWeight: 700, padding: '1px 5px', background: `${complexityColor}18`, borderRadius: 3 }}>{template.complexity}</span>
+                          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: catColor, textTransform: 'uppercase', fontWeight: 700, padding: '1px 5px', background: `${catColor}15`, border: `1px solid ${catColor}40`, borderRadius: 3 }}>{template.category}</span>
+                          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600, padding: '1px 5px', background: 'var(--bg-base)', border: '1px solid var(--border)', borderRadius: 3 }}>{template.complexity}</span>
                         </div>
                       </div>
                     </div>
@@ -280,7 +263,7 @@ export const TemplateGallery: React.FC<TemplateGalleryProps> = ({ onTemplateSele
                     </div>
 
                     {/* Stats row */}
-                    <div style={{ padding: '8px 16px', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)', background: 'rgba(0,0,0,0.12)', display: 'flex', gap: 16, alignItems: 'center' }}>
+                    <div style={{ padding: '8px 16px', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)', background: 'var(--bg-base)', display: 'flex', gap: 16, alignItems: 'center' }}>
                       {nodeCount > 0 && (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                           <span style={{ fontSize: 11, opacity: 0.5 }}>◈</span>
@@ -318,11 +301,11 @@ export const TemplateGallery: React.FC<TemplateGalleryProps> = ({ onTemplateSele
                           onClick={(e) => { e.stopPropagation(); }}
                           style={{
                             width: '100%', height: 32, fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700,
-                            background: catColor, border: 'none', color: 'white', borderRadius: 4, cursor: 'pointer',
+                            background: '#8B5CF6', border: 'none', color: 'white', borderRadius: 4, cursor: 'pointer',
                             letterSpacing: '0.05em',
                           }}
                         >
-                          ✦ SELECT THIS TEMPLATE
+                          SELECT THIS TEMPLATE
                         </button>
                       </div>
                     )}

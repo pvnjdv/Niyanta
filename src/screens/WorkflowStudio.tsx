@@ -14,7 +14,7 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
   
   // State management
   const [selectedWorkflow, setSelectedWorkflow] = useState<string | null>(null);
-  const [workflowName, setWorkflowName] = useState('New Workflow');
+  const [workflowName, setWorkflowName] = useState('');
   const [environment, setEnvironment] = useState<'test' | 'staging' | 'production'>('test');
   const [workflowStatus, setWorkflowStatus] = useState<'idle' | 'running' | 'paused' | 'error'>('idle');
   const [showBottomPanel, setShowBottomPanel] = useState(true);
@@ -1449,7 +1449,7 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
       loadWorkflow(workflowId);
     } else if (workflowId === 'new') {
       // Reset for new workflow
-      setWorkflowName('New Workflow');
+      setWorkflowName('');
       setWorkflowDescription('');
       setWorkflowCategory('General');
       setWorkflowTags([]);
@@ -1532,12 +1532,14 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
             onClick={() => setShowTemplateGallery(true)}
             style={{
               height: 36, padding: '0 20px', borderRadius: 4, fontWeight: 600,
-              background: 'rgba(139,92,246,0.12)', border: '1px solid rgba(139,92,246,0.4)',
-              color: '#8B5CF6', cursor: 'pointer', fontSize: 13,
+              background: 'transparent', border: '1px solid var(--border)',
+              color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13,
               fontFamily: 'var(--font-mono)',
             }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent-border)'; e.currentTarget.style.color = 'var(--accent)'; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
           >
-            📚 TEMPLATES
+            TEMPLATES
           </button>
         </div>
 
@@ -1587,126 +1589,73 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
               gap: 16,
             }}>
               {filteredWorkflows.map(workflow => {
-                const categoryColor = getCategoryColor(workflow.category || 'General');
+                const catColor = getCategoryColor(workflow.category || 'General');
                 return (
                   <div
                     key={workflow.id}
                     style={{
                       background: 'var(--bg-panel)',
                       border: '1px solid var(--border)',
-                      borderRadius: 8,
-                      padding: 20,
+                      borderLeft: `3px solid ${catColor}`,
+                      borderRadius: 6,
+                      padding: '16px 18px',
                       cursor: 'pointer',
-                      transition: 'all 0.2s ease',
-                      position: 'relative',
+                      transition: 'border-color 0.15s',
                     }}
-                    onMouseEnter={e => {
-                      e.currentTarget.style.borderColor = categoryColor;
-                      e.currentTarget.style.transform = 'translateY(-2px)';
-                      e.currentTarget.style.boxShadow = `0 8px 24px ${categoryColor}30`;
-                    }}
-                    onMouseLeave={e => {
-                      e.currentTarget.style.borderColor = 'var(--border)';
-                      e.currentTarget.style.transform = 'translateY(0)';
-                      e.currentTarget.style.boxShadow = 'none';
-                    }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = catColor; }}
+                    onMouseLeave={e => { (e.currentTarget.style as any).border = '1px solid var(--border)'; e.currentTarget.style.borderLeft = `3px solid ${catColor}`; }}
                     onClick={(e) => {
-                      // Don't navigate if clicking delete button
                       if (!(e.target as HTMLElement).closest('.delete-btn')) {
                         navigate(`/workflows/${workflow.id}`);
                       }
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'start', gap: 12, marginBottom: 12 }}>
-                      <div style={{
-                        width: 48, height: 48, borderRadius: 8,
-                        background: categoryColor,
-                        display: 'grid', placeItems: 'center',
-                        fontSize: 20, flexShrink: 0,
-                        boxShadow: `0 4px 12px ${categoryColor}40`,
-                      }}>
-                        ◈
-                      </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <div style={{ fontWeight: 600, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {workflow.name}
                         </div>
-                        <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>
-                          {workflow.category || 'General'}
-                        </div>
                       </div>
-                      <button
-                        className="delete-btn"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDelete(workflow.id, workflow.name);
-                        }}
-                        style={{
-                          width: 28, height: 28, borderRadius: 4,
-                          background: 'transparent',
-                          border: '1px solid var(--border)',
-                          color: 'var(--text-muted)',
-                          cursor: 'pointer',
-                          fontSize: 14,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          flexShrink: 0,
-                        }}
-                        onMouseEnter={e => {
-                          e.currentTarget.style.borderColor = 'var(--status-danger)';
-                          e.currentTarget.style.color = 'var(--status-danger)';
-                        }}
-                        onMouseLeave={e => {
-                          e.currentTarget.style.borderColor = 'var(--border)';
-                          e.currentTarget.style.color = 'var(--text-muted)';
-                        }}
-                        title="Delete workflow"
-                      >
-                        🗑
-                      </button>
                       <span style={{
-                        fontFamily: 'var(--font-mono)', fontSize: 8, fontWeight: 700,
-                        padding: '2px 6px', borderRadius: 3, letterSpacing: '0.06em',
-                        background: workflow.is_default ? 'rgba(139,92,246,0.15)' : 'rgba(16,185,129,0.12)',
+                        fontFamily: 'var(--font-mono)', fontSize: 8, fontWeight: 600,
+                        padding: '2px 5px', borderRadius: 3, letterSpacing: '0.04em',
+                        background: workflow.is_default ? 'rgba(139,92,246,0.1)' : 'rgba(16,185,129,0.08)',
                         color: workflow.is_default ? '#8B5CF6' : '#10B981',
                         border: `1px solid ${workflow.is_default ? 'rgba(139,92,246,0.35)' : 'rgba(16,185,129,0.3)'}`,
-                        flexShrink: 0, alignSelf: 'flex-start', marginTop: 2,
+                        flexShrink: 0,
                       }}>
                         {workflow.is_default ? 'DEFAULT' : 'CUSTOM'}
                       </span>
+                      <button
+                        className="delete-btn"
+                        onClick={(e) => { e.stopPropagation(); handleDelete(workflow.id, workflow.name); }}
+                        style={{
+                          width: 24, height: 24, borderRadius: 3,
+                          background: 'transparent', border: '1px solid var(--border)',
+                          color: 'var(--text-muted)', cursor: 'pointer', fontSize: 12,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--status-danger)'; e.currentTarget.style.color = 'var(--status-danger)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-muted)'; }}
+                        title="Delete workflow"
+                      >
+                        ✕
+                      </button>
                     </div>
 
-                    <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12, lineHeight: 1.5, minHeight: 36 }}>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12, lineHeight: 1.5 }}>
                       {workflow.description || 'No description'}
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
-                      <div style={{
-                        padding: '4px 8px', borderRadius: 4, fontSize: 10,
-                        background: workflow.status === 'active' ? 'rgba(0, 255, 136, 0.1)' : 'rgba(255, 165, 0, 0.1)',
-                        color: workflow.status === 'active' ? '#00ff88' : '#ffa500',
-                        fontFamily: 'var(--font-mono)', textTransform: 'uppercase', fontWeight: 600,
-                      }}>
-                        {workflow.status || 'draft'}
-                      </div>
-                      {workflow.allow_agent_invocation === 1 && (
-                        <div style={{
-                          padding: '4px 8px', borderRadius: 4, fontSize: 10,
-                          background: 'rgba(0, 212, 255, 0.1)',
-                          color: '#00d4ff',
-                          fontFamily: 'var(--font-mono)', textTransform: 'uppercase',
-                        }}>
-                          🤖 AGENT-READY
-                        </div>
-                      )}
-                    </div>
-
                     <div style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
                       fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)',
-                      paddingTop: 12, borderTop: '1px solid var(--border)',
+                      paddingTop: 10, borderTop: '1px solid var(--border)',
                     }}>
-                      Updated {new Date(workflow.updated_at).toLocaleDateString()}
+                      <span style={{ textTransform: 'uppercase', color: catColor, fontWeight: 600 }}>{workflow.category || 'General'}</span>
+                      <span style={{ opacity: 0.3 }}>·</span>
+                      <span style={{ textTransform: 'uppercase' }}>{workflow.status || 'draft'}</span>
+                      <span style={{ marginLeft: 'auto' }}>Updated {new Date(workflow.updated_at).toLocaleDateString()}</span>
                     </div>
                   </div>
                 );

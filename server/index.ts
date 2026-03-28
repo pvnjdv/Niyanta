@@ -65,9 +65,9 @@ app.use('/api/versions', versionRoutes);
 app.use('/storage', express.static(path.resolve(STORAGE_PATH)));
 
 if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, '../build')));
+  app.use(express.static(path.join(__dirname, '../../build')));
   app.get('*', (_req, res) => {
-    res.sendFile(path.join(__dirname, '../build', 'index.html'));
+    res.sendFile(path.join(__dirname, '../../build', 'index.html'));
   });
 }
 
