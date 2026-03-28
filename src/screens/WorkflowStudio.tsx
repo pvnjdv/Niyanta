@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { TemplateGallery } from '../components/workflow/TemplateGallery';
 
@@ -36,6 +36,9 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
   const [searchFilter, setSearchFilter] = useState('');
   const [allWorkflows, setAllWorkflows] = useState<any[]>([]);
   const [loadingWorkflows, setLoadingWorkflows] = useState(true);
+  const [templates, setTemplates] = useState<any[]>([]);
+  const [loadingTemplates, setLoadingTemplates] = useState(true);
+  const [templateInstantiating, setTemplateInstantiating] = useState<string | null>(null);
   
   // Mock execution data
   const mockLogs = [
@@ -67,6 +70,25 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
   const [nodeExecutionState, setNodeExecutionState] = useState<Record<string, 'pending' | 'running' | 'success' | 'error'>>({});
   const [executionStartTime, setExecutionStartTime] = useState<number | null>(null);
   const [executionContext, setExecutionContext] = useState<any>({});
+
+  // ── True n8n-like canvas state ──────────────────────────────────────────────
+  // Edge data model: source → output handle, target → input handle
+  const [edges, setEdges] = useState<Array<{ id: string; source: string; target: string }>>([]);
+  // Canvas pan offset
+  const [canvasPan, setCanvasPan] = useState({ x: 0, y: 0 });
+  // While dragging a node
+  const draggingNode = useRef<{ nodeId: string; startX: number; startY: number; originX: number; originY: number } | null>(null);
+  // While panning canvas
+  const panningCanvas = useRef<{ startX: number; startY: number; originPanX: number; originPanY: number } | null>(null);
+  // RAF throttling refs — prevents per-mousemove React state updates (jitter fix)
+  const dragRafRef = useRef<number | null>(null);
+  const pendingDragPos = useRef<{ nodeId: string; x: number; y: number } | null>(null);
+  const panRafRef = useRef<number | null>(null);
+  const pendingPanPos = useRef<{ x: number; y: number } | null>(null);
+  // While drawing a connection from an output handle
+  const [connectingFrom, setConnectingFrom] = useState<string | null>(null); // nodeId
+  const [mouseCanvasPos, setMouseCanvasPos] = useState({ x: 0, y: 0 });
+  const canvasContainerRef = useRef<HTMLDivElement>(null);
 
   // Fetch linked agents when workflow is loaded (Phase 8)
   React.useEffect(() => {
@@ -107,7 +129,23 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
         setLoadingWorkflows(false);
       }
     };
+    const fetchTemplates = async () => {
+      if (workflowId) return;
+      setLoadingTemplates(true);
+      try {
+        const res = await fetch('http://localhost:3001/api/templates');
+        if (res.ok) {
+          const data = await res.json();
+          setTemplates(data.templates || []);
+        }
+      } catch (err) {
+        console.error('Failed to fetch templates:', err);
+      } finally {
+        setLoadingTemplates(false);
+      }
+    };
     fetchWorkflows();
+    fetchTemplates();
   }, [workflowId]);
 
   // Mock data
@@ -285,8 +323,16 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
 
   const addNode = (name: string, cat: typeof nodeCategories[0]) => {
     const id = `node-${Date.now()}`;
-    let x = 200 + Math.random() * 300;
-    let y = 100 + Math.random() * 200;
+    // Place new node near center of visible canvas
+    const container = canvasContainerRef.current;
+    const viewW = container ? container.clientWidth : 800;
+    const viewH = container ? container.clientHeight : 500;
+    const scale = canvasZoom / 100;
+    // Center of viewport in canvas coordinates
+    const cx = (viewW / 2 - canvasPan.x) / scale;
+    const cy = (viewH / 2 - canvasPan.y) / scale;
+    let x = cx - 100 + (Math.random() - 0.5) * 100;
+    let y = cy - 48 + (Math.random() - 0.5) * 80;
     
     // Apply grid snapping if enabled
     if (gridSnapping) {
@@ -309,6 +355,197 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
     setNodeConfigs(prev => ({ ...prev, [id]: defaultConfig }));
     setSelectedNode(id);
   };
+
+  // ── Canvas coordinate helpers ────────────────────────────────────────────────
+  const clientToCanvas = useCallback((clientX: number, clientY: number) => {
+    const container = canvasContainerRef.current;
+    if (!container) return { x: 0, y: 0 };
+    const rect = container.getBoundingClientRect();
+    const scale = canvasZoom / 100;
+    return {
+      x: (clientX - rect.left - canvasPan.x) / scale,
+      y: (clientY - rect.top - canvasPan.y) / scale,
+    };
+  }, [canvasPan, canvasZoom]);
+
+  // ── Node drag handlers ───────────────────────────────────────────────────────
+  const onNodeMouseDown = useCallback((e: React.MouseEvent, nodeId: string) => {
+    if (connectingFrom) return; // don't drag while drawing connection
+    e.stopPropagation();
+    const node = canvasNodes.find(n => n.id === nodeId);
+    if (!node) return;
+    draggingNode.current = {
+      nodeId,
+      startX: e.clientX,
+      startY: e.clientY,
+      originX: node.x,
+      originY: node.y,
+    };
+    setSelectedNode(nodeId);
+  }, [canvasNodes, connectingFrom]);
+
+  // ── Canvas pan handler (mousedown on background) ─────────────────────────────
+  const onCanvasMouseDown = useCallback((e: React.MouseEvent) => {
+    if (e.button !== 0) return;
+    // clear connection if clicking empty canvas
+    if (connectingFrom) { setConnectingFrom(null); return; }
+    setSelectedNode(null);
+    panningCanvas.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      originPanX: canvasPan.x,
+      originPanY: canvasPan.y,
+    };
+  }, [canvasPan, connectingFrom]);
+
+  // ── Global mouse move — RAF-throttled for 60fps smooth dragging ─────────────
+  const onCanvasMouseMove = useCallback((e: React.MouseEvent) => {
+    // Live connection preview (lightweight setState, acceptable frequency)
+    if (connectingFrom) {
+      setMouseCanvasPos(clientToCanvas(e.clientX, e.clientY));
+    }
+
+    if (draggingNode.current) {
+      const { nodeId, startX, startY, originX, originY } = draggingNode.current;
+      const scale = canvasZoom / 100;
+      let newX = originX + (e.clientX - startX) / scale;
+      let newY = originY + (e.clientY - startY) / scale;
+      if (gridSnapping) {
+        newX = Math.round(newX / gridSize) * gridSize;
+        newY = Math.round(newY / gridSize) * gridSize;
+      }
+      // Accumulate latest position; RAF commits it once per frame
+      pendingDragPos.current = { nodeId, x: newX, y: newY };
+      if (!dragRafRef.current) {
+        dragRafRef.current = requestAnimationFrame(() => {
+          if (pendingDragPos.current) {
+            const { nodeId: id, x, y } = pendingDragPos.current;
+            setCanvasNodes(prev => prev.map(n => n.id === id ? { ...n, x, y } : n));
+            pendingDragPos.current = null;
+          }
+          dragRafRef.current = null;
+        });
+      }
+      return;
+    }
+
+    if (panningCanvas.current) {
+      const { startX, startY, originPanX, originPanY } = panningCanvas.current;
+      const newPan = {
+        x: originPanX + (e.clientX - startX),
+        y: originPanY + (e.clientY - startY),
+      };
+      // Also RAF-throttled
+      pendingPanPos.current = newPan;
+      if (!panRafRef.current) {
+        panRafRef.current = requestAnimationFrame(() => {
+          if (pendingPanPos.current) {
+            setCanvasPan(pendingPanPos.current);
+            pendingPanPos.current = null;
+          }
+          panRafRef.current = null;
+        });
+      }
+    }
+  }, [canvasZoom, gridSnapping, gridSize, connectingFrom, clientToCanvas]);
+
+  // ── Global mouse up ──────────────────────────────────────────────────────────
+  const onCanvasMouseUp = useCallback(() => {
+    // Flush any pending RAF update immediately on release
+    if (dragRafRef.current) {
+      cancelAnimationFrame(dragRafRef.current);
+      dragRafRef.current = null;
+      if (pendingDragPos.current) {
+        const { nodeId, x, y } = pendingDragPos.current;
+        setCanvasNodes(prev => prev.map(n => n.id === nodeId ? { ...n, x, y } : n));
+        pendingDragPos.current = null;
+      }
+    }
+    if (panRafRef.current) {
+      cancelAnimationFrame(panRafRef.current);
+      panRafRef.current = null;
+      if (pendingPanPos.current) {
+        setCanvasPan(pendingPanPos.current);
+        pendingPanPos.current = null;
+      }
+    }
+    draggingNode.current = null;
+    panningCanvas.current = null;
+  }, []);
+
+  // ── Wheel zoom (centered on mouse) ──────────────────────────────────────────
+  const onCanvasWheel = useCallback((e: React.WheelEvent) => {
+    e.preventDefault();
+    const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
+    const container = canvasContainerRef.current;
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+    setCanvasZoom(prev => {
+      const newZoom = Math.min(200, Math.max(30, Math.round(prev * zoomFactor)));
+      const scale = prev / 100;
+      const newScale = newZoom / 100;
+      // Adjust pan to keep point under mouse fixed
+      setCanvasPan(p => ({
+        x: mouseX - (mouseX - p.x) * (newScale / scale),
+        y: mouseY - (mouseY - p.y) * (newScale / scale),
+      }));
+      return newZoom;
+    });
+  }, []);
+
+  // ── Handle connection (output handle mousedown → input handle mouseup) ───────
+  const startConnection = useCallback((e: React.MouseEvent, nodeId: string) => {
+    e.stopPropagation();
+    setConnectingFrom(nodeId);
+    setMouseCanvasPos(clientToCanvas(e.clientX, e.clientY));
+  }, [clientToCanvas]);
+
+  const finishConnection = useCallback((e: React.MouseEvent, targetNodeId: string) => {
+    e.stopPropagation();
+    if (!connectingFrom || connectingFrom === targetNodeId) {
+      setConnectingFrom(null);
+      return;
+    }
+    // Check for duplicate edge
+    setEdges(prev => {
+      const duplicate = prev.some(ed => ed.source === connectingFrom && ed.target === targetNodeId);
+      if (duplicate) return prev;
+      return [...prev, { id: `e-${connectingFrom}-${targetNodeId}`, source: connectingFrom, target: targetNodeId }];
+    });
+    setConnectingFrom(null);
+  }, [connectingFrom]);
+
+  // ── Delete edge ──────────────────────────────────────────────────────────────
+  const deleteEdge = useCallback((edgeId: string) => {
+    setEdges(prev => prev.filter(e => e.id !== edgeId));
+  }, []);
+
+  // ── Topological sort for execution order ─────────────────────────────────────
+  const getTopologicalOrder = useCallback((nodes: typeof canvasNodes, eds: typeof edges): string[] => {
+    const nodeIds = nodes.map(n => n.id);
+    const inDegree: Record<string, number> = {};
+    const adj: Record<string, string[]> = {};
+    nodeIds.forEach(id => { inDegree[id] = 0; adj[id] = []; });
+    eds.forEach(e => {
+      if (adj[e.source]) adj[e.source].push(e.target);
+      if (e.target in inDegree) inDegree[e.target]++;
+    });
+    const queue = nodeIds.filter(id => inDegree[id] === 0);
+    const result: string[] = [];
+    while (queue.length > 0) {
+      const curr = queue.shift()!;
+      result.push(curr);
+      (adj[curr] || []).forEach(next => {
+        inDegree[next]--;
+        if (inDegree[next] === 0) queue.push(next);
+      });
+    }
+    // Add any unreachable nodes at the end
+    nodeIds.forEach(id => { if (!result.includes(id)) result.push(id); });
+    return result;
+  }, []);
 
   // Update node configuration
   const updateNodeConfig = (nodeId: string, field: string, value: any) => {
@@ -376,7 +613,7 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
     });
   };
 
-  // Workflow Execution (Phase 4)
+  // Workflow Execution — graph-based (topological sort)
   const executeWorkflow = async () => {
     if (canvasNodes.length === 0) {
       addLog('ERROR', 'Workflow', 'No nodes to execute');
@@ -406,21 +643,23 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
     setBottomTab('logs');
     
     addLog('INFO', 'Workflow', `Starting execution: ${workflowName}`);
-    addLog('INFO', 'System', `Environment: ${environment}`);
-    addLog('INFO', 'System', `${canvasNodes.length} nodes in workflow`);
+    addLog('INFO', 'System', `Environment: ${environment} | Graph: ${canvasNodes.length} nodes, ${edges.length} edges`);
     
-    // Simulate execution (sequential)
+    // Determine execution order via topological sort
+    const order = getTopologicalOrder(canvasNodes, edges);
+    addLog('INFO', 'System', `Execution order: ${order.map(id => canvasNodes.find(n => n.id === id)?.name || id).join(' → ')}`);
+    
+    const startTime = Date.now();
     try {
-      for (let i = 0; i < canvasNodes.length; i++) {
-        const node = canvasNodes[i];
+      for (const nodeId of order) {
+        const node = canvasNodes.find(n => n.id === nodeId);
+        if (!node) continue;
         await executeNode(node);
-        
-        // Wait between nodes
-        await new Promise(resolve => setTimeout(resolve, 800));
+        await new Promise(resolve => setTimeout(resolve, 400));
       }
       
       setWorkflowStatus('idle');
-      addLog('SUCCESS', 'Workflow', `Execution completed successfully in ${((Date.now() - (executionStartTime || 0)) / 1000).toFixed(2)}s`);
+      addLog('SUCCESS', 'Workflow', `Execution completed in ${((Date.now() - startTime) / 1000).toFixed(2)}s`);
     } catch (error: any) {
       setWorkflowStatus('error');
       addLog('ERROR', 'Workflow', `Execution failed: ${error.message}`);
@@ -431,17 +670,14 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
     setNodeExecutionState(prev => ({ ...prev, [node.id]: 'running' }));
     addLog('INFO', node.name, 'Executing node...');
     
-    // Simulate processing time
     const processingTime = 500 + Math.random() * 1500;
     await new Promise(resolve => setTimeout(resolve, processingTime));
     
-    // Simulate success/failure (95% success rate)
     const success = Math.random() > 0.05;
     
     if (success) {
       setNodeExecutionState(prev => ({ ...prev, [node.id]: 'success' }));
       
-      // Generate mock output based on node type
       let output: any;
       switch (node.type) {
         case 'OCR':
@@ -457,9 +693,7 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
           output = { status: 'completed', timestamp: new Date().toISOString() };
       }
       
-      addLog('SUCCESS', node.name, `Execution completed in ${(processingTime / 1000).toFixed(2)}s`, output);
-      
-      // Update context
+      addLog('SUCCESS', node.name, `Completed in ${(processingTime / 1000).toFixed(2)}s`, output);
       setExecutionContext((prev: Record<string, any>) => ({ ...prev, [node.id]: output }));
     } else {
       setNodeExecutionState(prev => ({ ...prev, [node.id]: 'error' }));
@@ -469,7 +703,7 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
         time: new Date().toLocaleTimeString(), 
         node: node.name, 
         error: errorMsg,
-        stack: 'at executeNode (WorkflowStudio.tsx:line 123)'
+        stack: 'at executeNode (WorkflowStudio.tsx)',
       }]);
       throw new Error(errorMsg);
     }
@@ -514,11 +748,11 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
         }
       }));
 
-      // Build edges (connections between nodes based on sequential order)
-      const edges = canvasNodes.slice(0, -1).map((node, i) => ({
-        id: `edge-${node.id}-${canvasNodes[i + 1].id}`,
-        fromNodeId: node.id,
-        toNodeId: canvasNodes[i + 1].id,
+      // Build edges from real graph edge state
+      const workflowEdges = edges.map(e => ({
+        id: e.id,
+        fromNodeId: e.source,
+        toNodeId: e.target,
       }));
 
       const workflowData = {
@@ -529,7 +763,7 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
         tags: workflowTags,
         triggers: workflowTriggers,
         nodes,
-        edges,
+        edges: workflowEdges,
         status: isPublished ? 'active' : 'draft',
         metadata: {
           allowAgentInvocation,
@@ -585,9 +819,9 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
           position: { x: node.x, y: node.y },
           config: nodeConfigs[node.id] || {}
         })),
-        edges: canvasNodes.slice(0, -1).map((node, i) => ({
-          from: node.id,
-          to: canvasNodes[i + 1].id
+        edges: edges.map(e => ({
+          from: e.source,
+          to: e.target,
         })),
         metadata: {
           allowAgentInvocation,
@@ -701,6 +935,15 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
       }));
 
       setCanvasNodes(loadedNodes);
+
+      // Load edges from saved data
+      const savedEdges = JSON.parse(wf.edges || '[]');
+      const loadedEdges = savedEdges.map((e: any) => ({
+        id: e.id || `e-${e.fromNodeId}-${e.toNodeId}`,
+        source: e.fromNodeId,
+        target: e.toNodeId,
+      }));
+      setEdges(loadedEdges);
 
       // Load configs
       const configs: Record<string, any> = {};
@@ -911,6 +1154,7 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
       setWorkflowTags([]);
       setWorkflowTriggers([]);
       setCanvasNodes([]);
+      setEdges([]);
       setNodeConfigs({});
       setIsPublished(false);
       setSelectedNode(null);
@@ -987,11 +1231,11 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
         {/* Workflow Grid */}
         <div style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
           {loadingWorkflows ? (
-            <div style={{ display: 'grid', placeItems: 'center', height: '100%' }}>
+            <div style={{ textAlign: 'center', padding: '32px 0' }}>
               <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Loading workflows...</div>
             </div>
           ) : filteredWorkflows.length === 0 ? (
-            <div style={{ display: 'grid', placeItems: 'center', height: '100%', textAlign: 'center' }}>
+            <div style={{ textAlign: 'center', padding: '32px 0' }}>
               <div>
                 <div style={{ fontSize: 48, opacity: 0.1, marginBottom: 16 }}>◈</div>
                 <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 8 }}>
@@ -1134,6 +1378,139 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
               })}
             </div>
           )}
+
+          {/* ===== PREBUILT TEMPLATES SECTION ===== */}
+          <div style={{ marginTop: 40 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+              <div style={{ height: 1, flex: 1, background: 'var(--border)' }} />
+              <div style={{
+                fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700,
+                color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.12em',
+                padding: '0 16px',
+              }}>📚 Prebuilt Templates — click to use</div>
+              <div style={{ height: 1, flex: 1, background: 'var(--border)' }} />
+            </div>
+
+            {loadingTemplates ? (
+              <div style={{ textAlign: 'center', padding: '32px 0', fontSize: 12, color: 'var(--text-muted)' }}>Loading templates...</div>
+            ) : (
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+                gap: 14,
+              }}>
+                {templates.map(tmpl => {
+                  const complexityColor = tmpl.complexity === 'beginner' ? '#10B981' : tmpl.complexity === 'intermediate' ? '#F59E0B' : '#EF4444';
+                  const catColors: Record<string, string> = { Finance: '#10B981', HR: '#EC4899', Operations: '#3B82F6', Security: '#EF4444', Compliance: '#F59E0B', IT: '#8B5CF6', 'Document Processing': '#06B6D4', General: '#6B7280' };
+                  const catColor = catColors[tmpl.category] || '#6B7280';
+                  const isInstantiating = templateInstantiating === tmpl.id;
+                  return (
+                    <div
+                      key={tmpl.id}
+                      style={{
+                        background: 'var(--bg-panel)',
+                        border: '1px solid var(--border)',
+                        borderTop: `3px solid ${catColor}`,
+                        borderRadius: 8,
+                        padding: '16px 18px 14px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 10,
+                        transition: 'box-shadow 0.18s, border-color 0.18s',
+                      }}
+                      onMouseEnter={e => {
+                        e.currentTarget.style.boxShadow = `0 6px 20px ${catColor}28`;
+                        e.currentTarget.style.borderColor = catColor;
+                      }}
+                      onMouseLeave={e => {
+                        e.currentTarget.style.boxShadow = 'none';
+                        e.currentTarget.style.borderColor = 'var(--border)';
+                      }}
+                    >
+                      {/* Header */}
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                        <div style={{
+                          width: 44, height: 44, borderRadius: 8, flexShrink: 0,
+                          background: `${catColor}22`, border: `1px solid ${catColor}44`,
+                          display: 'grid', placeItems: 'center', fontSize: 22,
+                        }}>
+                          {tmpl.icon}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {tmpl.name}
+                          </div>
+                          <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: catColor, textTransform: 'uppercase', fontWeight: 600 }}>{tmpl.category}</span>
+                            <span style={{ color: 'var(--border)' }}>·</span>
+                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: complexityColor, textTransform: 'uppercase', fontWeight: 600 }}>{tmpl.complexity}</span>
+                            <span style={{ color: 'var(--border)' }}>·</span>
+                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)' }}>{(tmpl.nodes || []).length} nodes</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Description */}
+                      <div style={{ fontSize: 11.5, color: 'var(--text-secondary)', lineHeight: 1.55 }}>
+                        {(tmpl.description || '').length > 120 ? (tmpl.description || '').slice(0, 117) + '…' : tmpl.description}
+                      </div>
+
+                      {/* Tags */}
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                        {(tmpl.tags || []).slice(0, 5).map((tag: string) => (
+                          <span key={tag} style={{
+                            fontFamily: 'var(--font-mono)', fontSize: 8.5,
+                            padding: '2px 6px', borderRadius: 3,
+                            background: 'var(--bg-base)', color: 'var(--text-muted)',
+                            border: '1px solid var(--border)',
+                          }}>#{tag}</span>
+                        ))}
+                      </div>
+
+                      {/* Footer */}
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 8, borderTop: '1px solid var(--border)' }}>
+                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)' }}>⏱ {tmpl.estimatedTime}</span>
+                        <button
+                          disabled={isInstantiating}
+                          onClick={async () => {
+                            setTemplateInstantiating(tmpl.id);
+                            try {
+                              const res = await fetch(`http://localhost:3001/api/templates/${tmpl.id}/instantiate`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ customName: tmpl.name }),
+                              });
+                              const data = await res.json();
+                              if (data.success) {
+                                navigate(`/workflows/${data.workflowId}`);
+                              } else {
+                                alert(`Failed: ${data.message || 'Unknown error'}`);
+                              }
+                            } catch (err) {
+                              alert('Failed to create workflow from template');
+                            } finally {
+                              setTemplateInstantiating(null);
+                            }
+                          }}
+                          style={{
+                            height: 28, padding: '0 14px',
+                            borderRadius: 4, fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700,
+                            background: isInstantiating ? 'var(--bg-tile)' : `${catColor}22`,
+                            border: `1px solid ${catColor}66`,
+                            color: isInstantiating ? 'var(--text-muted)' : catColor,
+                            cursor: isInstantiating ? 'not-allowed' : 'pointer',
+                            transition: 'all 0.15s',
+                          }}
+                        >
+                          {isInstantiating ? '⏳ CREATING...' : '✦ USE TEMPLATE'}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     );
@@ -1390,165 +1767,377 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
           </div>
         </div>
 
-        {/* CENTER PANEL - Canvas */}
-        <div style={{
-          flex: 1, position: 'relative', overflow: 'hidden', background: 'var(--bg-base)',
-          backgroundImage: 'radial-gradient(circle, var(--accent-glow) 1px, transparent 1px)',
-          backgroundSize: `${gridSize}px ${gridSize}px`,
-        }}
-        onClick={(e) => { if (e.target === e.currentTarget) setSelectedNode(null); }}
+        {/* CENTER PANEL - n8n-like Canvas */}
+        <div
+          ref={canvasContainerRef}
+          style={{
+            flex: 1, position: 'relative', overflow: 'hidden',
+            background: 'var(--bg-base)',
+            cursor: connectingFrom ? 'crosshair' : panningCanvas.current ? 'grabbing' : 'default',
+          }}
+          onMouseDown={onCanvasMouseDown}
+          onMouseMove={onCanvasMouseMove}
+          onMouseUp={onCanvasMouseUp}
+          onWheel={onCanvasWheel}
         >
-          {/* Canvas Transform Container */}
+          {/* Dot grid — moves with pan/zoom */}
           <div style={{
-            transform: `scale(${canvasZoom / 100})`,
-            transformOrigin: 'top left',
-            width: `${10000 / (canvasZoom / 100)}px`,
-            height: `${10000 / (canvasZoom / 100)}px`,
-          }}>
+            position: 'absolute', inset: 0, pointerEvents: 'none',
+            backgroundImage: 'radial-gradient(circle, var(--accent-glow) 1px, transparent 1px)',
+            backgroundSize: `${gridSize * (canvasZoom / 100)}px ${gridSize * (canvasZoom / 100)}px`,
+            backgroundPosition: `${canvasPan.x % (gridSize * canvasZoom / 100)}px ${canvasPan.y % (gridSize * canvasZoom / 100)}px`,
+          }} />
+
+          {/* Empty state */}
           {canvasNodes.length === 0 && (
             <div style={{
-              position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-              flexDirection: 'column', gap: 12,
+              position: 'absolute', inset: 0, display: 'flex', alignItems: 'center',
+              justifyContent: 'center', flexDirection: 'column', gap: 12, pointerEvents: 'none',
             }}>
-              <span style={{ fontSize: 48, opacity: 0.1 }}>◈</span>
+              <span style={{ fontSize: 48, opacity: 0.08 }}>◈</span>
               <span style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: 'var(--text-muted)' }}>
-                Drag nodes from the palette to build your workflow
+                Click nodes in the library to add them • Drag to move • Scroll to zoom
               </span>
             </div>
           )}
 
-          {/* Node connections */}
-          {canvasNodes.length > 1 && (
-            <svg style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
-              {canvasNodes.slice(0, -1).map((n, i) => {
-                const next = canvasNodes[i + 1];
-                return (
-                  <path
-                    key={i}
-                    d={`M ${n.x + 180} ${n.y + 32} C ${n.x + 240} ${n.y + 32}, ${next.x - 60} ${next.y + 32}, ${next.x} ${next.y + 32}`}
-                    stroke="var(--accent-border)" strokeWidth={1.5} fill="none"
-                  />
-                );
-              })}
-            </svg>
-          )}
+          {/* ── SVG layer for edges ─────────────────────────────────────── */}
+          <svg
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', overflow: 'visible', pointerEvents: 'none' }}
+          >
+            <defs>
+              <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="var(--accent-border)" />
+              </marker>
+              <marker id="arrowhead-active" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="var(--accent)" />
+              </marker>
+            </defs>
 
-          {/* Nodes */}
+            {/* Rendered edges */}
+            {edges.map(edge => {
+              const src = canvasNodes.find(n => n.id === edge.source);
+              const tgt = canvasNodes.find(n => n.id === edge.target);
+              if (!src || !tgt) return null;
+              const scale = canvasZoom / 100;
+              const NODE_W = 200;
+              const NODE_H = 96;
+              // Output handle = right center of source node
+              const x1 = canvasPan.x + (src.x + NODE_W) * scale;
+              const y1 = canvasPan.y + (src.y + NODE_H / 2) * scale;
+              // Input handle = left center of target node
+              const x2 = canvasPan.x + tgt.x * scale;
+              const y2 = canvasPan.y + (tgt.y + NODE_H / 2) * scale;
+              const dx = Math.abs(x2 - x1) * 0.5;
+              const isRunning = nodeExecutionState[edge.source] === 'running' || nodeExecutionState[edge.target] === 'running';
+              const isSuccess = nodeExecutionState[edge.source] === 'success';
+              return (
+                <g key={edge.id} style={{ pointerEvents: 'stroke' }}>
+                  <path
+                    d={`M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`}
+                    stroke={isRunning ? 'var(--accent)' : isSuccess ? 'var(--status-success)' : 'var(--accent-border)'}
+                    strokeWidth={isRunning ? 2.5 : 1.5}
+                    fill="none"
+                    markerEnd={isRunning ? 'url(#arrowhead-active)' : 'url(#arrowhead)'}
+                    strokeDasharray={isRunning ? '6 3' : undefined}
+                    style={{ animation: isRunning ? 'dashFlow 0.5s linear infinite' : undefined }}
+                  />
+                  {/* Invisible wider hit area for deleting */}
+                  <path
+                    d={`M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`}
+                    stroke="transparent"
+                    strokeWidth={12}
+                    fill="none"
+                    style={{ pointerEvents: 'stroke' as const, cursor: 'pointer' }}
+                    onClick={(e) => { e.stopPropagation(); deleteEdge(edge.id); }}
+                  />
+                </g>
+              );
+            })}
+
+            {/* Live connection line while drawing */}
+            {connectingFrom && (() => {
+              const src = canvasNodes.find(n => n.id === connectingFrom);
+              if (!src) return null;
+              const scale = canvasZoom / 100;
+              const NODE_W = 200;
+              const NODE_H = 96;
+              const x1 = canvasPan.x + (src.x + NODE_W) * scale;
+              const y1 = canvasPan.y + (src.y + NODE_H / 2) * scale;
+              const x2 = canvasPan.x + mouseCanvasPos.x * scale;
+              const y2 = canvasPan.y + mouseCanvasPos.y * scale;
+              const dx = Math.abs(x2 - x1) * 0.5;
+              return (
+                <path
+                  d={`M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`}
+                  stroke="var(--accent)"
+                  strokeWidth={1.5}
+                  fill="none"
+                  strokeDasharray="5 4"
+                  opacity={0.8}
+                />
+              );
+            })()}
+          </svg>
+
+          {/* ── Nodes layer ──────────────────────────────────────────────── */}
           {canvasNodes.map(node => {
             const execState = nodeExecutionState[node.id];
             const isExecuting = execState === 'running';
             const hasCompleted = execState === 'success';
             const hasFailed = execState === 'error';
-            
-            return (
-            <div
-              key={node.id}
-              onClick={(e) => { e.stopPropagation(); setSelectedNode(node.id); }}
-              style={{
-                position: 'absolute', left: node.x, top: node.y, width: 180, minHeight: 64,
-                background: hasFailed ? 'var(--status-danger-bg)' : 'var(--bg-tile)',
-                border: selectedNode === node.id ? `2px solid ${node.color}` : 
-                        hasFailed ? '2px solid var(--status-danger)' :
-                        hasCompleted ? '2px solid var(--status-success)' :
-                        isExecuting ? `2px solid ${node.color}` :
-                        '1px solid var(--border)',
-                boxShadow: selectedNode === node.id ? `0 0 0 3px ${node.color}20` : 
-                           isExecuting ? `0 0 0 3px ${node.color}40, 0 0 20px ${node.color}60` : undefined,
-                cursor: 'move',
-                borderRadius: 4,
-                animation: isExecuting ? 'pulse 1.5s ease-in-out infinite' : undefined,
-              }}
-            >
-              <div style={{
-                height: 32, borderBottom: '1px solid var(--border)', display: 'flex',
-                alignItems: 'center', gap: 6, padding: '0 10px',
-                background: isExecuting ? `${node.color}20` : undefined,
-              }}>
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: node.color }} />
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, textTransform: 'uppercase', color: 'var(--text-muted)' }}>{node.category}</span>
-                
-                {/* Execution Status Indicator */}
-                {execState && (
-                  <span style={{ marginLeft: 'auto', marginRight: 4, fontSize: 12 }}>
-                    {isExecuting && '⟳'}
-                    {hasCompleted && '✓'}
-                    {hasFailed && '✕'}
-                  </span>
-                )}
-                
-                <button 
-                  onClick={(e) => { 
-                    e.stopPropagation(); 
-                    setCanvasNodes(prev => prev.filter(n => n.id !== node.id)); 
-                    if (selectedNode === node.id) setSelectedNode(null);
-                  }}
-                  style={{ marginLeft: execState ? 0 : 'auto', fontSize: 10, color: 'var(--text-muted)', opacity: 0.5, background: 'none', border: 'none', cursor: 'pointer' }}
-                >✕</button>
-              </div>
-              <div style={{ padding: '10px 12px' }}>
-                <div style={{ fontFamily: 'var(--font-body)', fontWeight: 500, fontSize: 13 }}>{node.name}</div>
-              </div>
-              {/* Connection dots */}
-              <div style={{
-                position: 'absolute', left: -5, top: '50%', transform: 'translateY(-50%)',
-                width: 10, height: 10, borderRadius: '50%', border: '1px solid var(--border)', background: 'var(--bg-base)',
-              }} />
-              <div style={{
-                position: 'absolute', right: -5, top: '50%', transform: 'translateY(-50%)',
-                width: 10, height: 10, borderRadius: '50%', border: '1px solid var(--border)', background: 'var(--bg-base)',
-              }} />
-            </div>
-          );
-          })}
+            const scale = canvasZoom / 100;
+            const NODE_W = 200;
+            const NODE_H = 96;
+            const left = canvasPan.x + node.x * scale;
+            const top = canvasPan.y + node.y * scale;
 
-          </div>
-          {/* End Canvas Transform Container */}
+            // Category icon map
+            const catIcons: Record<string, string> = {
+              TRIGGER: '⚡', DOCUMENT: '📄', DATA: '💾', AI: '🧠',
+              LOGIC: '🔀', BUSINESS: '💼', MONITORING: '📊', OUTPUT: '📤',
+            };
+            const catIcon = catIcons[node.category] || '⚙';
+
+            // Short config summary (first meaningful config value)
+            const cfg = nodeConfigs[node.id] || {};
+            const cfgEntries = Object.entries(cfg).filter(([, v]) => v !== undefined && v !== '' && v !== null && !Array.isArray(v));
+            const cfgSummary = cfgEntries.length > 0
+              ? `${cfgEntries[0][0]}: ${String(cfgEntries[0][1]).slice(0, 20)}`
+              : nodeDescriptions[node.type]?.slice(0, 38) || '';
+
+            // Edge counts for this node
+            const inCount = edges.filter(e => e.target === node.id).length;
+            const outCount = edges.filter(e => e.source === node.id).length;
+
+            const borderColor = selectedNode === node.id ? node.color
+              : hasFailed ? 'var(--status-danger)'
+              : hasCompleted ? 'var(--status-success)'
+              : isExecuting ? node.color
+              : 'var(--border)';
+            const borderW = (selectedNode === node.id || hasFailed || hasCompleted || isExecuting) ? 2 : 1;
+
+            return (
+              <div
+                key={node.id}
+                onMouseDown={(e) => onNodeMouseDown(e, node.id)}
+                onClick={(e) => { e.stopPropagation(); setSelectedNode(node.id === selectedNode ? null : node.id); }}
+                style={{
+                  position: 'absolute',
+                  left,
+                  top,
+                  width: NODE_W * scale,
+                  height: NODE_H * scale,
+                  background: hasFailed ? 'rgba(239,68,68,0.1)' : 'var(--bg-tile)',
+                  border: `${borderW * scale}px solid ${borderColor}`,
+                  boxShadow: selectedNode === node.id
+                    ? `0 0 0 ${3 * scale}px ${node.color}22, 0 4px 20px rgba(0,0,0,0.4)`
+                    : isExecuting
+                      ? `0 0 0 ${3 * scale}px ${node.color}40, 0 0 ${20 * scale}px ${node.color}50`
+                      : `0 2px 8px rgba(0,0,0,0.25)`,
+                  borderRadius: 6 * scale,
+                  cursor: 'move',
+                  userSelect: 'none',
+                  animation: isExecuting ? 'pulse 1.5s ease-in-out infinite' : undefined,
+                  zIndex: selectedNode === node.id ? 10 : 1,
+                  overflow: 'hidden',
+                  display: 'flex',
+                  flexDirection: 'column',
+                }}
+              >
+                {/* ── Colored top accent bar ── */}
+                <div style={{
+                  height: 3 * scale,
+                  background: `linear-gradient(90deg, ${node.color}, ${node.color}88)`,
+                  flexShrink: 0,
+                }} />
+
+                {/* ── Header row: icon + name + delete ── */}
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 8 * scale,
+                  padding: `${7 * scale}px ${10 * scale}px ${4 * scale}px`,
+                  background: isExecuting ? `${node.color}12` : hasCompleted ? 'rgba(16,185,129,0.06)' : undefined,
+                }}>
+                  {/* Category icon circle */}
+                  <div style={{
+                    width: 28 * scale, height: 28 * scale, borderRadius: 6 * scale,
+                    background: `${node.color}22`, border: `${scale}px solid ${node.color}44`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 13 * scale, flexShrink: 0,
+                  }}>
+                    {catIcon}
+                  </div>
+                  {/* Name + category label */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{
+                      fontFamily: 'var(--font-body)', fontWeight: 600,
+                      fontSize: 12 * scale, color: 'var(--text-primary)',
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const,
+                      lineHeight: 1.3,
+                    }}>{node.name}</div>
+                    <div style={{
+                      fontFamily: 'var(--font-mono)', fontSize: 8.5 * scale,
+                      color: node.color, textTransform: 'uppercase' as const,
+                      letterSpacing: '0.04em', opacity: 0.85,
+                    }}>{node.type}</div>
+                  </div>
+                  {/* Exec status badge */}
+                  {execState && (
+                    <div style={{
+                      fontSize: 11 * scale, flexShrink: 0,
+                      color: isExecuting ? node.color : hasCompleted ? 'var(--status-success)' : 'var(--status-danger)',
+                      animation: isExecuting ? 'spin 1s linear infinite' : undefined,
+                    }}>
+                      {isExecuting ? '⟳' : hasCompleted ? '✓' : '✕'}
+                    </div>
+                  )}
+                  <button
+                    onMouseDown={e => e.stopPropagation()}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setCanvasNodes(prev => prev.filter(n => n.id !== node.id));
+                      setEdges(prev => prev.filter(ed => ed.source !== node.id && ed.target !== node.id));
+                      if (selectedNode === node.id) setSelectedNode(null);
+                    }}
+                    style={{
+                      fontSize: 10 * scale, color: 'var(--text-muted)', opacity: 0.4,
+                      background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0,
+                      lineHeight: 1, padding: 0,
+                    }}
+                  >✕</button>
+                </div>
+
+                {/* ── Config summary line ── */}
+                <div style={{
+                  padding: `0 ${10 * scale}px`,
+                  fontFamily: 'var(--font-mono)', fontSize: 8 * scale,
+                  color: 'var(--text-muted)', flex: 1,
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const,
+                }}>
+                  {cfgSummary || <span style={{ opacity: 0.4 }}>not configured</span>}
+                </div>
+
+                {/* ── Footer: in/out counts ── */}
+                <div style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: `${4 * scale}px ${10 * scale}px ${6 * scale}px`,
+                  marginTop: 'auto',
+                }}>
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: 4 * scale,
+                    fontFamily: 'var(--font-mono)', fontSize: 7.5 * scale, color: 'var(--text-muted)',
+                  }}>
+                    <span style={{ color: '#64748b' }}>↘</span>
+                    <span>{inCount} in</span>
+                    <span style={{ margin: `0 ${2 * scale}px`, opacity: 0.3 }}>·</span>
+                    <span style={{ color: node.color }}>↗</span>
+                    <span>{outCount} out</span>
+                  </div>
+                  <div style={{
+                    fontFamily: 'var(--font-mono)', fontSize: 7 * scale,
+                    padding: `${1.5 * scale}px ${5 * scale}px`,
+                    borderRadius: 2 * scale,
+                    background: execState
+                      ? (isExecuting ? `${node.color}22` : hasCompleted ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)')
+                      : 'var(--bg-base)',
+                    color: execState
+                      ? (isExecuting ? node.color : hasCompleted ? 'var(--status-success)' : 'var(--status-danger)')
+                      : 'var(--text-muted)',
+                    border: `${scale * 0.5}px solid ${execState ? (isExecuting ? node.color : hasCompleted ? 'var(--status-success)' : 'var(--status-danger)') : 'var(--border)'}`,
+                  }}>
+                    {execState ? execState.toUpperCase() : 'IDLE'}
+                  </div>
+                </div>
+
+                {/* ── INPUT HANDLE (left center) ── */}
+                <div
+                  onMouseDown={e => e.stopPropagation()}
+                  onMouseUp={(e) => { e.stopPropagation(); finishConnection(e, node.id); }}
+                  style={{
+                    position: 'absolute', left: -8 * scale, top: '50%', transform: 'translateY(-50%)',
+                    width: 15 * scale, height: 15 * scale, borderRadius: '50%',
+                    border: `${2 * scale}px solid ${connectingFrom && connectingFrom !== node.id ? 'var(--accent)' : 'var(--border)'}`,
+                    background: connectingFrom && connectingFrom !== node.id ? 'var(--accent)' : 'var(--bg-panel)',
+                    cursor: 'crosshair', zIndex: 20,
+                    boxShadow: connectingFrom && connectingFrom !== node.id ? `0 0 0 ${3 * scale}px rgba(0,212,255,0.3)` : undefined,
+                    transition: 'all 0.15s ease',
+                  }}
+                />
+
+                {/* ── OUTPUT HANDLE (right center) ── */}
+                <div
+                  onMouseDown={(e) => { e.stopPropagation(); startConnection(e, node.id); }}
+                  style={{
+                    position: 'absolute', right: -8 * scale, top: '50%', transform: 'translateY(-50%)',
+                    width: 15 * scale, height: 15 * scale, borderRadius: '50%',
+                    border: `${2 * scale}px solid ${node.color}`,
+                    background: connectingFrom === node.id ? node.color : 'var(--bg-panel)',
+                    cursor: 'crosshair', zIndex: 20,
+                    boxShadow: connectingFrom === node.id ? `0 0 0 ${3 * scale}px ${node.color}40` : undefined,
+                    transition: 'all 0.15s ease',
+                  }}
+                />
+              </div>
+            );
+          })}
 
           {/* Canvas Controls (bottom-right) */}
           <div style={{
             position: 'absolute', bottom: 16, right: 16,
             display: 'flex', flexDirection: 'column', gap: 6,
+            zIndex: 100,
           }}>
-            {/* Zoom Controls */}
             <div style={{
               display: 'flex', flexDirection: 'column',
               background: 'var(--bg-tile)', border: '1px solid var(--border)',
               borderRadius: 2, overflow: 'hidden',
             }}>
-              <button 
-                onClick={() => setCanvasZoom(Math.min(200, canvasZoom + 25))}
-                style={{
-                  height: 28, width: 36, fontFamily: 'var(--font-mono)', fontSize: 14,
-                  background: 'transparent', border: 'none', borderBottom: '1px solid var(--border)',
-                  color: 'var(--text-secondary)', cursor: 'pointer',
-                }}
-                title="Zoom In (+)"
-              >+</button>
-              
               <button
-                onClick={() => setCanvasZoom(100)}
-                style={{
-                  height: 32, padding: '0 8px', fontFamily: 'var(--font-mono)', fontSize: 10,
-                  background: 'transparent', border: 'none', borderBottom: '1px solid var(--border)',
-                  color: canvasZoom === 100 ? 'var(--accent)' : 'var(--text-secondary)',
-                  cursor: 'pointer', fontWeight: 600,
+                onClick={() => {
+                  const next = Math.min(200, canvasZoom + 15);
+                  const container = canvasContainerRef.current;
+                  if (container) {
+                    const cx = container.clientWidth / 2;
+                    const cy = container.clientHeight / 2;
+                    const scale = canvasZoom / 100;
+                    const newScale = next / 100;
+                    setCanvasPan(p => ({
+                      x: cx - (cx - p.x) * (newScale / scale),
+                      y: cy - (cy - p.y) * (newScale / scale),
+                    }));
+                  }
+                  setCanvasZoom(next);
                 }}
-                title="Reset Zoom (100%)"
+                style={{ height: 28, width: 36, fontFamily: 'var(--font-mono)', fontSize: 14, background: 'transparent', border: 'none', borderBottom: '1px solid var(--border)', color: 'var(--text-secondary)', cursor: 'pointer' }}
+                title="Zoom In"
+              >+</button>
+              <button
+                onClick={() => { setCanvasZoom(100); setCanvasPan({ x: 0, y: 0 }); }}
+                style={{ height: 32, padding: '0 8px', fontFamily: 'var(--font-mono)', fontSize: 10, background: 'transparent', border: 'none', borderBottom: '1px solid var(--border)', color: canvasZoom === 100 ? 'var(--accent)' : 'var(--text-secondary)', cursor: 'pointer', fontWeight: 600 }}
+                title="Reset Zoom"
               >{canvasZoom}%</button>
-              
-              <button 
-                onClick={() => setCanvasZoom(Math.max(50, canvasZoom - 25))}
-                style={{
-                  height: 28, width: 36, fontFamily: 'var(--font-mono)', fontSize: 14,
-                  background: 'transparent', border: 'none',
-                  color: 'var(--text-secondary)', cursor: 'pointer',
+              <button
+                onClick={() => {
+                  const next = Math.max(30, canvasZoom - 15);
+                  const container = canvasContainerRef.current;
+                  if (container) {
+                    const cx = container.clientWidth / 2;
+                    const cy = container.clientHeight / 2;
+                    const scale = canvasZoom / 100;
+                    const newScale = next / 100;
+                    setCanvasPan(p => ({
+                      x: cx - (cx - p.x) * (newScale / scale),
+                      y: cy - (cy - p.y) * (newScale / scale),
+                    }));
+                  }
+                  setCanvasZoom(next);
                 }}
-                title="Zoom Out (-)"
+                style={{ height: 28, width: 36, fontFamily: 'var(--font-mono)', fontSize: 14, background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}
+                title="Zoom Out"
               >−</button>
             </div>
 
-            {/* Grid Snapping Toggle */}
-            <button 
+            <button
               onClick={() => setGridSnapping(!gridSnapping)}
               style={{
                 height: 32, padding: '0 12px', fontFamily: 'var(--font-mono)', fontSize: 10,
@@ -1557,27 +2146,62 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
                 color: gridSnapping ? 'var(--accent)' : 'var(--text-secondary)',
                 cursor: 'pointer', fontWeight: 600,
               }}
-              title="Toggle Grid Snapping (G)"
+              title="Toggle Grid Snap"
             >⊞ SNAP</button>
 
-            {/* Auto-Layout */}
-            <button style={{
-              height: 32, padding: '0 12px', fontFamily: 'var(--font-mono)', fontSize: 10,
-              background: 'var(--bg-tile)', border: '1px solid var(--border)',
-              color: 'var(--text-secondary)', cursor: 'pointer',
-            }}
-            title="Auto-arrange nodes (A)"
+            <button
+              onClick={() => {
+                // Auto-layout: arrange nodes left to right in topological order
+                const order = getTopologicalOrder(canvasNodes, edges);
+                const COLS = Math.ceil(Math.sqrt(order.length));
+                setCanvasNodes(prev => prev.map(n => {
+                  const idx = order.indexOf(n.id);
+                  const col = idx % COLS;
+                  const row = Math.floor(idx / COLS);
+                  let x = 80 + col * 270;
+                  let y = 80 + row * 160;
+                  if (gridSnapping) { x = Math.round(x / gridSize) * gridSize; y = Math.round(y / gridSize) * gridSize; }
+                  return { ...n, x, y };
+                }));
+              }}
+              style={{
+                height: 32, padding: '0 12px', fontFamily: 'var(--font-mono)', fontSize: 10,
+                background: 'var(--bg-tile)', border: '1px solid var(--border)',
+                color: 'var(--text-secondary)', cursor: 'pointer',
+              }}
+              title="Auto-layout nodes"
             >⚡ LAYOUT</button>
+
+            {edges.length > 0 && (
+              <div style={{
+                padding: '6px 8px', fontFamily: 'var(--font-mono)', fontSize: 9,
+                background: 'var(--bg-tile)', border: '1px solid var(--border)',
+                color: 'var(--text-muted)', textAlign: 'center',
+              }}>
+                {edges.length} edge{edges.length !== 1 ? 's' : ''}
+              </div>
+            )}
           </div>
 
-          {/* Keyboard Shortcuts Hint */}
-          {canvasNodes.length === 0 && (
+          {/* Hint */}
+          {canvasNodes.length > 0 && canvasNodes.length < 3 && edges.length === 0 && (
             <div style={{
               position: 'absolute', bottom: 16, left: 16,
-              fontFamily: 'var(--font-mono)', fontSize: 9,
-              color: 'var(--text-muted)', opacity: 0.6,
+              fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)',
+              opacity: 0.7, pointerEvents: 'none',
             }}>
-              <div>SHORTCUTS: +/- zoom • G grid snap • A auto-layout • Del delete node</div>
+              Drag the ◉ right handle to connect nodes
+            </div>
+          )}
+
+          {connectingFrom && (
+            <div style={{
+              position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)',
+              padding: '6px 14px', background: 'var(--accent-dim)', border: '1px solid var(--accent-border)',
+              color: 'var(--accent)', fontFamily: 'var(--font-mono)', fontSize: 10, borderRadius: 2,
+              pointerEvents: 'none', zIndex: 200,
+            }}>
+              Click the ◎ input handle of a target node — or click canvas to cancel
             </div>
           )}
         </div>
