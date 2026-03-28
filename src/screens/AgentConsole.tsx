@@ -161,7 +161,11 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
 
   // Close dropdown menu on outside click
   useEffect(() => {
-    const handleClickOutside = () => setOpenMenuId(null);
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest('.action-btn')) return;
+      setOpenMenuId(null);
+    };
     if (openMenuId) {
       document.addEventListener('mousedown', handleClickOutside);
       return () => document.removeEventListener('mousedown', handleClickOutside);
