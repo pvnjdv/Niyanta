@@ -167,6 +167,7 @@ const AppContent: React.FC = () => {
                 onExecuteAgent={executeAgent}
                 onRunAll={handleRunAll}
                 runAllProgress={runAllProgress}
+                refreshAgents={refreshAgents}
               />
             }
           />
@@ -189,6 +190,7 @@ const AppContent: React.FC = () => {
                 onExecuteAgent={executeAgent}
                 onRunAll={handleRunAll}
                 runAllProgress={runAllProgress}
+                refreshAgents={refreshAgents}
               />
             }
           />

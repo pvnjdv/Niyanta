@@ -52,10 +52,13 @@ router.get('/list', (_req: Request, res: Response) => {
   try {
     const { getDB } = require('../db/database');
     const db = getDB();
-    const templateIds = new Set(
-      (db.prepare("SELECT id FROM agents WHERE is_template=1").all() as Array<{id: string}>).map(r => r.id)
-    );
-    const enriched = agents.map(a => ({ ...a, is_template: templateIds.has(a.agent_id) ? 1 : 0 }));
+    const rows = db.prepare("SELECT id, is_template, is_default FROM agents").all() as Array<{id: string; is_template: number; is_default: number}>;
+    const flagMap = new Map(rows.map(r => [r.id, { is_template: r.is_template, is_default: r.is_default }]));
+    const enriched = agents.map(a => ({
+      ...a,
+      is_template: flagMap.get(a.agent_id)?.is_template ?? 0,
+      is_default: flagMap.get(a.agent_id)?.is_default ?? 0,
+    }));
     return res.json({ agents: enriched });
   } catch {
     return res.json({ agents });
@@ -64,7 +67,7 @@ router.get('/list', (_req: Request, res: Response) => {
 
 // ── Create a new agent ───────────────────────────────────────────────
 router.post('/', (req: Request, res: Response) => {
-  const { name, description, icon, capabilities, workflows, systemPrompt, subtitle } = req.body;
+  const { name, description, icon, capabilities, workflows, systemPrompt, subtitle, config } = req.body;
 
   if (!name || typeof name !== 'string' || name.trim().length === 0) {
     return res.status(400).json({ error: 'ValidationError', message: 'name is required' });
@@ -118,10 +121,23 @@ router.post('/', (req: Request, res: Response) => {
        VALUES (?, ?, ?, ?, ?, 'active', 'agent', 1, datetime('now'), datetime('now'))`
     ).run(workflowId, `${agentDef.name} Workflow`, `Backing workflow for ${agentDef.name}`, JSON.stringify(nodes), JSON.stringify(edges));
 
+    const canvasLayout = config?.canvasLayout ? JSON.stringify(config.canvasLayout) : null;
     db.prepare(
-      `INSERT INTO agents (id, name, subtitle, capabilities, status, color, icon, glow, description, system_prompt, workflow_id, created_at)
-       VALUES (?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, datetime('now'))`
-    ).run(agentDef.agent_id, agentDef.name, agentDef.subtitle, JSON.stringify(agentDef.capabilities), agentDef.color, agentDef.icon, agentDef.glow, agentDef.description, agentDef.systemPrompt, workflowId);
+      `INSERT INTO agents (id, name, subtitle, capabilities, status, color, icon, glow, description, system_prompt, workflow_id, canvas_layout, created_at)
+       VALUES (?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, datetime('now'))`
+    ).run(
+      agentDef.agent_id,
+      agentDef.name,
+      agentDef.subtitle,
+      JSON.stringify(agentDef.capabilities),
+      agentDef.color,
+      agentDef.icon,
+      agentDef.glow,
+      agentDef.description,
+      agentDef.systemPrompt,
+      workflowId,
+      canvasLayout
+    );
 
     // Link agent to selected workflows
     if (Array.isArray(workflows) && workflows.length > 0) {
@@ -145,7 +161,7 @@ router.post('/', (req: Request, res: Response) => {
 // ── Update an agent ──────────────────────────────────────────────────
 router.put('/:id', (req: Request, res: Response) => {
   const { id } = req.params;
-  const { name, description, icon, capabilities, systemPrompt, subtitle, status } = req.body;
+  const { name, description, icon, capabilities, systemPrompt, subtitle, status, workflows, config } = req.body;
 
   try {
     const orchestrator = getOrchestrator();
@@ -155,11 +171,22 @@ router.put('/:id', (req: Request, res: Response) => {
       return res.status(404).json({ error: 'NotFound', message: `Agent ${id} not found` });
     }
 
+    // Parse capabilities as array if provided as comma-separated string
+    let capabilitiesValue: string[] | undefined;
+    if (typeof capabilities === 'string') {
+      capabilitiesValue = capabilities
+        .split(',')
+        .map((c: string) => c.trim())
+        .filter((c: string) => c.length > 0);
+    } else if (Array.isArray(capabilities)) {
+      capabilitiesValue = capabilities as string[];
+    }
+
     const updates: Record<string, unknown> = {};
     if (name !== undefined) updates.name = name;
     if (description !== undefined) updates.description = description;
     if (icon !== undefined) updates.icon = icon;
-    if (capabilities !== undefined) updates.capabilities = capabilities;
+    if (capabilitiesValue !== undefined) updates.capabilities = capabilitiesValue;
     if (systemPrompt !== undefined) updates.systemPrompt = systemPrompt;
     if (subtitle !== undefined) updates.subtitle = subtitle;
     if (status !== undefined) updates.status = status;
@@ -174,10 +201,11 @@ router.put('/:id', (req: Request, res: Response) => {
     if (name !== undefined) { setClauses.push('name = ?'); values.push(name); }
     if (description !== undefined) { setClauses.push('description = ?'); values.push(description); }
     if (icon !== undefined) { setClauses.push('icon = ?'); values.push(icon); }
-    if (capabilities !== undefined) { setClauses.push('capabilities = ?'); values.push(JSON.stringify(capabilities)); }
+    if (capabilitiesValue !== undefined) { setClauses.push('capabilities = ?'); values.push(JSON.stringify(capabilitiesValue)); }
     if (systemPrompt !== undefined) { setClauses.push('system_prompt = ?'); values.push(systemPrompt); }
     if (subtitle !== undefined) { setClauses.push('subtitle = ?'); values.push(subtitle); }
     if (status !== undefined) { setClauses.push('status = ?'); values.push(status); }
+    if (config?.canvasLayout !== undefined) { setClauses.push('canvas_layout = ?'); values.push(JSON.stringify(config.canvasLayout)); }
 
     if (setClauses.length > 0) {
       values.push(id);
@@ -195,6 +223,18 @@ router.put('/:id', (req: Request, res: Response) => {
           llmNode.config.prompt = systemPrompt;
           db.prepare('UPDATE workflows SET nodes = ?, updated_at = datetime(\'now\') WHERE id = ?').run(JSON.stringify(nodes), workflowId);
         }
+      }
+    }
+
+    // Replace linked workflows if provided
+    if (Array.isArray(workflows)) {
+      db.prepare('DELETE FROM agent_workflows WHERE agent_id = ?').run(id);
+      const insertWorkflowLink = db.prepare(
+        `INSERT OR IGNORE INTO agent_workflows (id, agent_id, workflow_id, can_trigger, can_modify, created_at)
+         VALUES (?, ?, ?, 1, 0, datetime('now'))`
+      );
+      for (const workflowId of workflows) {
+        insertWorkflowLink.run(`aw_${id}_${workflowId}`, id, workflowId);
       }
     }
 
@@ -440,7 +480,17 @@ router.get('/:id/workflows', (req: Request, res: Response) => {
       ORDER BY aw.created_at DESC
     `).all(id);
     
-    return res.json({ success: true, workflows: links });
+    const agentRow = db.prepare('SELECT canvas_layout FROM agents WHERE id = ?').get(id) as { canvas_layout: string | null } | undefined;
+    let canvasLayout: unknown[] = [];
+    if (agentRow?.canvas_layout) {
+      try {
+        canvasLayout = JSON.parse(agentRow.canvas_layout);
+      } catch {
+        canvasLayout = [];
+      }
+    }
+
+    return res.json({ success: true, workflows: links, canvasLayout });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     return res.status(500).json({ success: false, error: 'FetchWorkflowsFailed', message });

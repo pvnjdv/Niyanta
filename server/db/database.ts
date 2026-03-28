@@ -48,11 +48,13 @@ function initializeSchema(): void {
     'ALTER TABLE workflows ADD COLUMN is_default INTEGER DEFAULT 0',
     'ALTER TABLE agents ADD COLUMN is_template INTEGER DEFAULT 0',
     'ALTER TABLE agents ADD COLUMN canvas_layout TEXT',
+    'ALTER TABLE agents ADD COLUMN is_default INTEGER DEFAULT 0',
   ];
   for (const m of migrations) {
     try { db.prepare(m).run(); } catch { /* column already exists */ }
   }
   syncTemplateAgents();
+  seedCopyableDefaultAgents();
   
   // Create agent_workflows junction table
   try {
@@ -122,6 +124,26 @@ const TEMPLATE_AGENT_SEEDS: AgentSeed[] = [
     systemPrompt: 'You are the HR Operations Agent. Handle employee requests including onboarding, leave management, policy queries, and performance tracking. Ensure compliance with HR policies. Return strict JSON with: requestType, decision, reason, nextSteps, complianceStatus, whyChain.'
   },
 ];
+
+// ── Default Agents (pre-seeded copies, user can delete them) ─────────────────
+function seedCopyableDefaultAgents(): void {
+  const conn = db;
+  const existing = conn.prepare('SELECT COUNT(*) as count FROM agents WHERE is_default=1').get() as { count: number };
+  if (existing.count > 0) return;
+
+  const insertDefault = conn.prepare(
+    `INSERT OR IGNORE INTO agents (id, name, subtitle, capabilities, status, color, icon, glow, description, system_prompt, is_default, is_template, created_at)
+     VALUES (?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, 1, 0, datetime('now'))`
+  );
+
+  for (const agent of TEMPLATE_AGENT_SEEDS) {
+    insertDefault.run(
+      `def_${agent.id}`, agent.name, agent.subtitle,
+      JSON.stringify(agent.capabilities), agent.color, agent.icon,
+      agent.glow, agent.description, agent.systemPrompt
+    );
+  }
+}
 
 function syncTemplateAgents(): void {
   const conn = db;

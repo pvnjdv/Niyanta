@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { Agent, AgentState } from '../types/agent';
 import { SAMPLES } from '../constants/samples';
 
@@ -16,13 +16,15 @@ interface AgentConsoleProps {
   onExecuteAgent: (id: string, input?: string) => Promise<void>;
   runAllProgress: string | null;
   onRunAll: () => Promise<void>;
+  refreshAgents: () => Promise<void>;
 }
 
 const AgentConsole: React.FC<AgentConsoleProps> = ({
-  agents, agentStates, onExecuteAgent, runAllProgress, onRunAll,
+  agents, agentStates, onExecuteAgent, runAllProgress, onRunAll, refreshAgents,
 }) => {
   const navigate = useNavigate();
   const { agentId } = useParams<{ agentId?: string }>();
+  const location = useLocation();
 
   // ── State ──────────────────────────────────────────────────────────────────
   const [search, setSearch] = useState('');
@@ -46,8 +48,8 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
   const [canvasNodes, setCanvasNodes] = useState<Array<{
     id: string; blockType: 'workflow' | 'node'; refId: string;
     name: string; category: string; color: string;
-    x: number; y: number;
-  }>>([]);
+    x: number; y: number; inputInfo: string;
+  }>>([]);;
   const [canvasPan, setCanvasPan] = useState({ x: 0, y: 0 });
   const [canvasZoom, setCanvasZoom] = useState(100);
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
@@ -56,6 +58,7 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
   const [nodeSearch, setNodeSearch] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [editingAgentId, setEditingAgentId] = useState<string | null>(null);
 
   // Canvas refs
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -64,7 +67,62 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
 
   const selectedAgent = agentId && agentId !== 'new' ? agents.find(a => a.id === agentId) || null : null;
   const selectedState = selectedAgent ? agentStates[selectedAgent.id] : null;
-  const filtered = agents.filter(a => a.name.toLowerCase().includes(search.toLowerCase()));
+  const filtered = agents.filter(a => !a.isTemplate && a.name.toLowerCase().includes(search.toLowerCase()));
+
+  // Pre-fill canvas when editing an existing agent (from three-dot Edit)
+  useEffect(() => {
+    const state = location.state as { editAgent?: Agent; editAgentId?: string } | null;
+    if (agentId !== 'new' || !state?.editAgent) return;
+
+    const ea = state.editAgent;
+    const editId = state.editAgentId || ea.id;
+    setAgentName(ea.name);
+    setAgentDescription(ea.description || '');
+    setAgentCapabilities(ea.capabilities?.join(', ') || '');
+    setAgentColor(ea.color || '#00D4FF');
+    setEditingAgentId(editId);
+
+    const hydrateEditCanvas = async () => {
+      try {
+        const res = await fetch(`/api/agent/${editId}/workflows`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const layout = Array.isArray(data.canvasLayout) ? data.canvasLayout : [];
+        if (layout.length > 0) {
+          setCanvasNodes(layout.map((n: any, i: number) => ({
+            id: n.id || `cn-edit-${Date.now()}-${i}`,
+            blockType: n.blockType === 'node' ? 'node' : 'workflow',
+            refId: n.refId || '',
+            name: n.name || 'Block',
+            category: n.category || 'General',
+            color: n.color || getCategoryColor(n.category || 'General'),
+            x: typeof n.x === 'number' ? n.x : (280 + Math.random() * 240),
+            y: typeof n.y === 'number' ? n.y : (80 + Math.random() * 200),
+            inputInfo: n.inputInfo || '',
+          })));
+          return;
+        }
+
+        const workflows = (data.workflows || []) as Array<{ workflow_id: string; name: string; category: string }>;
+        if (workflows.length === 0) return;
+        setCanvasNodes(workflows.map((wf, i) => ({
+          id: `wn-edit-${Date.now()}-${i}`,
+          blockType: 'workflow' as const,
+          refId: wf.workflow_id,
+          name: wf.name,
+          category: wf.category || 'General',
+          color: getCategoryColor(wf.category || 'General'),
+          x: 280 + Math.random() * 240,
+          y: 80 + Math.random() * 200,
+          inputInfo: '',
+        })));
+      } catch {
+        // Best effort hydration; keep current canvas if unavailable.
+      }
+    };
+    hydrateEditCanvas();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agentId]);
 
   // ── Fetch workflows ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -139,7 +197,6 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
 
   const addWorkflowToCanvas = (workflow: {id: string; name: string; category: string}) => {
     if (canvasNodes.some(n => n.blockType === 'workflow' && n.refId === workflow.id)) return;
-    const idx = canvasNodes.length;
     setCanvasNodes(prev => [...prev, {
       id: `wn-${Date.now()}`,
       blockType: 'workflow' as const,
@@ -147,13 +204,13 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
       name: workflow.name,
       category: workflow.category,
       color: getCategoryColor(workflow.category),
-      x: 340 + (idx % 3) * 290,
-      y: 80 + Math.floor(idx / 3) * 180,
+      x: 280 + Math.random() * 240,
+      y: 80 + Math.random() * 200,
+      inputInfo: '',
     }]);
   };
 
   const addNodeToCanvas = (nodeName: string, category: string, color: string) => {
-    const idx = canvasNodes.length;
     setCanvasNodes(prev => [...prev, {
       id: `nn-${Date.now()}`,
       blockType: 'node' as const,
@@ -161,8 +218,9 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
       name: nodeName,
       category,
       color,
-      x: 340 + (idx % 3) * 290,
-      y: 80 + Math.floor(idx / 3) * 180,
+      x: 280 + Math.random() * 240,
+      y: 80 + Math.random() * 200,
+      inputInfo: '',
     }]);
   };
 
@@ -174,28 +232,34 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
   const handleSaveAgent = async () => {
     if (!agentName.trim()) return;
     setIsSaving(true);
+    const payload = {
+      name: agentName.trim(),
+      description: agentDescription.trim(),
+      capabilities: agentCapabilities.trim(),
+      workflows: canvasNodes.filter(n => n.blockType === 'workflow').map(n => n.refId),
+      config: {
+        reportToNiyanta,
+        autoProcess,
+        canvasLayout: canvasNodes.map(n => ({
+          id: n.id, blockType: n.blockType, refId: n.refId,
+          name: n.name, category: n.category, x: n.x, y: n.y, inputInfo: n.inputInfo,
+        })),
+      },
+    };
     try {
-      const res = await fetch('/api/agent', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: agentName.trim(),
-          description: agentDescription.trim(),
-          capabilities: agentCapabilities.trim(),
-          workflows: canvasNodes.filter(n => n.blockType === 'workflow').map(n => n.refId),
-          config: {
-            reportToNiyanta,
-            autoProcess,
-            canvasLayout: canvasNodes.map(n => ({
-              id: n.id, blockType: n.blockType, refId: n.refId,
-              name: n.name, category: n.category, x: n.x, y: n.y,
-            })),
-          },
-        }),
-      });
+      const res = editingAgentId
+        ? await fetch(`/api/agent/${editingAgentId}`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          })
+        : await fetch('/api/agent', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
       if (res.ok) {
         setLastSaved(new Date());
-        setTimeout(() => navigate('/agents'), 500);
+        await refreshAgents();
+        setTimeout(() => navigate('/agents'), 300);
       } else {
         const d = await res.json().catch(() => ({}));
         alert(`Failed to save agent: ${d.message || res.status}`);
@@ -224,8 +288,9 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
       name: wf.name,
       category: wf.category,
       color: getCategoryColor(wf.category),
-      x: 340 + (i % 3) * 290,
-      y: 80 + Math.floor(i / 3) * 180,
+      x: 280 + Math.random() * 240,
+      y: 80 + Math.random() * 200,
+      inputInfo: '',
     })));
 
     setShowTemplates(false);
@@ -241,7 +306,7 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
         body: JSON.stringify({ name: renameValue.trim() }),
       });
       if (!res.ok) { const d = await res.json().catch(() => ({})); alert(`Rename failed: ${d.message || res.status}`); return; }
-      window.location.reload();
+      await refreshAgents();
     } catch (err) {
       alert(`Rename failed: ${err instanceof Error ? err.message : 'Network error'}`);
     }
@@ -257,7 +322,7 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
         body: JSON.stringify({ status: 'maintenance' }),
       });
       if (!res.ok) { const d = await res.json().catch(() => ({})); alert(`Failed: ${d.message || res.status}`); return; }
-      window.location.reload();
+      await refreshAgents();
     } catch (err) {
       alert(`Failed: ${err instanceof Error ? err.message : 'Network error'}`);
     }
@@ -268,7 +333,7 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
     try {
       const res = await fetch(`/api/agent/${id}`, { method: 'DELETE' });
       if (res.ok) {
-        window.location.reload();
+        await refreshAgents();
       } else {
         const d = await res.json().catch(() => ({}));
         alert(`Delete failed: ${d.message || `Server returned ${res.status}`}`);
@@ -383,7 +448,7 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
             border: '1px solid var(--accent-border)',
             color: agentName.trim() ? 'var(--accent)' : 'var(--text-muted)',
             cursor: agentName.trim() ? 'pointer' : 'not-allowed',
-          }}>{isSaving ? 'SAVING...' : 'SAVE AGENT'}</button>
+          }}>{isSaving ? 'SAVING...' : editingAgentId ? 'SAVE CHANGES' : 'SAVE AGENT'}</button>
         </div>
 
         {/* ── Main Area ──────────────────────────────────────────────────── */}
@@ -552,7 +617,7 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
                 pointerEvents: 'none', zIndex: 1,
               }}>
                 <g transform={`translate(${canvasPan.x}, ${canvasPan.y}) scale(${canvasZoom / 100})`}>
-                  {/* Auto-computed edges: INPUT → blocks → OUTPUT */}
+                  {/* Auto-computed edges: INPUT → all blocks → OUTPUT (parallel) */}
                   {(() => {
                     const INPUT_X = 60, INPUT_Y = 80, INPUT_H = 80;
                     const outputX = canvasNodes.length > 0 ? Math.max(...canvasNodes.map(n => n.x)) + 300 : 500;
@@ -563,17 +628,16 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
                     if (canvasNodes.length === 0) {
                       conns.push({ x1: INPUT_X + 200, y1: iy, x2: outputX, y2: oy });
                     } else {
-                      conns.push({ x1: INPUT_X + 200, y1: iy, x2: canvasNodes[0].x, y2: canvasNodes[0].y + 40 });
-                      canvasNodes.forEach((n, i) => {
-                        if (i < canvasNodes.length - 1) {
-                          conns.push({ x1: n.x + 240, y1: n.y + 40, x2: canvasNodes[i+1].x, y2: canvasNodes[i+1].y + 40 });
-                        }
-                      });
-                      conns.push({ x1: canvasNodes[canvasNodes.length-1].x + 240, y1: canvasNodes[canvasNodes.length-1].y + 40, x2: outputX, y2: oy });
+                      // Parallel: INPUT → each block, each block → OUTPUT
+                      for (const node of canvasNodes) {
+                        const ny = node.y + 40;
+                        conns.push({ x1: INPUT_X + 200, y1: iy, x2: node.x, y2: ny });
+                        conns.push({ x1: node.x + 240, y1: ny, x2: outputX, y2: oy });
+                      }
                     }
                     return conns.map((c, i) => {
                       const mx = (c.x1 + c.x2) / 2;
-                      return <path key={i} d={`M${c.x1},${c.y1} C${mx},${c.y1} ${mx},${c.y2} ${c.x2},${c.y2}`} fill="none" stroke="var(--accent)" strokeWidth={2} opacity={0.5} />;
+                      return <path key={i} d={`M${c.x1},${c.y1} C${mx},${c.y1} ${mx},${c.y2} ${c.x2},${c.y2}`} fill="none" stroke="var(--accent)" strokeWidth={2} opacity={0.4} />;
                     });
                   })()}
                 </g>
@@ -608,7 +672,7 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
 
                 {/* ── Fixed OUTPUT node (Niyanta) ── */}
                 {(() => {
-                  const outputX = canvasNodes.length > 0 ? Math.max(...canvasNodes.map(n => n.x)) + 300 : 500;
+                  const outputX = 900;
                   return (
                     <div style={{
                       position: 'absolute', left: outputX, top: 80,
@@ -663,7 +727,25 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
                       </div>
                       <button onClick={e => { e.stopPropagation(); removeNodeFromCanvas(node.id); }} style={{ width: 18, height: 18, borderRadius: 3, border: 'none', background: 'rgba(220,38,38,0.2)', color: '#ff6666', fontSize: 11, cursor: 'pointer', flexShrink: 0, lineHeight: 1 }}>×</button>
                     </div>
-                    <div style={{ padding: '3px 8px', borderRadius: 3, background: `${node.color}18`, fontSize: 9, fontFamily: 'var(--font-mono)', color: node.color, textAlign: 'center' }}>
+                    <div
+                      style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', marginBottom: 6, paddingLeft: 2 }}>
+                      INPUT INFO
+                    </div>
+                    <textarea
+                      value={node.inputInfo}
+                      onChange={e => setCanvasNodes(prev => prev.map(n => n.id === node.id ? { ...n, inputInfo: e.target.value } : n))}
+                      onMouseDown={e => e.stopPropagation()}
+                      placeholder="What data does this step need?"
+                      rows={2}
+                      style={{
+                        width: '100%', padding: '5px 7px', fontSize: 10, resize: 'none',
+                        background: 'rgba(0,0,0,0.2)', border: '1px solid var(--border)',
+                        borderRadius: 4, color: 'var(--text-secondary)', outline: 'none',
+                        fontFamily: 'var(--font-body)', boxSizing: 'border-box',
+                        cursor: 'text',
+                      }}
+                    />
+                    <div style={{ padding: '3px 8px', borderRadius: 3, background: `${node.color}18`, fontSize: 9, fontFamily: 'var(--font-mono)', color: node.color, textAlign: 'center', marginTop: 6 }}>
                       {node.blockType === 'workflow' ? 'WORKFLOW BLOCK' : 'NODE BLOCK'}
                     </div>
                   </div>
@@ -1079,12 +1161,12 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
                     <span style={{
                       fontFamily: 'var(--font-mono)', fontSize: 8, fontWeight: 600,
                       padding: '2px 5px', borderRadius: 3, letterSpacing: '0.04em',
-                      background: agent.isTemplate ? 'rgba(124,58,237,0.15)' : 'rgba(5,150,105,0.15)',
-                      color: agent.isTemplate ? '#7C3AED' : '#059669',
-                      border: `1px solid ${agent.isTemplate ? 'rgba(124,58,237,0.4)' : 'rgba(5,150,105,0.4)'}`,
+                      background: agent.isDefault ? 'rgba(6,182,212,0.15)' : 'rgba(5,150,105,0.15)',
+                      color: agent.isDefault ? '#06B6D4' : '#059669',
+                      border: `1px solid ${agent.isDefault ? 'rgba(6,182,212,0.4)' : 'rgba(5,150,105,0.4)'}`,
                       flexShrink: 0,
                     }}>
-                      {agent.isTemplate ? 'TEMPLATE' : 'CUSTOM'}
+                      {agent.isDefault ? 'DEFAULT' : 'CUSTOM'}
                     </span>
 
                     {/* Three-dot menu */}
@@ -1114,6 +1196,20 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
                           }}
                           onClick={(e) => e.stopPropagation()}
                         >
+                          {/* Edit */}
+                          {!agent.isTemplate && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation(); setOpenMenuId(null);
+                                navigate('/agents/new', { state: { editAgent: agent, editAgentId: agent.id } });
+                              }}
+                              style={{ width: '100%', padding: '8px 12px', textAlign: 'left', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-body)' }}
+                              onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-tile-hover)'}
+                              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                            >
+                              <span style={{ fontSize: 11 }}>✎</span> Edit
+                            </button>
+                          )}
                           {/* Rename */}
                           <button
                             onClick={(e) => {
@@ -1214,7 +1310,6 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
         const da = agents.find(a => a.id === detailAgentId);
         if (!da) return null;
         const ds = agentStates[da.id];
-        const PROTECTED_IDS = ['meeting', 'invoice', 'document', 'finance_ops', 'hr_ops'];
         const statusColor = ds?.status === 'complete' ? '#10B981' : ds?.status === 'error' ? '#DC2626' : ds?.status === 'processing' ? '#D97706' : 'var(--text-muted)';
         const canDeleteDetail = !da.isTemplate;
 
@@ -1256,10 +1351,10 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
                   <span style={{
                     fontFamily: 'var(--font-mono)', fontSize: 8, fontWeight: 600, padding: '2px 6px',
                     borderRadius: 3, letterSpacing: '0.05em',
-                    background: da.isTemplate ? 'rgba(124,58,237,0.15)' : 'rgba(5,150,105,0.15)',
-                    color: da.isTemplate ? '#7C3AED' : '#059669',
-                    border: `1px solid ${da.isTemplate ? 'rgba(124,58,237,0.4)' : 'rgba(5,150,105,0.4)'}`,
-                  }}>{da.isTemplate ? 'TEMPLATE' : 'CUSTOM'}</span>
+                    background: da.isDefault ? 'rgba(6,182,212,0.15)' : 'rgba(5,150,105,0.15)',
+                    color: da.isDefault ? '#06B6D4' : '#059669',
+                    border: `1px solid ${da.isDefault ? 'rgba(6,182,212,0.4)' : 'rgba(5,150,105,0.4)'}`,
+                  }}>{da.isDefault ? 'DEFAULT' : 'CUSTOM'}</span>
                   {ds && (
                     <span style={{
                       fontFamily: 'var(--font-mono)', fontSize: 8, fontWeight: 600, padding: '2px 6px',
@@ -1373,7 +1468,10 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
                   }}
                 >▶ RUN AGENT</button>
                 <button
-                  onClick={() => { setDetailAgentId(null); navigate(`/agents/${da.id}`); }}
+                  onClick={() => {
+                    setDetailAgentId(null);
+                    navigate('/agents/new', { state: { editAgent: da, editAgentId: da.id } });
+                  }}
                   style={{
                     height: 38, padding: '0 16px', borderRadius: 4,
                     background: 'transparent', border: '1px solid var(--border)',

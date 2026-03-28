@@ -24,6 +24,7 @@ function apiAgentToFrontend(a: Record<string, unknown>): Agent {
     capabilities: Array.isArray(a.capabilities) ? a.capabilities as string[] : [],
     status: 'idle',
     isTemplate: !!(a.is_template),
+    isDefault: !!(a.is_default),
   };
 }
 
