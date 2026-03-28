@@ -20,6 +20,7 @@ import metricsRoutes from './routes/metrics.routes';
 import healthRoutes from './routes/health.routes';
 import workflowRoutes from './routes/workflow.routes';
 import portRoutes from './routes/port.routes';
+import approvalRoutes from './routes/approval.routes';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -55,6 +56,7 @@ app.use('/api/metrics', metricsRoutes);
 app.use('/api/health', healthRoutes);
 app.use('/api/workflow', workflowRoutes);
 app.use('/api/port', portRoutes);
+app.use('/api/approvals', approvalRoutes);
 
 app.use('/storage', express.static(path.resolve(STORAGE_PATH)));
 

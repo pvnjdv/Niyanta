@@ -206,6 +206,17 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
         { name: 'continueOnError', label: 'Continue on Error', type: 'toggle', default: false },
       ]
     },
+    'Approval': {
+      fields: [
+        { name: 'title', label: 'Approval Title', type: 'text', required: true, placeholder: 'Invoice Approval Request', help: 'Short descriptive title' },
+        { name: 'description', label: 'Description', type: 'textarea', rows: 3, placeholder: 'Please review and approve this invoice...', help: 'Detailed description for approver' },
+        { name: 'assignedTo', label: 'Assigned To', type: 'select', required: true, options: ['admin', 'finance-manager', 'hr-director', 'it-manager', 'ceo'], default: 'admin', help: 'Who needs to approve' },
+        { name: 'priority', label: 'Priority', type: 'select', options: ['low', 'medium', 'high', 'critical'], default: 'medium' },
+        { name: 'deadline', label: 'Deadline', type: 'text', placeholder: '24h, 3d, 1w', help: 'Relative time: hours(h), days(d), minutes(m)' },
+        { name: 'requireComment', label: 'Require Comment', type: 'toggle', default: false, help: 'Force approver to leave a comment' },
+        { name: 'escalationPolicy', label: 'Escalation', type: 'select', options: ['none', 'auto-approve', 'escalate-manager', 'mark-expired'], default: 'none', help: 'Action when deadline expires' },
+      ]
+    },
   };
 
   // Initialize expanded categories

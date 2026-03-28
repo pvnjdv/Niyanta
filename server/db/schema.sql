@@ -95,16 +95,24 @@ CREATE TABLE IF NOT EXISTS files (
   created_at TEXT DEFAULT (datetime('now'))
 );
 
--- Pending approvals table
+-- Pending approvals table (Phase 5)
 CREATE TABLE IF NOT EXISTS pending_approvals (
   id TEXT PRIMARY KEY,
   workflow_run_id TEXT NOT NULL,
+  workflow_id TEXT NOT NULL,
+  workflow_name TEXT NOT NULL,
   node_id TEXT NOT NULL,
+  node_name TEXT NOT NULL,
   title TEXT NOT NULL,
   description TEXT,
   context TEXT,
   assigned_to TEXT,
+  priority TEXT DEFAULT 'medium' CHECK(priority IN ('low','medium','high','critical')),
+  deadline TEXT,
+  escalation_policy TEXT,
   status TEXT DEFAULT 'PENDING' CHECK(status IN ('PENDING','APPROVED','REJECTED','EXPIRED')),
+  decision_comment TEXT,
+  decision_data TEXT,
   created_at TEXT DEFAULT (datetime('now')),
   resolved_at TEXT,
   resolved_by TEXT
