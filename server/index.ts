@@ -21,6 +21,7 @@ import healthRoutes from './routes/health.routes';
 import workflowRoutes from './routes/workflow.routes';
 import portRoutes from './routes/port.routes';
 import approvalRoutes from './routes/approval.routes';
+import templateRoutes from './routes/template.routes';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -57,6 +58,7 @@ app.use('/api/health', healthRoutes);
 app.use('/api/workflow', workflowRoutes);
 app.use('/api/port', portRoutes);
 app.use('/api/approvals', approvalRoutes);
+app.use('/api/templates', templateRoutes);
 
 app.use('/storage', express.static(path.resolve(STORAGE_PATH)));
 

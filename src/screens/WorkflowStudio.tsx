@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { TemplateGallery } from '../components/workflow/TemplateGallery';
+
 
 interface WorkflowStudioProps {
   workflows: Array<{ id?: string; name?: string; status?: string; description?: string; category?: string }>;
@@ -27,6 +29,7 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [showTemplateGallery, setShowTemplateGallery] = useState(false);
   
   // Mock execution data
   const mockLogs = [
@@ -669,6 +672,20 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
     }
   };
 
+  // Load workflow from template (Phase 6)
+  const handleTemplateSelect = async (workflowId: string, customName?: string) => {
+    try {
+      // Load the newly created workflow
+      await loadWorkflow(workflowId);
+      if (customName) {
+        setWorkflowName(customName);
+      }
+    } catch (error: any) {
+      console.error('Template load error:', error);
+      alert(`Failed to load template workflow: ${error.message}`);
+    }
+  };
+
   // Dynamic Form Field Renderer
   const renderFormField = (field: any, nodeId: string, currentValue: any) => {
     const value = currentValue ?? field.default;
@@ -978,6 +995,16 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
               color: 'var(--text-secondary)', cursor: 'pointer',
             }}
           >IMPORT</button>
+
+          <button 
+            onClick={() => setShowTemplateGallery(true)}
+            style={{
+              height: 32, padding: '0 12px', fontFamily: 'var(--font-mono)', fontSize: 10,
+              background: 'linear-gradient(135deg, #8B5CF6 0%, #6366F1 100%)', 
+              border: '1px solid #8B5CF6',
+              color: 'white', cursor: 'pointer', fontWeight: 600,
+            }}
+          >📚 TEMPLATES</button>
         </div>
 
         <div style={{ width: 1, height: 24, background: 'var(--border)' }} />
@@ -1846,6 +1873,14 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
             fontWeight: 600,
           }}
         >SHOW LOGS</button>
+      )}
+
+      {/* Template Gallery Modal (Phase 6) */}
+      {showTemplateGallery && (
+        <TemplateGallery 
+          onTemplateSelect={handleTemplateSelect}
+          onClose={() => setShowTemplateGallery(false)}
+        />
       )}
     </div>
   );

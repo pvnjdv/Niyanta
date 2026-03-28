@@ -118,6 +118,29 @@ CREATE TABLE IF NOT EXISTS pending_approvals (
   resolved_by TEXT
 );
 
+-- Workflow versions table (Phase 8)
+CREATE TABLE IF NOT EXISTS workflow_versions (
+  id TEXT PRIMARY KEY,
+  workflow_id TEXT NOT NULL,
+  version_number INTEGER NOT NULL,
+  name TEXT NOT NULL,
+  description TEXT,
+  nodes TEXT NOT NULL,
+  edges TEXT NOT NULL,
+  status TEXT NOT NULL,
+  category TEXT,
+  tags TEXT DEFAULT '[]',
+  triggers TEXT DEFAULT '[]',
+  change_summary TEXT,
+  created_by TEXT DEFAULT 'system',
+  created_at TEXT DEFAULT (datetime('now')),
+  FOREIGN KEY (workflow_id) REFERENCES workflows(id) ON DELETE CASCADE
+);
+
+-- Create index for faster version lookups
+CREATE INDEX IF NOT EXISTS idx_workflow_versions_workflow_id ON workflow_versions(workflow_id);
+CREATE INDEX IF NOT EXISTS idx_workflow_versions_version_number ON workflow_versions(workflow_id, version_number DESC);
+
 -- Agent messages table (inter-agent communication)
 CREATE TABLE IF NOT EXISTS agent_messages (
   id TEXT PRIMARY KEY,
