@@ -2051,7 +2051,7 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
                     }}
                   >
                     <span style={{ fontSize: 8 }}>{expandedCats.has(cat.name) ? '▼' : '▶'}</span>
-                    <span style={{ fontSize: 14, fontWeight: 600 }}>{cat.icon}</span>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: cat.color }}>{cat.icon}</span>
                     <span>{cat.name}</span>
                     <span style={{ marginLeft: 'auto', fontSize: 9, color: 'var(--text-muted)' }}>{items.length}</span>
                   </button>
@@ -2271,7 +2271,7 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
               <div
                 key={node.id}
                 onMouseDown={(e) => onNodeMouseDown(e, node.id)}
-                onClick={(e) => { e.stopPropagation(); setSelectedNode(node.id === selectedNode ? null : node.id); }}
+                onClick={(e) => { e.stopPropagation(); setSelectedNode(node.id); }}
                 style={{
                   position: 'absolute',
                   left,
@@ -2954,6 +2954,80 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
               </div>
             </div>
           )}
+        </div>
+      </div>
+
+      {/* ===== BOTTOM BAR ===== */}
+      <div style={{
+        height: 48, borderTop: '1px solid var(--border)', display: 'flex',
+        alignItems: 'center', padding: '0 16px', gap: 12, flexShrink: 0, background: 'var(--bg-dock)',
+      }}>
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)' }}>
+          {canvasNodes.length} nodes · {edges.length} connections
+        </span>
+
+        <div style={{ flex: 1 }} />
+
+        {/* Zoom Controls */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <button
+            onClick={() => {
+              const next = Math.max(30, canvasZoom - 15);
+              const container = canvasContainerRef.current;
+              if (container) {
+                const cx = container.clientWidth / 2;
+                const cy = container.clientHeight / 2;
+                const scale = canvasZoom / 100;
+                const newScale = next / 100;
+                setCanvasPan(p => ({
+                  x: cx - (cx - p.x) * (newScale / scale),
+                  y: cy - (cy - p.y) * (newScale / scale),
+                }));
+              }
+              setCanvasZoom(next);
+            }}
+            style={{
+              height: 32, width: 32, fontFamily: 'var(--font-mono)', fontSize: 16,
+              background: 'transparent', border: '1px solid var(--border)',
+              color: 'var(--text-secondary)', cursor: 'pointer', borderRadius: 2,
+            }}
+            title="Zoom Out"
+          >−</button>
+
+          <button
+            onClick={() => { setCanvasZoom(100); setCanvasPan({ x: 0, y: 0 }); }}
+            style={{
+              height: 32, padding: '0 12px', fontFamily: 'var(--font-mono)', fontSize: 11,
+              background: 'transparent', border: '1px solid var(--border)',
+              color: canvasZoom === 100 ? 'var(--accent)' : 'var(--text-secondary)',
+              cursor: 'pointer', fontWeight: 600, borderRadius: 2,
+            }}
+            title="Reset Zoom (100%)"
+          >{canvasZoom}%</button>
+
+          <button
+            onClick={() => {
+              const next = Math.min(200, canvasZoom + 15);
+              const container = canvasContainerRef.current;
+              if (container) {
+                const cx = container.clientWidth / 2;
+                const cy = container.clientHeight / 2;
+                const scale = canvasZoom / 100;
+                const newScale = next / 100;
+                setCanvasPan(p => ({
+                  x: cx - (cx - p.x) * (newScale / scale),
+                  y: cy - (cy - p.y) * (newScale / scale),
+                }));
+              }
+              setCanvasZoom(next);
+            }}
+            style={{
+              height: 32, width: 32, fontFamily: 'var(--font-mono)', fontSize: 16,
+              background: 'transparent', border: '1px solid var(--border)',
+              color: 'var(--text-secondary)', cursor: 'pointer', borderRadius: 2,
+            }}
+            title="Zoom In"
+          >+</button>
         </div>
       </div>
 
