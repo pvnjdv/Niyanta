@@ -52,6 +52,103 @@ export class AgentManager {
     return this.agents.delete(id);
   }
 
+  // Phase 3.2: Workflow discovery for agents
+  discoverWorkflows(options?: { category?: string; tags?: string[]; triggers?: string[] }): any[] {
+    try {
+      const { getDB } = require('../db/database');
+      const db = getDB();
+      
+      let query = 'SELECT id, name, description, category, tags, triggers FROM workflows WHERE status = ? AND allow_agent_invocation = 1';
+      const params: any[] = ['active'];
+
+      if (options?.category) {
+        query += ' AND category = ?';
+        params.push(options.category);
+      }
+
+      const workflows = db.prepare(query).all(...params);
+      
+      // Parse JSON fields and apply additional filters
+      return workflows
+        .map((wf: any) => ({
+          ...wf,
+          tags: JSON.parse(wf.tags || '[]'),
+          triggers: JSON.parse(wf.triggers || '[]')
+        }))
+        .filter((wf: any) => {
+          // Filter by tags if specified
+          if (options?.tags && options.tags.length > 0) {
+            const hasTags = options.tags.some(tag => wf.tags.includes(tag));
+            if (!hasTags) return false;
+          }
+          
+          // Filter by triggers if specified
+          if (options?.triggers && options.triggers.length > 0) {
+            const hasTriggers = options.triggers.some(trigger => wf.triggers.includes(trigger));
+            if (!hasTriggers) return false;
+          }
+          
+          return true;
+        });
+    } catch (error) {
+      console.error('Workflow discovery error:', error);
+      return [];
+    }
+  }
+
+  // Phase 3.3: Agent-initiated workflow invocation
+  async invokeWorkflow(workflowId: string, agentId: string, context: any): Promise<any> {
+    try {
+      const { getDB } = require('../db/database');
+      const db = getDB();
+      
+      // Verify workflow exists and is invocable
+      const workflow = db.prepare(
+        'SELECT id, name, status, allow_agent_invocation FROM workflows WHERE id = ?'
+      ).get(workflowId);
+      
+      if (!workflow) {
+        throw new Error('Workflow not found');
+      }
+      
+      if (workflow.status !== 'active') {
+        throw new Error('Workflow is not active');
+      }
+      
+      if (!workflow.allow_agent_invocation) {
+        throw new Error('Workflow does not allow agent invocation');
+      }
+      
+      // Import WorkflowEngine to execute the workflow
+      const { WorkflowEngine } = require('../core/WorkflowEngine');
+      const engine = new WorkflowEngine();
+      
+      // Create run with agent as trigger
+      const runId = engine.createRun(workflowId, `agent:${agentId}`);
+      
+      // Execute with agent context
+      const result = await engine.execute(workflowId, runId, {
+        ...context,
+        _agent: {
+          agentId,
+          invokedAt: new Date().toISOString(),
+        }
+      });
+      
+      return {
+        success: result.success,
+        workflowId,
+        workflowName: workflow.name,
+        runId,
+        context: result.context,
+        error: result.error,
+      };
+    } catch (error) {
+      console.error('Workflow invocation error:', error);
+      throw error;
+    }
+  }
+
   private loadFromDB(): void {
     try {
       // Lazy import to avoid circular dependency

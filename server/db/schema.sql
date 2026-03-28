@@ -36,6 +36,9 @@ CREATE TABLE IF NOT EXISTS workflows (
   edges TEXT NOT NULL,
   status TEXT DEFAULT 'draft' CHECK(status IN ('draft','active','disabled')),
   category TEXT,
+  tags TEXT DEFAULT '[]',
+  triggers TEXT DEFAULT '[]',
+  allow_agent_invocation INTEGER DEFAULT 1,
   is_agent INTEGER DEFAULT 0,
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now'))

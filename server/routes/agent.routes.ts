@@ -310,4 +310,82 @@ router.post('/port/access/:accessKey', async (req: Request, res: Response) => {
   }
 });
 
+// ── Discover workflows available for agent invocation (Phase 3.2) ────
+router.get('/workflows/discover', (req: Request, res: Response) => {
+  const { category, tags, triggers } = req.query;
+  
+  try {
+    const orchestrator = getOrchestrator();
+    const agentManager = orchestrator.getAgentManager();
+    
+    const options: any = {};
+    if (category) options.category = category as string;
+    if (tags) options.tags = (tags as string).split(',');
+    if (triggers) options.triggers = (triggers as string).split(',');
+    
+    const workflows = agentManager.discoverWorkflows(options);
+    
+    res.json({ 
+      success: true,
+      workflows,
+      count: workflows.length,
+      filters: options
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({ success: false, error: 'DiscoveryFailed', message });
+  }
+});
+
+// ── Invoke workflow from agent (Phase 3.3) ───────────────────────────
+router.post('/workflows/:workflowId/invoke', async (req: Request, res: Response) => {
+  const { workflowId } = req.params;
+  const { agentId, context } = req.body;
+  
+  if (!agentId) {
+    return res.status(400).json({ 
+      success: false, 
+      error: 'ValidationError', 
+      message: 'agentId is required' 
+    });
+  }
+  
+  try {
+    const orchestrator = getOrchestrator();
+    const agentManager = orchestrator.getAgentManager();
+    
+    // Verify agent exists
+    const agent = agentManager.getAgent(agentId);
+    if (!agent) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'NotFound', 
+        message: 'Agent not found' 
+      });
+    }
+    
+    // Invoke workflow
+    const result = await agentManager.invokeWorkflow(workflowId, agentId, context || {});
+    
+    res.json({
+      success: result.success,
+      agentId,
+      workflowId: result.workflowId,
+      workflowName: result.workflowName,
+      runId: result.runId,
+      context: result.context,
+      error: result.error,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({ 
+      success: false, 
+      error: 'InvocationFailed', 
+      message,
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
 export default router;

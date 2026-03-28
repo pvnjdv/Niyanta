@@ -8,6 +8,7 @@ interface WorkflowStudioProps {
 const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkflow }) => {
   // State management
   const [selectedWorkflow, setSelectedWorkflow] = useState<string | null>(null);
+  const [workflowId, setWorkflowId] = useState<string | null>(null);
   const [workflowName, setWorkflowName] = useState('New Workflow');
   const [environment, setEnvironment] = useState<'test' | 'staging' | 'production'>('test');
   const [workflowStatus, setWorkflowStatus] = useState<'idle' | 'running' | 'paused' | 'error'>('idle');
@@ -15,6 +16,17 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
   const [bottomTab, setBottomTab] = useState<'logs' | 'errors' | 'context' | 'timeline' | 'audit'>('logs');
   const [bottomPanelHeight, setBottomPanelHeight] = useState(250);
   const [logFilter, setLogFilter] = useState('');
+  
+  // Workflow metadata (Phase 3)
+  const [workflowDescription, setWorkflowDescription] = useState('');
+  const [workflowCategory, setWorkflowCategory] = useState('General');
+  const [workflowTags, setWorkflowTags] = useState<string[]>([]);
+  const [workflowTriggers, setWorkflowTriggers] = useState<string[]>([]);
+  const [isPublished, setIsPublished] = useState(false);
+  const [allowAgentInvocation, setAllowAgentInvocation] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   
   // Mock execution data
   const mockLogs = [
@@ -113,6 +125,19 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
     'JSON Export': 'Export data as JSON',
     'Dashboard Update': 'Update dashboard visualizations',
   };
+
+  // Track unsaved changes (Phase 3.1)
+  React.useEffect(() => {
+    // Don't mark as modified during initialization or when loading a workflow
+    if (canvasNodes.length === 0 && Object.keys(nodeConfigs).length === 0) {
+      return;
+    }
+    // If we just saved, don't immediately mark as modified
+    if (lastSaved && Date.now() - lastSaved.getTime() < 1000) {
+      return;
+    }
+    setHasUnsavedChanges(true);
+  }, [canvasNodes, nodeConfigs, workflowName, workflowDescription, workflowCategory, workflowTags, workflowTriggers]);
 
   // Node Configuration Schemas (Phase 2)
   const nodeSchemas: Record<string, any> = {
@@ -398,6 +423,241 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
     addLog('INFO', 'System', 'Workflow execution stopped by user');
   };
 
+  // Workflow Persistence (Phase 3)
+  const saveWorkflow = async () => {
+    if (canvasNodes.length === 0) {
+      alert('Cannot save empty workflow. Add at least one node.');
+      return;
+    }
+
+    if (!workflowName.trim()) {
+      alert('Please provide a workflow name');
+      return;
+    }
+
+    setIsSaving(true);
+
+    try {
+      // Build workflow definition
+      const nodes = canvasNodes.map(node => ({
+        instanceId: node.id,
+        nodeType: node.type,
+        name: node.name,
+        config: nodeConfigs[node.id] || {},
+        position: { x: node.x, y: node.y },
+        retryConfig: {
+          maxRetries: 3,
+          timeout: 30,
+          failurePolicy: 'retry'
+        }
+      }));
+
+      // Build edges (connections between nodes based on sequential order)
+      const edges = canvasNodes.slice(0, -1).map((node, i) => ({
+        id: `edge-${node.id}-${canvasNodes[i + 1].id}`,
+        fromNodeId: node.id,
+        toNodeId: canvasNodes[i + 1].id,
+      }));
+
+      const workflowData = {
+        id: workflowId,
+        name: workflowName,
+        description: workflowDescription,
+        category: workflowCategory,
+        tags: workflowTags,
+        triggers: workflowTriggers,
+        nodes,
+        edges,
+        status: isPublished ? 'active' : 'draft',
+        metadata: {
+          allowAgentInvocation,
+          environment,
+          createdAt: workflowId ? undefined : new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        }
+      };
+
+      // Call API to save
+      const response = await fetch('/api/workflows' + (workflowId ? `/${workflowId}` : ''), {
+        method: workflowId ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(workflowData)
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to save workflow');
+      }
+
+      const result = await response.json();
+      
+      if (!workflowId && result.id) {
+        setWorkflowId(result.id);
+      }
+
+      setLastSaved(new Date());
+      setHasUnsavedChanges(false);
+      alert(`Workflow saved successfully! ${isPublished ? '(Published)' : '(Draft)'}`);
+
+    } catch (error: any) {
+      console.error('Save error:', error);
+      alert(`Failed to save workflow: ${error.message}`);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const exportWorkflow = () => {
+    const workflowExport = {
+      version: '1.0',
+      workflow: {
+        name: workflowName,
+        description: workflowDescription,
+        category: workflowCategory,
+        tags: workflowTags,
+        triggers: workflowTriggers,
+        nodes: canvasNodes.map(node => ({
+          id: node.id,
+          type: node.type,
+          name: node.name,
+          position: { x: node.x, y: node.y },
+          config: nodeConfigs[node.id] || {}
+        })),
+        edges: canvasNodes.slice(0, -1).map((node, i) => ({
+          from: node.id,
+          to: canvasNodes[i + 1].id
+        })),
+        metadata: {
+          allowAgentInvocation,
+          exportedAt: new Date().toISOString(),
+          exportedBy: 'user'
+        }
+      }
+    };
+
+    const blob = new Blob([JSON.stringify(workflowExport, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${workflowName.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_workflow.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const importWorkflow = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.onchange = async (e: any) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      try {
+        const text = await file.text();
+        const imported = JSON.parse(text);
+
+        if (!imported.workflow || !imported.workflow.nodes) {
+          throw new Error('Invalid workflow file format');
+        }
+
+        const wf = imported.workflow;
+
+        // Import workflow data
+        setWorkflowName(wf.name || 'Imported Workflow');
+        setWorkflowDescription(wf.description || '');
+        setWorkflowCategory(wf.category || 'General');
+        setWorkflowTags(wf.tags || []);
+        setWorkflowTriggers(wf.triggers || []);
+        setAllowAgentInvocation(wf.metadata?.allowAgentInvocation ?? true);
+
+        // Import nodes
+        const importedNodes = wf.nodes.map((n: any) => ({
+          id: n.id,
+          type: n.type,
+          name: n.name,
+          x: n.position.x,
+          y: n.position.y,
+          category: nodeCategories.find(cat => cat.items.includes(n.type))?.name || 'LOGIC',
+          color: nodeCategories.find(cat => cat.items.includes(n.type))?.color || '#3B82F6',
+          config: n.config
+        }));
+
+        setCanvasNodes(importedNodes);
+
+        // Import configs
+        const configs: Record<string, any> = {};
+        wf.nodes.forEach((n: any) => {
+          configs[n.id] = n.config;
+        });
+        setNodeConfigs(configs);
+
+        // Clear workflow ID to create new on save
+        setWorkflowId(null);
+        setIsPublished(false);
+        setHasUnsavedChanges(true); // Mark as modified since it's a new import
+        setLastSaved(null);
+
+        alert(`Workflow "${wf.name}" imported successfully! ${importedNodes.length} nodes loaded.`);
+
+      } catch (error: any) {
+        console.error('Import error:', error);
+        alert(`Failed to import workflow: ${error.message}`);
+      }
+    };
+    input.click();
+  };
+
+  // Load workflow from selection
+  const loadWorkflow = async (id: string) => {
+    try {
+      const response = await fetch(`/api/workflows/${id}`);
+      if (!response.ok) throw new Error('Failed to load workflow');
+
+      const data = await response.json();
+      const wf = data.workflow;
+
+      setWorkflowId(wf.id);
+      setWorkflowName(wf.name);
+      setWorkflowDescription(wf.description || '');
+      setWorkflowCategory(wf.category || 'General');
+      setWorkflowTags(JSON.parse(wf.tags || '[]'));
+      setWorkflowTriggers(JSON.parse(wf.triggers || '[]'));
+      setIsPublished(wf.status === 'active');
+
+      // Load nodes
+      const nodes = JSON.parse(wf.nodes || '[]');
+      const loadedNodes = nodes.map((n: any) => ({
+        id: n.instanceId,
+        type: n.nodeType,
+        name: n.name,
+        x: n.position.x,
+        y: n.position.y,
+        category: nodeCategories.find(cat => cat.items.includes(n.nodeType))?.name || 'LOGIC',
+        color: nodeCategories.find(cat => cat.items.includes(n.nodeType))?.color || '#3B82F6',
+        config: n.config
+      }));
+
+      setCanvasNodes(loadedNodes);
+
+      // Load configs
+      const configs: Record<string, any> = {};
+      nodes.forEach((n: any) => {
+        configs[n.instanceId] = n.config;
+      });
+      setNodeConfigs(configs);
+
+      // Reset modification tracking
+      setHasUnsavedChanges(false);
+      setLastSaved(new Date(wf.updated_at || wf.created_at));
+
+    } catch (error: any) {
+      console.error('Load error:', error);
+      alert(`Failed to load workflow: ${error.message}`);
+    }
+  };
+
   // Dynamic Form Field Renderer
   const renderFormField = (field: any, nodeId: string, currentValue: any) => {
     const value = currentValue ?? field.default;
@@ -574,7 +834,24 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
         {/* Workflow Selector */}
         <select 
           value={selectedWorkflow || ''}
-          onChange={(e) => setSelectedWorkflow(e.target.value || null)}
+          onChange={(e) => {
+            const id = e.target.value;
+            setSelectedWorkflow(id || null);
+            if (id) {
+              loadWorkflow(id);
+            } else {
+              // New workflow - reset state
+              setWorkflowId(null);
+              setWorkflowName('New Workflow');
+              setWorkflowDescription('');
+              setWorkflowCategory('General');
+              setWorkflowTags([]);
+              setWorkflowTriggers([]);
+              setCanvasNodes([]);
+              setNodeConfigs({});
+              setIsPublished(false);
+            }
+          }}
           style={{ 
             height: 32, padding: '0 12px', fontFamily: 'var(--font-mono)', fontSize: 11,
             background: 'var(--bg-tile)', border: '1px solid var(--border)', 
@@ -588,17 +865,46 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
         </select>
 
         {/* Workflow Name (Editable) */}
-        <input
-          value={workflowName}
-          onChange={(e) => setWorkflowName(e.target.value)}
-          placeholder="Workflow name..."
-          style={{
-            height: 32, padding: '0 12px', fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 700,
-            background: 'transparent', border: '1px solid transparent', flex: 1, maxWidth: 400,
-          }}
-          onFocus={(e) => { e.target.style.border = '1px solid var(--border)'; e.target.style.background = 'var(--bg-tile)'; }}
-          onBlur={(e) => { e.target.style.border = '1px solid transparent'; e.target.style.background = 'transparent'; }}
-        />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, maxWidth: 500 }}>
+          <input
+            value={workflowName}
+            onChange={(e) => setWorkflowName(e.target.value)}
+            placeholder="Workflow name..."
+            style={{
+              height: 32, padding: '0 12px', fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 700,
+              background: 'transparent', border: '1px solid transparent', flex: 1,
+            }}
+            onFocus={(e) => { e.target.style.border = '1px solid var(--border)'; e.target.style.background = 'var(--bg-tile)'; }}
+            onBlur={(e) => { e.target.style.border = '1px solid transparent'; e.target.style.background = 'transparent'; }}
+          />
+          {hasUnsavedChanges && (
+            <div 
+              title="Unsaved changes"
+              style={{
+                width: 8, height: 8, borderRadius: '50%', 
+                background: '#F59E0B', flexShrink: 0
+              }}
+            />
+          )}
+          {lastSaved && !hasUnsavedChanges && (
+            <span 
+              style={{ 
+                fontFamily: 'var(--font-mono)', fontSize: 9, 
+                color: 'var(--text-muted)', whiteSpace: 'nowrap' 
+              }}
+              title={lastSaved.toLocaleString()}
+            >
+              Saved {(() => {
+                const seconds = Math.floor((Date.now() - lastSaved.getTime()) / 1000);
+                if (seconds < 60) return 'just now';
+                const minutes = Math.floor(seconds / 60);
+                if (minutes < 60) return `${minutes}m ago`;
+                const hours = Math.floor(minutes / 60);
+                return `${hours}h ago`;
+              })()}
+            </span>
+          )}
+        </div>
 
         {/* Environment Selector */}
         <select
@@ -630,23 +936,37 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
             <span>{workflowStatus === 'running' ? 'STOP' : 'RUN'}</span>
           </button>
 
-          <button style={{
-            height: 32, padding: '0 12px', fontFamily: 'var(--font-mono)', fontSize: 10,
-            background: 'transparent', border: '1px solid var(--border)',
-            color: 'var(--text-secondary)', cursor: 'pointer',
-          }}>SAVE</button>
+          <button 
+            onClick={saveWorkflow}
+            disabled={isSaving}
+            style={{
+              height: 32, padding: '0 12px', fontFamily: 'var(--font-mono)', fontSize: 10,
+              background: isSaving ? 'var(--bg-base)' : 'transparent', 
+              border: '1px solid var(--border)',
+              color: isSaving ? 'var(--text-muted)' : 'var(--text-secondary)', 
+              cursor: isSaving ? 'not-allowed' : 'pointer',
+            }}
+          >{isSaving ? 'SAVING...' : 'SAVE'}</button>
 
-          <button style={{
-            height: 32, padding: '0 12px', fontFamily: 'var(--font-mono)', fontSize: 10,
-            background: 'transparent', border: '1px solid var(--border)',
-            color: 'var(--text-secondary)', cursor: 'pointer',
-          }}>EXPORT</button>
+          <button 
+            onClick={exportWorkflow}
+            disabled={canvasNodes.length === 0}
+            style={{
+              height: 32, padding: '0 12px', fontFamily: 'var(--font-mono)', fontSize: 10,
+              background: 'transparent', border: '1px solid var(--border)',
+              color: canvasNodes.length === 0 ? 'var(--text-muted)' : 'var(--text-secondary)', 
+              cursor: canvasNodes.length === 0 ? 'not-allowed' : 'pointer',
+            }}
+          >EXPORT</button>
 
-          <button style={{
-            height: 32, padding: '0 12px', fontFamily: 'var(--font-mono)', fontSize: 10,
-            background: 'transparent', border: '1px solid var(--border)',
-            color: 'var(--text-secondary)', cursor: 'pointer',
-          }}>IMPORT</button>
+          <button 
+            onClick={importWorkflow}
+            style={{
+              height: 32, padding: '0 12px', fontFamily: 'var(--font-mono)', fontSize: 10,
+              background: 'transparent', border: '1px solid var(--border)',
+              color: 'var(--text-secondary)', cursor: 'pointer',
+            }}
+          >IMPORT</button>
         </div>
 
         <div style={{ width: 1, height: 24, background: 'var(--border)' }} />
@@ -1145,24 +1465,120 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
                 
                 <div style={{ marginBottom: 10 }}>
                   <label style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>CATEGORY</label>
-                  <select style={{ width: '100%', height: 32, padding: '0 8px' }}>
-                    <option>Finance</option>
-                    <option>HR</option>
-                    <option>Operations</option>
-                    <option>Security</option>
-                    <option>Compliance</option>
-                    <option>IT</option>
+                  <select 
+                    value={workflowCategory}
+                    onChange={(e) => setWorkflowCategory(e.target.value)}
+                    style={{ width: '100%', height: 32, padding: '0 8px', background: 'var(--bg-tile)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
+                  >
+                    <option value="General">General</option>
+                    <option value="Finance">Finance</option>
+                    <option value="HR">HR</option>
+                    <option value="Operations">Operations</option>
+                    <option value="Security">Security</option>
+                    <option value="Compliance">Compliance</option>
+                    <option value="IT">IT</option>
+                    <option value="Document Processing">Document Processing</option>
                   </select>
                 </div>
 
                 <div style={{ marginBottom: 10 }}>
-                  <label style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>TAGS</label>
-                  <input placeholder="invoice, approval, finance..." style={{ width: '100%', height: 32, padding: '0 10px' }} />
+                  <label style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>DESCRIPTION</label>
+                  <textarea 
+                    value={workflowDescription}
+                    onChange={(e) => setWorkflowDescription(e.target.value)}
+                    rows={3} 
+                    placeholder="What does this workflow do?" 
+                    style={{ width: '100%', minHeight: 80, resize: 'vertical', padding: '8px 10px', background: 'var(--bg-tile)', border: '1px solid var(--border)', color: 'var(--text-primary)', fontFamily: 'var(--font-body)', fontSize: 12 }} 
+                  />
                 </div>
 
                 <div style={{ marginBottom: 10 }}>
-                  <label style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>DESCRIPTION</label>
-                  <textarea rows={3} placeholder="Workflow description..." style={{ width: '100%', minHeight: 80, resize: 'vertical', padding: '8px 10px' }} />
+                  <label style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>
+                    TAGS (comma separated)
+                  </label>
+                  <input 
+                    value={workflowTags.join(', ')}
+                    onChange={(e) => setWorkflowTags(e.target.value.split(',').map(t => t.trim()).filter(Boolean))}
+                    placeholder="invoice, approval, finance..." 
+                    style={{ width: '100%', height: 32, padding: '0 10px', background: 'var(--bg-tile)', border: '1px solid var(--border)', color: 'var(--text-primary)', fontFamily: 'var(--font-mono)', fontSize: 11 }} 
+                  />
+                  {workflowTags.length > 0 && (
+                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 6 }}>
+                      {workflowTags.map(tag => (
+                        <span key={tag} style={{ 
+                          fontFamily: 'var(--font-mono)', fontSize: 9, padding: '2px 6px',
+                          background: 'var(--bg-accent)', color: 'var(--text-secondary)',
+                          borderRadius: 2, border: '1px solid var(--border)'
+                        }}>
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ marginBottom: 10 }}>
+                  <label style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>
+                    TRIGGERS (comma separated)
+                  </label>
+                  <input 
+                    value={workflowTriggers.join(', ')}
+                    onChange={(e) => setWorkflowTriggers(e.target.value.split(',').map(t => t.trim()).filter(Boolean))}
+                    placeholder="invoice_uploaded, approval_needed..." 
+                    style={{ width: '100%', height: 32, padding: '0 10px', background: 'var(--bg-tile)', border: '1px solid var(--border)', color: 'var(--text-primary)', fontFamily: 'var(--font-mono)', fontSize: 11 }} 
+                  />
+                  {workflowTriggers.length > 0 && (
+                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 6 }}>
+                      {workflowTriggers.map(trigger => (
+                        <span key={trigger} style={{ 
+                          fontFamily: 'var(--font-mono)', fontSize: 9, padding: '2px 6px',
+                          background: 'var(--bg-accent)', color: 'var(--text-secondary)',
+                          borderRadius: 2, border: '1px solid var(--border)'
+                        }}>
+                          ⚡ {trigger}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ borderTop: '1px solid var(--border)', marginTop: 16, paddingTop: 16 }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginBottom: 10 }}>
+                    <input 
+                      type="checkbox"
+                      checked={isPublished}
+                      onChange={(e) => setIsPublished(e.target.checked)}
+                      style={{ width: 16, height: 16, cursor: 'pointer' }}
+                    />
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-secondary)' }}>
+                      PUBLISH (status = active)
+                    </span>
+                  </label>
+
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                    <input 
+                      type="checkbox"
+                      checked={allowAgentInvocation}
+                      onChange={(e) => setAllowAgentInvocation(e.target.checked)}
+                      style={{ width: 16, height: 16, cursor: 'pointer' }}
+                    />
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-secondary)' }}>
+                      ALLOW AGENT INVOCATION
+                    </span>
+                  </label>
+                  
+                  {isPublished && allowAgentInvocation && (
+                    <div style={{ 
+                      marginTop: 12, padding: 8, 
+                      background: 'rgba(34, 197, 94, 0.1)', 
+                      border: '1px solid rgba(34, 197, 94, 0.3)',
+                      borderRadius: 4,
+                      fontFamily: 'var(--font-mono)', fontSize: 9,
+                      color: 'var(--status-success)'
+                    }}>
+                      ✓ Available for agent discovery
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

@@ -6,16 +6,59 @@ import { WorkflowContext } from '../types/workflow.types';
 const router = Router();
 const workflowEngine = new WorkflowEngine();
 
-// GET all workflows
-router.get('/', (_req: Request, res: Response) => {
+// GET all workflows with optional filtering
+router.get('/', (req: Request, res: Response) => {
+  const { status, category, published, agentInvocable } = req.query;
+  
   const db = getDB();
-  const workflows = db.prepare('SELECT * FROM workflows ORDER BY updated_at DESC').all();
+  let query = 'SELECT * FROM workflows WHERE 1=1';
+  const params: any[] = [];
+
+  if (status) {
+    query += ' AND status = ?';
+    params.push(status);
+  }
+
+  if (category) {
+    query += ' AND category = ?';
+    params.push(category);
+  }
+
+  if (published === 'true') {
+    query += ' AND status = ?';
+    params.push('active');
+  }
+
+  if (agentInvocable === 'true') {
+    query += ' AND allow_agent_invocation = 1';
+  }
+
+  query += ' ORDER BY updated_at DESC';
+
+  const workflows = db.prepare(query).all(...params);
   res.json({ workflows });
+});
+
+// GET workflows available for agent invocation (Phase 3.2)
+router.get('/discover', (_req: Request, res: Response) => {
+  const db = getDB();
+  const workflows = db.prepare(
+    'SELECT id, name, description, category, tags, triggers, status FROM workflows WHERE status = ? AND allow_agent_invocation = 1'
+  ).all('active');
+  
+  // Parse JSON fields
+  const discovered = workflows.map((wf: any) => ({
+    ...wf,
+    tags: JSON.parse(wf.tags || '[]'),
+    triggers: JSON.parse(wf.triggers || '[]')
+  }));
+  
+  res.json({ workflows: discovered, count: discovered.length });
 });
 
 // POST create workflow
 router.post('/', (req: Request, res: Response) => {
-  const { name, description, nodes, edges, category } = req.body;
+  const { name, description, nodes, edges, category, tags, triggers, status, metadata } = req.body;
 
   if (!name) {
     return res.status(400).json({ error: 'ValidationError', message: 'Workflow name is required' });
@@ -28,12 +71,25 @@ router.post('/', (req: Request, res: Response) => {
 
   try {
     db.prepare(`
-      INSERT INTO workflows (id, name, description, nodes, edges, status, category, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, 'draft', ?, ?, ?)
-    `).run(id, name, description || '', JSON.stringify(nodes || []), JSON.stringify(edges || []), category || 'custom', now, now);
+      INSERT INTO workflows (id, name, description, nodes, edges, status, category, tags, triggers, allow_agent_invocation, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      id, 
+      name, 
+      description || '', 
+      JSON.stringify(nodes || []), 
+      JSON.stringify(edges || []), 
+      status || 'draft',
+      category || 'General', 
+      JSON.stringify(tags || []),
+      JSON.stringify(triggers || []),
+      metadata?.allowAgentInvocation !== false ? 1 : 0,
+      now, 
+      now
+    );
 
     const workflow = db.prepare('SELECT * FROM workflows WHERE id = ?').get(id);
-    res.status(201).json({ success: true, workflow });
+    res.status(201).json({ success: true, workflow, id });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'DatabaseError';
     res.status(500).json({ error: 'CreateWorkflowFailed', message });
@@ -54,7 +110,7 @@ router.get('/:id', (req: Request, res: Response) => {
 
 // PUT update workflow
 router.put('/:id', (req: Request, res: Response) => {
-  const { name, description, nodes, edges, status } = req.body;
+  const { name, description, nodes, edges, status, category, tags, triggers, metadata } = req.body;
   const { id } = req.params;
 
   const db = getDB();
@@ -73,6 +129,10 @@ router.put('/:id', (req: Request, res: Response) => {
        nodes = COALESCE(?, nodes),
        edges = COALESCE(?, edges),
        status = COALESCE(?, status),
+       category = COALESCE(?, category),
+       tags = COALESCE(?, tags),
+       triggers = COALESCE(?, triggers),
+       allow_agent_invocation = COALESCE(?, allow_agent_invocation),
        updated_at = ?
        WHERE id = ?`
     ).run(
@@ -81,6 +141,10 @@ router.put('/:id', (req: Request, res: Response) => {
       nodes ? JSON.stringify(nodes) : null,
       edges ? JSON.stringify(edges) : null,
       status || null,
+      category || null,
+      tags ? JSON.stringify(tags) : null,
+      triggers ? JSON.stringify(triggers) : null,
+      metadata?.allowAgentInvocation !== undefined ? (metadata.allowAgentInvocation ? 1 : 0) : null,
       now,
       id
     );
