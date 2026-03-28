@@ -13,12 +13,31 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
   const [workflowStatus, setWorkflowStatus] = useState<'idle' | 'running' | 'paused' | 'error'>('idle');
   const [showBottomPanel, setShowBottomPanel] = useState(true);
   const [bottomTab, setBottomTab] = useState<'logs' | 'errors' | 'context' | 'timeline' | 'audit'>('logs');
+  const [bottomPanelHeight, setBottomPanelHeight] = useState(250);
+  const [logFilter, setLogFilter] = useState('');
+  
+  // Mock execution data
+  const mockLogs = [
+    { time: '12:34:56.123', level: 'INFO', node: 'Manual Trigger', message: 'Workflow execution started' },
+    { time: '12:34:56.456', level: 'INFO', node: 'Manual Trigger', message: 'Node executed successfully', data: { status: 'ok' } },
+    { time: '12:34:57.789', level: 'INFO', node: 'OCR', message: 'Processing document.pdf', data: { pages: 3 } },
+    { time: '12:34:59.012', level: 'SUCCESS', node: 'OCR', message: 'Text extraction complete', data: { chars: 1250 } },
+  ];
+  
+  const mockErrors = [
+    { time: '12:35:00.123', node: 'Field Extractor', error: 'Missing required field: invoice_number', stack: 'at extractFields (line 45)' },
+  ];
   
   // Node management
   const [nodeSearch, setNodeSearch] = useState('');
   const [canvasNodes, setCanvasNodes] = useState<Array<{ id: string; type: string; name: string; x: number; y: number; category: string; color: string }>>([]);
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
   const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set());
+  
+  // Canvas controls
+  const [canvasZoom, setCanvasZoom] = useState(100);
+  const [gridSnapping, setGridSnapping] = useState(true);
+  const gridSize = 28;
 
   // Mock data
   const mockWorkflows = [
@@ -27,17 +46,65 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
     { id: 'wf-3', name: 'Document Classification Flow', status: 'ACTIVE', category: 'Document' },
   ];
 
-  // Node categories
+  // Node categories with icons
   const nodeCategories = [
-    { name: 'TRIGGER', color: '#8B5CF6', items: ['Manual Trigger', 'File Upload', 'API Trigger', 'Timer', 'Schedule', 'Webhook'] },
-    { name: 'DOCUMENT', color: '#EC4899', items: ['OCR', 'PDF Reader', 'Document Classifier', 'Field Extractor', 'Validation', 'Header/Footer Cleaner'] },
-    { name: 'DATA', color: '#10B981', items: ['Save Data', 'Read Data', 'Cache', 'Metadata', 'Dataset Loader'] },
-    { name: 'AI', color: '#F59E0B', items: ['LLM Reasoning', 'Classification', 'Summarization', 'Decision', 'Risk Analysis'] },
-    { name: 'LOGIC', color: '#3B82F6', items: ['If/Else', 'Switch', 'Loop', 'Parallel', 'Merge', 'Delay', 'Retry'] },
-    { name: 'BUSINESS', color: '#EF4444', items: ['Invoice Processor', 'Approval', 'Notification', 'Task Assignment', 'Purchase Order', 'Payment'] },
-    { name: 'MONITORING', color: '#F97316', items: ['SLA Timer', 'Alert', 'Metrics', 'Bottleneck Detector'] },
-    { name: 'OUTPUT', color: '#06B6D4', items: ['CSV Export', 'Excel Export', 'PDF Report', 'JSON Export', 'Dashboard Update'] },
+    { name: 'TRIGGER', color: '#8B5CF6', icon: '⚡', items: ['Manual Trigger', 'File Upload', 'API Trigger', 'Timer', 'Schedule', 'Webhook'] },
+    { name: 'DOCUMENT', color: '#EC4899', icon: '📄', items: ['OCR', 'PDF Reader', 'Document Classifier', 'Field Extractor', 'Validation', 'Header/Footer Cleaner'] },
+    { name: 'DATA', color: '#10B981', icon: '💾', items: ['Save Data', 'Read Data', 'Cache', 'Metadata', 'Dataset Loader'] },
+    { name: 'AI', color: '#F59E0B', icon: '🧠', items: ['LLM Reasoning', 'Classification', 'Summarization', 'Decision', 'Risk Analysis'] },
+    { name: 'LOGIC', color: '#3B82F6', icon: '🔀', items: ['If/Else', 'Switch', 'Loop', 'Parallel', 'Merge', 'Delay', 'Retry'] },
+    { name: 'BUSINESS', color: '#EF4444', icon: '💼', items: ['Invoice Processor', 'Approval', 'Notification', 'Task Assignment', 'Purchase Order', 'Payment'] },
+    { name: 'MONITORING', color: '#F97316', icon: '📊', items: ['SLA Timer', 'Alert', 'Metrics', 'Bottleneck Detector'] },
+    { name: 'OUTPUT', color: '#06B6D4', icon: '📤', items: ['CSV Export', 'Excel Export', 'PDF Report', 'JSON Export', 'Dashboard Update'] },
   ];
+
+  // Node descriptions for tooltips
+  const nodeDescriptions: Record<string, string> = {
+    'Manual Trigger': 'Manually start the workflow execution',
+    'File Upload': 'Trigger workflow when a file is uploaded',
+    'API Trigger': 'Start workflow via REST API call',
+    'Timer': 'Execute workflow at specific time intervals',
+    'Schedule': 'Run workflow on a cron schedule',
+    'Webhook': 'Trigger via external webhook call',
+    'OCR': 'Extract text from images and scanned documents',
+    'PDF Reader': 'Parse and extract data from PDF files',
+    'Document Classifier': 'Classify documents by type using AI',
+    'Field Extractor': 'Extract specific fields from documents',
+    'Validation': 'Validate document structure and contents',
+    'Header/Footer Cleaner': 'Remove headers and footers from documents',
+    'Save Data': 'Store data to the local database',
+    'Read Data': 'Retrieve data from the database',
+    'Cache': 'Cache intermediate results for performance',
+    'Metadata': 'Extract and store document metadata',
+    'Dataset Loader': 'Load datasets for processing',
+    'LLM Reasoning': 'Use LLM for complex reasoning tasks',
+    'Classification': 'Classify content into categories',
+    'Summarization': 'Generate summaries of long content',
+    'Decision': 'Make intelligent decisions based on context',
+    'Risk Analysis': 'Analyze and score risk factors',
+    'If/Else': 'Conditional branching based on conditions',
+    'Switch': 'Multi-way branching based on value',
+    'Loop': 'Iterate over arrays or repeat actions',
+    'Parallel': 'Execute multiple branches simultaneously',
+    'Merge': 'Combine results from parallel branches',
+    'Delay': 'Wait for a specified duration',
+    'Retry': 'Retry failed operations with backoff',
+    'Invoice Processor': 'Process invoices end-to-end',
+    'Approval': 'Request approval from designated approvers',
+    'Notification': 'Send notifications to users',
+    'Task Assignment': 'Assign tasks to team members',
+    'Purchase Order': 'Create and manage purchase orders',
+    'Payment': 'Process payment transactions',
+    'SLA Timer': 'Track SLA compliance and timeouts',
+    'Alert': 'Send alerts on specific conditions',
+    'Metrics': 'Collect and report workflow metrics',
+    'Bottleneck Detector': 'Identify performance bottlenecks',
+    'CSV Export': 'Export results to CSV format',
+    'Excel Export': 'Generate Excel spreadsheets',
+    'PDF Report': 'Create formatted PDF reports',
+    'JSON Export': 'Export data as JSON',
+    'Dashboard Update': 'Update dashboard visualizations',
+  };
 
   // Initialize expanded categories
   React.useEffect(() => {
@@ -54,8 +121,15 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
 
   const addNode = (name: string, cat: typeof nodeCategories[0]) => {
     const id = `node-${Date.now()}`;
-    const x = 200 + Math.random() * 300;
-    const y = 100 + Math.random() * 200;
+    let x = 200 + Math.random() * 300;
+    let y = 100 + Math.random() * 200;
+    
+    // Apply grid snapping if enabled
+    if (gridSnapping) {
+      x = Math.round(x / gridSize) * gridSize;
+      y = Math.round(y / gridSize) * gridSize;
+    }
+    
     setCanvasNodes(prev => [...prev, { id, type: name, name, x, y, category: cat.name, color: cat.color }]);
     setSelectedNode(id);
   };
@@ -243,6 +317,7 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
                     }}
                   >
                     <span style={{ fontSize: 8 }}>{expandedCats.has(cat.name) ? '▼' : '▶'}</span>
+                    <span style={{ fontSize: 14 }}>{cat.icon}</span>
                     <span>{cat.name}</span>
                     <span style={{ marginLeft: 'auto', fontSize: 9, color: 'var(--text-muted)' }}>{items.length}</span>
                   </button>
@@ -251,6 +326,7 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
                       key={i}
                       onClick={() => addNode(n, cat)}
                       draggable
+                      title={nodeDescriptions[n] || n}
                       style={{
                         width: '100%', height: 40, padding: '0 12px 0 32px', display: 'flex', alignItems: 'center', gap: 8,
                         fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--text-primary)', textAlign: 'left',
@@ -259,14 +335,14 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
                       }}
                       onMouseEnter={e => { 
                         e.currentTarget.style.background = 'var(--bg-tile-hover)'; 
-                        e.currentTarget. style.borderLeft = `2px solid ${cat.color}`; 
+                        e.currentTarget.style.borderLeft = `2px solid ${cat.color}`; 
                       }}
                       onMouseLeave={e => { 
                         e.currentTarget.style.background = 'transparent'; 
                         e.currentTarget.style.borderLeft = '2px solid transparent'; 
                       }}
                     >
-                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: cat.color, flexShrink: 0 }} />
+                      <span style={{ fontSize: 14, flexShrink: 0 }}>{cat.icon}</span>
                       <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n}</span>
                     </button>
                   ))}
@@ -280,10 +356,17 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
         <div style={{
           flex: 1, position: 'relative', overflow: 'hidden', background: 'var(--bg-base)',
           backgroundImage: 'radial-gradient(circle, var(--accent-glow) 1px, transparent 1px)',
-          backgroundSize: '28px 28px',
+          backgroundSize: `${gridSize}px ${gridSize}px`,
         }}
         onClick={(e) => { if (e.target === e.currentTarget) setSelectedNode(null); }}
         >
+          {/* Canvas Transform Container */}
+          <div style={{
+            transform: `scale(${canvasZoom / 100})`,
+            transformOrigin: 'top left',
+            width: `${10000 / (canvasZoom / 100)}px`,
+            height: `${10000 / (canvasZoom / 100)}px`,
+          }}>
           {canvasNodes.length === 0 && (
             <div style={{
               position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -356,22 +439,85 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
             </div>
           ))}
 
+          </div>
+          {/* End Canvas Transform Container */}
+
           {/* Canvas Controls (bottom-right) */}
           <div style={{
             position: 'absolute', bottom: 16, right: 16,
-            display: 'flex', flexDirection: 'column', gap: 8,
+            display: 'flex', flexDirection: 'column', gap: 6,
           }}>
+            {/* Zoom Controls */}
+            <div style={{
+              display: 'flex', flexDirection: 'column',
+              background: 'var(--bg-tile)', border: '1px solid var(--border)',
+              borderRadius: 2, overflow: 'hidden',
+            }}>
+              <button 
+                onClick={() => setCanvasZoom(Math.min(200, canvasZoom + 25))}
+                style={{
+                  height: 28, width: 36, fontFamily: 'var(--font-mono)', fontSize: 14,
+                  background: 'transparent', border: 'none', borderBottom: '1px solid var(--border)',
+                  color: 'var(--text-secondary)', cursor: 'pointer',
+                }}
+                title="Zoom In (+)"
+              >+</button>
+              
+              <button
+                onClick={() => setCanvasZoom(100)}
+                style={{
+                  height: 32, padding: '0 8px', fontFamily: 'var(--font-mono)', fontSize: 10,
+                  background: 'transparent', border: 'none', borderBottom: '1px solid var(--border)',
+                  color: canvasZoom === 100 ? 'var(--accent)' : 'var(--text-secondary)',
+                  cursor: 'pointer', fontWeight: 600,
+                }}
+                title="Reset Zoom (100%)"
+              >{canvasZoom}%</button>
+              
+              <button 
+                onClick={() => setCanvasZoom(Math.max(50, canvasZoom - 25))}
+                style={{
+                  height: 28, width: 36, fontFamily: 'var(--font-mono)', fontSize: 14,
+                  background: 'transparent', border: 'none',
+                  color: 'var(--text-secondary)', cursor: 'pointer',
+                }}
+                title="Zoom Out (-)"
+              >−</button>
+            </div>
+
+            {/* Grid Snapping Toggle */}
+            <button 
+              onClick={() => setGridSnapping(!gridSnapping)}
+              style={{
+                height: 32, padding: '0 12px', fontFamily: 'var(--font-mono)', fontSize: 10,
+                background: gridSnapping ? 'var(--accent-dim)' : 'var(--bg-tile)',
+                border: gridSnapping ? '1px solid var(--accent-border)' : '1px solid var(--border)',
+                color: gridSnapping ? 'var(--accent)' : 'var(--text-secondary)',
+                cursor: 'pointer', fontWeight: 600,
+              }}
+              title="Toggle Grid Snapping (G)"
+            >⊞ SNAP</button>
+
+            {/* Auto-Layout */}
             <button style={{
               height: 32, padding: '0 12px', fontFamily: 'var(--font-mono)', fontSize: 10,
               background: 'var(--bg-tile)', border: '1px solid var(--border)',
               color: 'var(--text-secondary)', cursor: 'pointer',
-            }}>ZOOM 100%</button>
-            <button style={{
-              height: 32, padding: '0 12px', fontFamily: 'var(--font-mono)', fontSize: 10,
-              background: 'var(--bg-tile)', border: '1px solid var(--border)',
-              color: 'var(--text-secondary)', cursor: 'pointer',
-            }}>AUTO-LAYOUT</button>
+            }}
+            title="Auto-arrange nodes (A)"
+            >⚡ LAYOUT</button>
           </div>
+
+          {/* Keyboard Shortcuts Hint */}
+          {canvasNodes.length === 0 && (
+            <div style={{
+              position: 'absolute', bottom: 16, left: 16,
+              fontFamily: 'var(--font-mono)', fontSize: 9,
+              color: 'var(--text-muted)', opacity: 0.6,
+            }}>
+              <div>SHORTCUTS: +/- zoom • G grid snap • A auto-layout • Del delete node</div>
+            </div>
+          )}
         </div>
 
         {/* RIGHT PANEL - Node Config */}
@@ -388,7 +534,14 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
                 </span>
               </div>
               <div style={{ padding: 16 }}>
-                <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 15, marginBottom: 16 }}>{selNode.name}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                  <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 15, flex: 1 }}>{selNode.name}</div>
+                  <div style={{
+                    fontFamily: 'var(--font-mono)', fontSize: 9, padding: '4px 8px',
+                    background: 'var(--status-success-bg)', color: 'var(--status-success)',
+                    border: '1px solid var(--status-success)', borderRadius: 2,
+                  }}>✓ VALID</div>
+                </div>
                 
                 <div style={{ marginBottom: 12 }}>
                   <label style={{ fontFamily: 'var(--font-mono)', fontSize: 9, textTransform: 'uppercase', color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>
@@ -402,6 +555,33 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
                     DESCRIPTION
                   </label>
                   <textarea rows={3} placeholder="Node description..." style={{ width: '100%', minHeight: 80, resize: 'vertical', padding: '8px 10px', fontSize: 13 }} />
+                </div>
+
+                {/* Node-specific config will go here in Phase 2 */}
+                <div style={{ 
+                  padding: 12, background: 'var(--bg-base)', 
+                  border: '1px solid var(--border)', borderRadius: 2, marginBottom: 12 
+                }}>
+                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', marginBottom: 8 }}>
+                    NODE CONFIGURATION
+                  </div>
+                  <div style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'var(--text-secondary)' }}>
+                    Dynamic configuration form will appear here based on node type (Phase 2)
+                  </div>
+                </div>
+
+                {/* Output Preview */}
+                <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16, marginTop: 16, marginBottom: 12 }}>
+                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, textTransform: 'uppercase', color: 'var(--text-secondary)', marginBottom: 8, fontWeight: 600 }}>
+                    OUTPUT PREVIEW
+                  </div>
+                  <div style={{ 
+                    padding: 10, background: 'var(--bg-base)', 
+                    border: '1px solid var(--border)', borderRadius: 2,
+                    fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)',
+                  }}>
+                    Execute workflow to see output
+                  </div>
                 </div>
 
                 <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16, marginTop: 16, marginBottom: 12 }}>
@@ -429,12 +609,27 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
                   </div>
                 </div>
 
-                <button style={{
-                  width: '100%', height: 40, background: 'var(--accent-dim)',
-                  border: '1px solid var(--accent-border)', fontFamily: 'var(--font-mono)',
-                  fontSize: 11, textTransform: 'uppercase', color: 'var(--accent)',
-                  cursor: 'pointer', fontWeight: 600,
-                }}>TEST NODE</button>
+                {/* Action Buttons */}
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button style={{
+                    flex: 1, height: 40, background: 'var(--accent-dim)',
+                    border: '1px solid var(--accent-border)', fontFamily: 'var(--font-mono)',
+                    fontSize: 11, textTransform: 'uppercase', color: 'var(--accent)',
+                    cursor: 'pointer', fontWeight: 600,
+                  }}>▶ TEST</button>
+                  <button style={{
+                    width: 40, height: 40, background: 'transparent',
+                    border: '1px solid var(--border)', fontFamily: 'var(--font-mono)',
+                    fontSize: 14, color: 'var(--text-muted)',
+                    cursor: 'pointer',
+                  }} title="Duplicate Node">⧉</button>
+                  <button style={{
+                    width: 40, height: 40, background: 'transparent',
+                    border: '1px solid var(--status-danger)', fontFamily: 'var(--font-mono)',
+                    fontSize: 14, color: 'var(--status-danger)',
+                    cursor: 'pointer',
+                  }} title="Delete Node">🗑</button>
+                </div>
               </div>
             </>
           ) : (
@@ -481,10 +676,35 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
       {/* ===== BOTTOM PANEL ===== */}
       {showBottomPanel && (
         <div style={{ 
-          height: 250, borderTop: '1px solid var(--border)', 
+          height: bottomPanelHeight, borderTop: '1px solid var(--border)', 
           display: 'flex', flexDirection: 'column', flexShrink: 0,
-          background: 'var(--bg-panel)',
+          background: 'var(--bg-panel)', position: 'relative',
         }}>
+          {/* Resize Handle */}
+          <div
+            onMouseDown={(e) => {
+              e.preventDefault();
+              const startY = e.clientY;
+              const startHeight = bottomPanelHeight;
+              const onMouseMove = (e: MouseEvent) => {
+                const delta = startY - e.clientY;
+                setBottomPanelHeight(Math.max(150, Math.min(600, startHeight + delta)));
+              };
+              const onMouseUp = () => {
+                document.removeEventListener('mousemove', onMouseMove);
+                document.removeEventListener('mouseup', onMouseUp);
+              };
+              document.addEventListener('mousemove', onMouseMove);
+              document.addEventListener('mouseup', onMouseUp);
+            }}
+            style={{
+              height: 4, width: '100%', cursor: 'ns-resize',
+              background: 'transparent', position: 'absolute', top: -2, zIndex: 10,
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--accent)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+          />
+          
           {/* Tab Bar */}
           <div style={{ 
             height: 36, borderBottom: '1px solid var(--border)', 
@@ -501,10 +721,30 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
                   borderBottom: bottomTab === tab ? '2px solid var(--accent)' : '2px solid transparent',
                   cursor: 'pointer', fontWeight: 600,
                 }}
-              >{tab}</button>
+              >
+                {tab}
+                {tab === 'errors' && mockErrors.length > 0 && (
+                  <span style={{ 
+                    marginLeft: 6, fontSize: 9, padding: '2px 5px', 
+                    background: 'var(--status-danger)', color: 'white', borderRadius: 2 
+                  }}>{mockErrors.length}</span>
+                )}
+              </button>
             ))}
             
             <div style={{ flex: 1 }} />
+            
+            {bottomTab === 'logs' && (
+              <input
+                value={logFilter}
+                onChange={(e) => setLogFilter(e.target.value)}
+                placeholder="Filter logs..."
+                style={{
+                  height: 24, padding: '0 8px', fontSize: 10, width: 150,
+                  background: 'var(--bg-base)', border: '1px solid var(--border)',
+                }}
+              />
+            )}
             
             <button
               onClick={() => setShowBottomPanel(false)}
@@ -513,41 +753,157 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
                 background: 'transparent', border: 'none',
                 color: 'var(--text-muted)', cursor: 'pointer',
               }}
-              title="Close panel"
+              title="Close panel (Ctrl+`)"
             >✕</button>
           </div>
 
           {/* Tab Content */}
           <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
             {bottomTab === 'logs' && (
-              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-secondary)' }}>
-                <div style={{ marginBottom: 8 }}>[12:34:56] Workflow started</div>
-                <div style={{ marginBottom: 8 }}>[12:34:57] Manual Trigger node executed successfully</div>
-                <div style={{ marginBottom: 8, color: 'var(--text-muted)' }}>No execution logs yet. Run the workflow to see logs here.</div>
+              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>
+                {mockLogs.filter(log => 
+                  !logFilter || log.message.toLowerCase().includes(logFilter.toLowerCase()) || 
+                  log.node.toLowerCase().includes(logFilter.toLowerCase())
+                ).map((log, i) => (
+                  <div 
+                    key={i} 
+                    style={{ 
+                      marginBottom: 8, display: 'flex', gap: 10, alignItems: 'flex-start',
+                      padding: '6px 8px', borderLeft: `2px solid ${
+                        log.level === 'SUCCESS' ? 'var(--status-success)' : 
+                        log.level === 'ERROR' ? 'var(--status-danger)' : 
+                        'var(--accent-border)'
+                      }`,
+                      background: i % 2 === 0 ? 'var(--bg-base)' : 'transparent',
+                    }}
+                  >
+                    <span style={{ color: 'var(--text-muted)', minWidth: 90 }}>{log.time}</span>
+                    <span style={{ 
+                      color: log.level === 'SUCCESS' ? 'var(--status-success)' : 
+                             log.level === 'ERROR' ? 'var(--status-danger)' : 
+                             'var(--accent)', 
+                      minWidth: 60, fontWeight: 600 
+                    }}>{log.level}</span>
+                    <span style={{ color: 'var(--text-secondary)', minWidth: 120 }}>{log.node}</span>
+                    <span style={{ color: 'var(--text-primary)', flex: 1 }}>{log.message}</span>
+                    {log.data && (
+                      <span style={{ color: 'var(--text-muted)', fontSize: 10 }}>
+                        {JSON.stringify(log.data)}
+                      </span>
+                    )}
+                  </div>
+                ))}
+                {mockLogs.length === 0 && (
+                  <div style={{ color: 'var(--text-muted)', textAlign: 'center', padding: 20 }}>
+                    No execution logs yet. Run the workflow to see logs here.
+                  </div>
+                )}
               </div>
             )}
             
             {bottomTab === 'errors' && (
-              <div style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--text-secondary)' }}>
-                No errors
+              <div>
+                {mockErrors.length > 0 ? mockErrors.map((err, i) => (
+                  <div 
+                    key={i}
+                    style={{ 
+                      marginBottom: 12, padding: 12, 
+                      background: 'var(--status-danger-bg)', 
+                      border: '1px solid var(--status-danger)',
+                      borderRadius: 2,
+                    }}
+                  >
+                    <div style={{ display: 'flex', gap: 10, marginBottom: 8 }}>
+                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)' }}>{err.time}</span>
+                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--status-danger)', fontWeight: 600 }}>{err.node}</span>
+                    </div>
+                    <div style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--status-danger)', marginBottom: 6 }}>
+                      {err.error}
+                    </div>
+                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)' }}>
+                      {err.stack}
+                    </div>
+                  </div>
+                )) : (
+                  <div style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--text-secondary)', textAlign: 'center', padding: 20 }}>
+                    ✓ No errors
+                  </div>
+                )}
               </div>
             )}
 
             {bottomTab === 'context' && (
-              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-secondary)' }}>
-                <pre style={{ margin: 0 }}>{'{\n  "workflow": {},\n  "nodes": [],\n  "context": {}\n}'}</pre>
+              <div>
+                <div style={{ marginBottom: 12, display: 'flex', gap: 8 }}>
+                  <button style={{
+                    height: 28, padding: '0 10px', fontFamily: 'var(--font-mono)', fontSize: 9,
+                    background: 'var(--bg-tile)', border: '1px solid var(--border)',
+                    color: 'var(--text-secondary)', cursor: 'pointer',
+                  }}>📋 COPY</button>
+                  <button style={{
+                    height: 28, padding: '0 10px', fontFamily: 'var(--font-mono)', fontSize: 9,
+                    background: 'var(--bg-tile)', border: '1px solid var(--border)',
+                    color: 'var(--text-secondary)', cursor: 'pointer',
+                  }}>💾 EXPORT</button>
+                </div>
+                <div style={{ 
+                  fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-secondary)',
+                  background: 'var(--bg-base)', padding: 12, borderRadius: 2,
+                  border: '1px solid var(--border)',
+                }}>
+                  <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{JSON.stringify({
+                    workflow: { id: 'wf-001', name: workflowName, status: workflowStatus },
+                    nodes: canvasNodes.map(n => ({ id: n.id, type: n.type, name: n.name })),
+                    context: { environment, zoom: canvasZoom, gridSnapping },
+                    execution: { started: null, duration: null, status: 'idle' }
+                  }, null, 2)}</pre>
+                </div>
               </div>
             )}
 
             {bottomTab === 'timeline' && (
-              <div style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--text-secondary)' }}>
-                Execution timeline will appear here
+              <div>
+                <div style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16 }}>
+                  Execution timeline (Gantt chart - Phase 4)
+                </div>
+                {canvasNodes.length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {canvasNodes.map((node, i) => (
+                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, minWidth: 120, color: 'var(--text-secondary)' }}>{node.name}</span>
+                        <div style={{ flex: 1, height: 20, background: 'var(--bg-base)', border: '1px solid var(--border)', borderRadius: 2, position: 'relative' }}>
+                          <div style={{ 
+                            position: 'absolute', left: 0, top: 0, bottom: 0, 
+                            width: '0%', background: node.color, opacity: 0.3,
+                            transition: 'width 0.5s ease',
+                          }} />
+                        </div>
+                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, minWidth: 60, color: 'var(--text-muted)' }}>0ms</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
             {bottomTab === 'audit' && (
-              <div style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--text-secondary)' }}>
-                Audit trail will appear here
+              <div>
+                <div style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--text-secondary)' }}>
+                  <div style={{ marginBottom: 12, padding: 10, background: 'var(--bg-base)', border: '1px solid var(--border)', borderRadius: 2 }}>
+                    <div style={{ display: 'flex', gap: 10, marginBottom: 6 }}>
+                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)' }}>2026-03-28 12:30:00</span>
+                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--accent)' }}>USER</span>
+                    </div>
+                    <div>Workflow created: {workflowName}</div>
+                  </div>
+                  <div style={{ marginBottom: 12, padding: 10, background: 'var(--bg-base)', border: '1px solid var(--border)', borderRadius: 2 }}>
+                    <div style={{ display: 'flex', gap: 10, marginBottom: 6 }}>
+                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)' }}>2026-03-28 12:31:15</span>
+                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--accent)' }}>SYSTEM</span>
+                    </div>
+                    <div>{canvasNodes.length} nodes added to workflow</div>
+                  </div>
+                </div>
               </div>
             )}
           </div>
