@@ -2103,14 +2103,14 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
               style={{
                 width: '100%', height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                 fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase',
-                background: 'var(--accent)', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer',
+                background: 'var(--accent)', color: '#FFFFFF', border: 'none', borderRadius: 4, cursor: 'pointer',
                 transition: 'all 0.15s ease',
               }}
-              onMouseEnter={e => e.currentTarget.style.opacity = '0.9'}
-              onMouseLeave={e => e.currentTarget.style.opacity = '1'}
+              onMouseEnter={e => { e.currentTarget.style.opacity = '0.9'; e.currentTarget.style.transform = 'scale(0.98)'; }}
+              onMouseLeave={e => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.transform = 'scale(1)'; }}
             >
-              <span style={{ fontSize: 16 }}>+</span>
-              <span>CREATE NODE</span>
+              <span style={{ fontSize: 16, color: '#FFFFFF' }}>+</span>
+              <span style={{ color: '#FFFFFF' }}>CREATE NODE</span>
             </button>
           </div>
         </div>
@@ -2430,108 +2430,6 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
               </div>
             );
           })}
-
-          {/* Canvas Controls (bottom-right) */}
-          <div style={{
-            position: 'absolute', bottom: 16, right: 16,
-            display: 'flex', flexDirection: 'column', gap: 6,
-            zIndex: 100,
-          }}>
-            <div style={{
-              display: 'flex', flexDirection: 'column',
-              background: 'var(--bg-tile)', border: '1px solid var(--border)',
-              borderRadius: 2, overflow: 'hidden',
-            }}>
-              <button
-                onClick={() => {
-                  const next = Math.min(200, canvasZoom + 15);
-                  const container = canvasContainerRef.current;
-                  if (container) {
-                    const cx = container.clientWidth / 2;
-                    const cy = container.clientHeight / 2;
-                    const scale = canvasZoom / 100;
-                    const newScale = next / 100;
-                    setCanvasPan(p => ({
-                      x: cx - (cx - p.x) * (newScale / scale),
-                      y: cy - (cy - p.y) * (newScale / scale),
-                    }));
-                  }
-                  setCanvasZoom(next);
-                }}
-                style={{ height: 28, width: 36, fontFamily: 'var(--font-mono)', fontSize: 14, background: 'transparent', border: 'none', borderBottom: '1px solid var(--border)', color: 'var(--text-secondary)', cursor: 'pointer' }}
-                title="Zoom In"
-              >+</button>
-              <button
-                onClick={() => { setCanvasZoom(100); setCanvasPan({ x: 0, y: 0 }); }}
-                style={{ height: 32, padding: '0 8px', fontFamily: 'var(--font-mono)', fontSize: 10, background: 'transparent', border: 'none', borderBottom: '1px solid var(--border)', color: canvasZoom === 100 ? 'var(--accent)' : 'var(--text-secondary)', cursor: 'pointer', fontWeight: 600 }}
-                title="Reset Zoom"
-              >{canvasZoom}%</button>
-              <button
-                onClick={() => {
-                  const next = Math.max(30, canvasZoom - 15);
-                  const container = canvasContainerRef.current;
-                  if (container) {
-                    const cx = container.clientWidth / 2;
-                    const cy = container.clientHeight / 2;
-                    const scale = canvasZoom / 100;
-                    const newScale = next / 100;
-                    setCanvasPan(p => ({
-                      x: cx - (cx - p.x) * (newScale / scale),
-                      y: cy - (cy - p.y) * (newScale / scale),
-                    }));
-                  }
-                  setCanvasZoom(next);
-                }}
-                style={{ height: 28, width: 36, fontFamily: 'var(--font-mono)', fontSize: 14, background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}
-                title="Zoom Out"
-              >−</button>
-            </div>
-
-            <button
-              onClick={() => setGridSnapping(!gridSnapping)}
-              style={{
-                height: 32, padding: '0 12px', fontFamily: 'var(--font-mono)', fontSize: 10,
-                background: gridSnapping ? 'var(--accent-dim)' : 'var(--bg-tile)',
-                border: gridSnapping ? '1px solid var(--accent-border)' : '1px solid var(--border)',
-                color: gridSnapping ? 'var(--accent)' : 'var(--text-secondary)',
-                cursor: 'pointer', fontWeight: 600,
-              }}
-              title="Toggle Grid Snap"
-            >⊞ SNAP</button>
-
-            <button
-              onClick={() => {
-                // Auto-layout: arrange nodes left to right in topological order
-                const order = getTopologicalOrder(canvasNodes, edges);
-                const COLS = Math.ceil(Math.sqrt(order.length));
-                setCanvasNodes(prev => prev.map(n => {
-                  const idx = order.indexOf(n.id);
-                  const col = idx % COLS;
-                  const row = Math.floor(idx / COLS);
-                  let x = 80 + col * 300;
-                  let y = 80 + row * 180;
-                  if (gridSnapping) { x = Math.round(x / gridSize) * gridSize; y = Math.round(y / gridSize) * gridSize; }
-                  return { ...n, x, y };
-                }));
-              }}
-              style={{
-                height: 32, padding: '0 12px', fontFamily: 'var(--font-mono)', fontSize: 10,
-                background: 'var(--bg-tile)', border: '1px solid var(--border)',
-                color: 'var(--text-secondary)', cursor: 'pointer',
-              }}
-              title="Auto-layout nodes"
-            >⚡ LAYOUT</button>
-
-            {edges.length > 0 && (
-              <div style={{
-                padding: '6px 8px', fontFamily: 'var(--font-mono)', fontSize: 9,
-                background: 'var(--bg-tile)', border: '1px solid var(--border)',
-                color: 'var(--text-muted)', textAlign: 'center',
-              }}>
-                {edges.length} edge{edges.length !== 1 ? 's' : ''}
-              </div>
-            )}
-          </div>
 
           {/* Hint */}
           {canvasNodes.length > 0 && canvasNodes.length < 3 && edges.length === 0 && (
