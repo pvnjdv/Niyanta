@@ -87,8 +87,9 @@ export class WorkflowEngine {
       const nodes: WorkflowNodeInstance[] = workflow.nodes || [];
       const edges: WorkflowEdge[] = workflow.edges || [];
 
-      // Find start node (first trigger node)
-      const startNode = nodes.find((n) => n.nodeType === 'manual_trigger' || n.nodeType.includes('trigger'));
+      // Find start node (first trigger node) — matches canonical types, frontend display names, and class names
+      const TRIGGER_TYPES = new Set(['manual_trigger', 'webhook_trigger', 'file_upload_trigger', 'timer_trigger', 'meeting_transcript_trigger', 'manual trigger', 'webhook', 'file upload', 'schedule', 'api trigger', 'manualtriggernode', 'webhooktriggernode', 'fileuploadtriggernode', 'timertriggernode', 'meetingtranscripttriggernode']);
+      const startNode = nodes.find((n) => { const t = n.nodeType.toLowerCase(); return TRIGGER_TYPES.has(t) || t.includes('trigger'); });
       if (!startNode) {
         throw new Error('NoStartNode: Workflow must have a trigger node');
       }

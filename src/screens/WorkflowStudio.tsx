@@ -39,6 +39,7 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
   const [templates, setTemplates] = useState<any[]>([]);
   const [loadingTemplates, setLoadingTemplates] = useState(true);
   const [templateInstantiating, setTemplateInstantiating] = useState<string | null>(null);
+  const [showTemplateGallery, setShowTemplateGallery] = useState(false);
   
   // Mock execution data
   const mockLogs = [
@@ -1545,6 +1546,17 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
           >
             + CREATE NEW WORKFLOW
           </button>
+          <button
+            onClick={() => setShowTemplateGallery(true)}
+            style={{
+              height: 36, padding: '0 20px', borderRadius: 4, fontWeight: 600,
+              background: 'rgba(139,92,246,0.12)', border: '1px solid rgba(139,92,246,0.4)',
+              color: '#8B5CF6', cursor: 'pointer', fontSize: 13,
+              fontFamily: 'var(--font-mono)',
+            }}
+          >
+            📚 TEMPLATES
+          </button>
         </div>
 
         {/* Workflow Grid */}
@@ -1831,6 +1843,15 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
             )}
           </div>
         </div>
+        {showTemplateGallery && (
+          <TemplateGallery
+            onTemplateSelect={(newWorkflowId) => {
+              setShowTemplateGallery(false);
+              navigate(`/workflows/${newWorkflowId}`);
+            }}
+            onClose={() => setShowTemplateGallery(false)}
+          />
+        )}
       </div>
     );
   }
