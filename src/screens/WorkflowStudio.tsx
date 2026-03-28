@@ -62,7 +62,7 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
   // Canvas controls
   const [canvasZoom, setCanvasZoom] = useState(100);
   const [gridSnapping, setGridSnapping] = useState(true);
-  const gridSize = 28;
+  const gridSize = 8;
   
   // Execution state (Phase 4)
   const [executionLogs, setExecutionLogs] = useState<Array<{ time: string; level: string; node: string; message: string; data?: any }>>([]);
@@ -331,8 +331,8 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
     // Center of viewport in canvas coordinates
     const cx = (viewW / 2 - canvasPan.x) / scale;
     const cy = (viewH / 2 - canvasPan.y) / scale;
-    let x = cx - 100 + (Math.random() - 0.5) * 100;
-    let y = cy - 48 + (Math.random() - 0.5) * 80;
+    let x = cx - 120 + (Math.random() - 0.5) * 100;
+    let y = cy - 60 + (Math.random() - 0.5) * 80;
     
     // Apply grid snapping if enabled
     if (gridSnapping) {
@@ -1820,8 +1820,8 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
               const tgt = canvasNodes.find(n => n.id === edge.target);
               if (!src || !tgt) return null;
               const scale = canvasZoom / 100;
-              const NODE_W = 200;
-              const NODE_H = 96;
+              const NODE_W = 240;
+              const NODE_H = 120;
               // Output handle = right center of source node
               const x1 = canvasPan.x + (src.x + NODE_W) * scale;
               const y1 = canvasPan.y + (src.y + NODE_H / 2) * scale;
@@ -1860,8 +1860,8 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
               const src = canvasNodes.find(n => n.id === connectingFrom);
               if (!src) return null;
               const scale = canvasZoom / 100;
-              const NODE_W = 200;
-              const NODE_H = 96;
+              const NODE_W = 240;
+              const NODE_H = 120;
               const x1 = canvasPan.x + (src.x + NODE_W) * scale;
               const y1 = canvasPan.y + (src.y + NODE_H / 2) * scale;
               const x2 = canvasPan.x + mouseCanvasPos.x * scale;
@@ -1887,8 +1887,8 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
             const hasCompleted = execState === 'success';
             const hasFailed = execState === 'error';
             const scale = canvasZoom / 100;
-            const NODE_W = 200;
-            const NODE_H = 96;
+            const NODE_W = 240;
+            const NODE_H = 120;
             const left = canvasPan.x + node.x * scale;
             const top = canvasPan.y + node.y * scale;
 
@@ -2158,8 +2158,8 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
                   const idx = order.indexOf(n.id);
                   const col = idx % COLS;
                   const row = Math.floor(idx / COLS);
-                  let x = 80 + col * 270;
-                  let y = 80 + row * 160;
+                  let x = 80 + col * 300;
+                  let y = 80 + row * 180;
                   if (gridSnapping) { x = Math.round(x / gridSize) * gridSize; y = Math.round(y / gridSize) * gridSize; }
                   return { ...n, x, y };
                 }));

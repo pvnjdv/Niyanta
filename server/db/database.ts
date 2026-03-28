@@ -40,6 +40,10 @@ function initializeSchema(): void {
     'ALTER TABLE agents ADD COLUMN system_prompt TEXT',
     'ALTER TABLE agents ADD COLUMN workflow_id TEXT',
     'ALTER TABLE workflows ADD COLUMN is_agent INTEGER DEFAULT 0',
+    'ALTER TABLE workflows ADD COLUMN category TEXT',
+    'ALTER TABLE workflows ADD COLUMN tags TEXT DEFAULT "[]"',
+    'ALTER TABLE workflows ADD COLUMN triggers TEXT DEFAULT "[]"',
+    'ALTER TABLE workflows ADD COLUMN allow_agent_invocation INTEGER DEFAULT 1',
   ];
   for (const m of migrations) {
     try { db.prepare(m).run(); } catch { /* column already exists */ }
