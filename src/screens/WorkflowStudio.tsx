@@ -306,6 +306,273 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
         { name: 'escalationPolicy', label: 'Escalation', type: 'select', options: ['none', 'auto-approve', 'escalate-manager', 'mark-expired'], default: 'none', help: 'Action when deadline expires' },
       ]
     },
+    'File Upload': {
+      fields: [
+        { name: 'acceptedFormats', label: 'Accepted Formats', type: 'multiselect', options: ['PDF', 'PNG', 'JPEG', 'DOCX', 'TXT', 'CSV', 'XLSX', 'MP3', 'MP4'], default: ['PDF'] },
+        { name: 'maxSizeMB', label: 'Max File Size (MB)', type: 'number', min: 1, max: 1000, default: 10 },
+        { name: 'storagePath', label: 'Storage Path', type: 'text', default: '/uploads', help: 'Where to store uploaded files' },
+        { name: 'outputPath', label: 'Output Context Path', type: 'text', default: 'context.uploadedFile', help: 'Where to save file info in context' },
+      ]
+    },
+    'Field Extractor': {
+      fields: [
+        { name: 'fields', label: 'Fields to Extract', type: 'text', required: true, placeholder: 'field1, field2, field3', help: 'Comma-separated field names' },
+        { name: 'inputPath', label: 'Input Data Path', type: 'text', default: 'context.ocrOutput', help: 'Source data location' },
+        { name: 'outputPath', label: 'Output Path', type: 'text', default: 'context.extractedFields', help: 'Where to store extracted data' },
+        { name: 'useLLM', label: 'Use LLM for Extraction', type: 'toggle', default: false },
+      ]
+    },
+    'Validation': {
+      fields: [
+        { name: 'rules', label: 'Validation Rules', type: 'text', required: true, placeholder: 'required, email, min:5', help: 'Comma-separated rules' },
+        { name: 'inputPath', label: 'Data to Validate', type: 'text', default: 'context.extractedFields', help: 'Path to data' },
+        { name: 'failAction', label: 'On Failure', type: 'select', options: ['Stop Workflow', 'Continue', 'Retry', 'Alert'], default: 'Stop Workflow' },
+      ]
+    },
+    'Risk Analysis': {
+      fields: [
+        { name: 'factors', label: 'Risk Factors', type: 'text', required: true, placeholder: 'factor1, factor2', help: 'Comma-separated factors' },
+        { name: 'inputPath', label: 'Input Data', type: 'text', default: 'context.data', help: 'Data to analyze' },
+        { name: 'outputPath', label: 'Output Path', type: 'text', default: 'context.riskScore', help: 'Where to store risk score' },
+        { name: 'threshold', label: 'Risk Threshold', type: 'number', min: 0, max: 1, step: 0.1, default: 0.7 },
+      ]
+    },
+    'PDF Report': {
+      fields: [
+        { name: 'template', label: 'Report Template', type: 'select', options: ['default', 'invoice', 'summary', 'detailed'], default: 'default' },
+        { name: 'inputPath', label: 'Data Source', type: 'text', default: 'context.data', help: 'Path to report data' },
+        { name: 'outputPath', label: 'Output Path', type: 'text', default: 'context.reportFile', help: 'Where to save generated PDF' },
+        { name: 'includeCharts', label: 'Include Charts', type: 'toggle', default: false },
+      ]
+    },
+    'Purchase Order': {
+      fields: [
+        { name: 'autoApprove', label: 'Auto Approve', type: 'toggle', default: false },
+        { name: 'inputPath', label: 'PO Data Source', type: 'text', default: 'context.invoice', help: 'Source data for PO' },
+        { name: 'outputPath', label: 'Output Path', type: 'text', default: 'context.purchaseOrder', help: 'Where to store PO' },
+        { name: 'notifyVendor', label: 'Notify Vendor', type: 'toggle', default: true },
+      ]
+    },
+    'Task Assignment': {
+      fields: [
+        { name: 'title', label: 'Task Title', type: 'text', required: true, placeholder: 'Task name' },
+        { name: 'assignTo', label: 'Assign To', type: 'text', required: true, placeholder: 'user@example.com' },
+        { name: 'priority', label: 'Priority', type: 'select', options: ['Low', 'Normal', 'High', 'Critical'], default: 'Normal' },
+        { name: 'dueDate', label: 'Due Date', type: 'text', placeholder: '24h, 3d, 1w' },
+        { name: 'inputPath', label: 'Task Data', type: 'text', default: 'context.data', help: 'Data for task context' },
+      ]
+    },
+    'Read Data': {
+      fields: [
+        { name: 'table', label: 'Table Name', type: 'text', required: true, placeholder: 'table_name' },
+        { name: 'query', label: 'Query', type: 'textarea', rows: 2, placeholder: 'SELECT * FROM table WHERE id = ?', help: 'SQL query' },
+        { name: 'outputPath', label: 'Output Path', type: 'text', default: 'context.queryResult', help: 'Where to store result' },
+      ]
+    },
+    'Webhook': {
+      fields: [
+        { name: 'method', label: 'HTTP Method', type: 'select', options: ['GET', 'POST', 'PUT', 'DELETE'], default: 'POST' },
+        { name: 'path', label: 'Webhook Path', type: 'text', required: true, placeholder: '/webhook/trigger', help: 'URL path' },
+        { name: 'outputPath', label: 'Output Path', type: 'text', default: 'context.webhookData', help: 'Where to store incoming data' },
+        { name: 'authentication', label: 'Authentication', type: 'select', options: ['None', 'API Key', 'Bearer Token', 'OAuth'], default: 'API Key' },
+      ]
+    },
+    'Manual Trigger': {
+      fields: [
+        { name: 'triggerMode', label: 'Trigger Mode', type: 'select', options: ['Button Click', 'API Call', 'Form Submit'], default: 'Button Click' },
+        { name: 'requireConfirmation', label: 'Require Confirmation', type: 'toggle', default: false },
+        { name: 'outputPath', label: 'Output Path', type: 'text', default: 'context.triggerData', help: 'Store trigger info' },
+      ]
+    },
+    'Timer': {
+      fields: [
+        { name: 'interval', label: 'Interval', type: 'number', min: 1, max: 3600, default: 60, help: 'Time between runs' },
+        { name: 'unit', label: 'Unit', type: 'select', options: ['Seconds', 'Minutes', 'Hours'], default: 'Minutes' },
+        { name: 'maxRuns', label: 'Max Runs', type: 'number', min: 1, max: 1000, default: 10, help: '0 = unlimited' },
+        { name: 'enabled', label: 'Enabled', type: 'toggle', default: true },
+      ]
+    },
+    'API Trigger': {
+      fields: [
+        { name: 'source', label: 'API Source', type: 'text', required: true, placeholder: 'Workday, Salesforce, etc.' },
+        { name: 'eventType', label: 'Event Type', type: 'text', required: true, placeholder: 'employee.hired, deal.closed' },
+        { name: 'webhook', label: 'Use Webhook', type: 'toggle', default: true },
+        { name: 'outputPath', label: 'Output Path', type: 'text', default: 'context.apiEvent', help: 'Where to store event data' },
+      ]
+    },
+    'PDF Reader': {
+      fields: [
+        { name: 'inputPath', label: 'PDF File Path', type: 'text', default: 'context.uploadedFile', help: 'Path to PDF' },
+        { name: 'outputPath', label: 'Output Path', type: 'text', default: 'context.pdfContent', help: 'Where to store text' },
+        { name: 'extractImages', label: 'Extract Images', type: 'toggle', default: false },
+        { name: 'parseStructure', label: 'Parse Structure', type: 'toggle', default: true, help: 'Headings, paragraphs, lists' },
+      ]
+    },
+    'Document Classifier': {
+      fields: [
+        { name: 'categories', label: 'Categories', type: 'text', required: true, placeholder: 'invoice, contract, receipt', help: 'Comma-separated' },
+        { name: 'model', label: 'Model', type: 'select', options: ['bert-classifier', 'llama-classifier', 'custom'], default: 'bert-classifier' },
+        { name: 'confidenceThreshold', label: 'Confidence Threshold', type: 'number', min: 0, max: 1, step: 0.05, default: 0.7 },
+        { name: 'inputPath', label: 'Input Text', type: 'text', default: 'context.ocrOutput' },
+        { name: 'outputPath', label: 'Output Path', type: 'text', default: 'context.docType' },
+      ]
+    },
+    'Header/Footer Cleaner': {
+      fields: [
+        { name: 'inputPath', label: 'Input Text', type: 'text', default: 'context.ocrOutput' },
+        { name: 'outputPath', label: 'Output Path', type: 'text', default: 'context.cleanedText' },
+        { name: 'removePageNumbers', label: 'Remove Page Numbers', type: 'toggle', default: true },
+        { name: 'removeHeaders', label: 'Remove Headers', type: 'toggle', default: true },
+      ]
+    },
+    'Cache': {
+      fields: [
+        { name: 'keyPath', label: 'Cache Key Path', type: 'text', required: true, placeholder: 'context.id', help: 'Unique key' },
+        { name: 'ttlSeconds', label: 'TTL (seconds)', type: 'number', min: 60, max: 604800, default: 3600, help: 'Time to live' },
+        { name: 'strategy', label: 'Strategy', type: 'select', options: ['Write-Through', 'Write-Back', 'Write-Around'], default: 'Write-Through' },
+        { name: 'outputPath', label: 'Output Path', type: 'text', default: 'context.cacheKey' },
+      ]
+    },
+    'Metadata': {
+      fields: [
+        { name: 'extractFields', label: 'Extract Fields', type: 'text', placeholder: 'author, date, version', help: 'Comma-separated' },
+        { name: 'inputPath', label: 'Input Data', type: 'text', default: 'context.data' },
+        { name: 'outputPath', label: 'Output Path', type: 'text', default: 'context.metadata' },
+        { name: 'includeSystemFields', label: 'Include System Fields', type: 'toggle', default: true, help: 'created_at, updated_at, etc.' },
+      ]
+    },
+    'Classification': {
+      fields: [
+        { name: 'categories', label: 'Categories', type: 'text', required: true, placeholder: 'category1, category2', help: 'Comma-separated' },
+        { name: 'model', label: 'Model', type: 'select', options: ['bert-classifier', 'llama-classifier'], default: 'bert-classifier' },
+        { name: 'inputPath', label: 'Input Data', type: 'text', default: 'context.data' },
+        { name: 'outputPath', label: 'Output Path', type: 'text', default: 'context.category' },
+        { name: 'returnConfidence', label: 'Return Confidence', type: 'toggle', default: false },
+      ]
+    },
+    'Summarization': {
+      fields: [
+        { name: 'model', label: 'Model', type: 'select', options: ['llama-3.3-70b', 'mixtral-8x7b'], default: 'llama-3.3-70b' },
+        { name: 'maxLength', label: 'Max Length (words)', type: 'number', min: 50, max: 500, default: 150 },
+        { name: 'style', label: 'Style', type: 'select', options: ['Concise', 'Detailed', 'Bullet Points'], default: 'Concise' },
+        { name: 'inputPath', label: 'Text to Summarize', type: 'text', default: 'context.text' },
+        { name: 'outputPath', label: 'Output Path', type: 'text', default: 'context.summary' },
+      ]
+    },
+    'Decision': {
+      fields: [
+        { name: 'rules', label: 'Decision Rules', type: 'textarea', rows: 3, required: true, placeholder: 'if X then Y', help: 'Define decision logic' },
+        { name: 'model', label: 'AI Model (optional)', type: 'select', options: ['None', 'llama-3.3-70b'], default: 'None' },
+        { name: 'inputPath', label: 'Input Data', type: 'text', default: 'context.data' },
+        { name: 'outputPath', label: 'Output Path', type: 'text', default: 'context.decision' },
+      ]
+    },
+    'Switch': {
+      fields: [
+        { name: 'field', label: 'Switch Field', type: 'text', required: true, placeholder: 'context.type', help: 'Field to evaluate' },
+        { name: 'cases', label: 'Cases', type: 'text', required: true, placeholder: 'value1:nodeId1,value2:nodeId2', help: 'value:targetNode pairs' },
+        { name: 'defaultCase', label: 'Default Case', type: 'text', placeholder: 'nodeId', help: 'Fallback node' },
+        { name: 'inputPath', label: 'Input Data', type: 'text', default: 'context.data' },
+      ]
+    },
+    'Parallel': {
+      fields: [
+        { name: 'maxConcurrent', label: 'Max Concurrent', type: 'number', min: 2, max: 10, default: 4, help: 'Parallel branches' },
+        { name: 'waitForAll', label: 'Wait For All', type: 'toggle', default: true, help: 'Wait for all branches to finish' },
+        { name: 'timeoutMs', label: 'Timeout (ms)', type: 'number', min: 1000, max: 300000, default: 60000 },
+      ]
+    },
+    'Merge': {
+      fields: [
+        { name: 'strategy', label: 'Merge Strategy', type: 'select', options: ['wait-all', 'wait-any', 'wait-first'], default: 'wait-all' },
+        { name: 'timeout', label: 'Timeout', type: 'text', placeholder: '5m, 1h', default: '5m' },
+        { name: 'outputPath', label: 'Output Path', type: 'text', default: 'context.mergedData' },
+      ]
+    },
+    'Delay': {
+      fields: [
+        { name: 'duration', label: 'Duration', type: 'number', min: 1, max: 3600, default: 5 },
+        { name: 'unit', label: 'Unit', type: 'select', options: ['Seconds', 'Minutes', 'Hours', 'Days'], default: 'Seconds' },
+        { name: 'skipWeekends', label: 'Skip Weekends', type: 'toggle', default: false },
+      ]
+    },
+    'Retry': {
+      fields: [
+        { name: 'maxAttempts', label: 'Max Attempts', type: 'number', min: 1, max: 10, default: 3 },
+        { name: 'backoffMs', label: 'Backoff (ms)', type: 'number', min: 100, max: 60000, default: 1000, help: 'Delay between retries' },
+        { name: 'conditions', label: 'Retry Conditions', type: 'text', placeholder: 'error, timeout', help: 'When to retry' },
+      ]
+    },
+    'Payment': {
+      fields: [
+        { name: 'amount', label: 'Amount', type: 'number', min: 0, required: true },
+        { name: 'currency', label: 'Currency', type: 'select', options: ['USD', 'EUR', 'GBP', 'JPY'], default: 'USD' },
+        { name: 'method', label: 'Payment Method', type: 'select', options: ['ACH', 'Wire', 'Credit Card', 'Check'], default: 'ACH' },
+        { name: 'inputPath', label: 'Payment Data', type: 'text', default: 'context.invoice' },
+        { name: 'outputPath', label: 'Output Path', type: 'text', default: 'context.paymentResult' },
+      ]
+    },
+    'SLA Timer': {
+      fields: [
+        { name: 'deadline', label: 'Deadline', type: 'text', required: true, placeholder: '4h, 2d, 1w', help: 'Time limit' },
+        { name: 'warningThreshold', label: 'Warning Threshold', type: 'number', min: 0, max: 100, default: 80, help: '% of deadline' },
+        { name: 'escalateTo', label: 'Escalate To', type: 'text', placeholder: 'manager@company.com' },
+      ]
+    },
+    'Alert': {
+      fields: [
+        { name: 'severity', label: 'Severity', type: 'select', options: ['Info', 'Warning', 'Error', 'Critical'], default: 'Warning' },
+        { name: 'title', label: 'Alert Title', type: 'text', required: true },
+        { name: 'message', label: 'Message', type: 'textarea', rows: 2, required: true },
+        { name: 'channels', label: 'Channels', type: 'text', placeholder: 'Email, Slack, PagerDuty', help: 'Comma-separated' },
+      ]
+    },
+    'Metrics': {
+      fields: [
+        { name: 'metricNames', label: 'Metrics', type: 'text', required: true, placeholder: 'count, avg_time', help: 'Comma-separated' },
+        { name: 'aggregation', label: 'Aggregation', type: 'select', options: ['Sum', 'Average', 'Count', 'Min', 'Max'], default: 'Sum' },
+        { name: 'dashboardId', label: 'Dashboard ID', type: 'text', placeholder: 'operations' },
+        { name: 'inputPath', label: 'Data Source', type: 'text', default: 'context.data' },
+      ]
+    },
+    'Bottleneck Detector': {
+      fields: [
+        { name: 'thresholds', label: 'Thresholds', type: 'text', required: true, placeholder: 'latency:500ms,queue:100', help: 'Comma-separated' },
+        { name: 'alertOn', label: 'Alert On', type: 'select', options: ['Threshold Exceeded', 'Trend Increasing', 'Both'], default: 'Threshold Exceeded' },
+      ]
+    },
+    'CSV Export': {
+      fields: [
+        { name: 'inputPath', label: 'Data Source', type: 'text', required: true, default: 'context.data' },
+        { name: 'outputPath', label: 'Output File Path', type: 'text', default: 'context.csvFile' },
+        { name: 'columns', label: 'Columns', type: 'text', placeholder: 'col1, col2, col3', help: 'Comma-separated, leave empty for all' },
+        { name: 'includeHeaders', label: 'Include Headers', type: 'toggle', default: true },
+      ]
+    },
+    'Excel Export': {
+      fields: [
+        { name: 'inputPath', label: 'Data Source', type: 'text', required: true, default: 'context.data' },
+        { name: 'outputPath', label: 'Output File Path', type: 'text', default: 'context.excelFile' },
+        { name: 'sheetName', label: 'Sheet Name', type: 'text', default: 'Sheet1' },
+        { name: 'includeCharts', label: 'Include Charts', type: 'toggle', default: false },
+      ]
+    },
+    'JSON Export': {
+      fields: [
+        { name: 'inputPath', label: 'Data Source', type: 'text', required: true, default: 'context.data' },
+        { name: 'outputPath', label: 'Output File Path', type: 'text', default: 'context.jsonFile' },
+        { name: 'pretty', label: 'Pretty Print', type: 'toggle', default: true },
+        { name: 'includeMetadata', label: 'Include Metadata', type: 'toggle', default: false },
+      ]
+    },
+    'Dashboard Update': {
+      fields: [
+        { name: 'dashboardId', label: 'Dashboard ID', type: 'text', required: true, placeholder: 'operations' },
+        { name: 'metrics', label: 'Metrics to Update', type: 'text', required: true, placeholder: 'metric1, metric2', help: 'Comma-separated' },
+        { name: 'refreshMode', label: 'Refresh Mode', type: 'select', options: ['Immediate', 'Append', 'Replace'], default: 'Immediate' },
+        { name: 'inputPath', label: 'Data Source', type: 'text', default: 'context.data' },
+      ]
+    },
   };
 
   // Initialize expanded categories
