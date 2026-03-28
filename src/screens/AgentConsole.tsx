@@ -3,13 +3,6 @@ import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { Agent, AgentState } from '../types/agent';
 import { SAMPLES } from '../constants/samples';
 
-// ── Agent Templates ──────────────────────────────────────────────────────────
-const AGENT_TEMPLATES: Array<{
-  id: string; name: string; description: string; icon: string; color: string;
-  category: string; capabilities: string[]; defaultWorkflows: string[];
-  complexity: 'basic' | 'intermediate' | 'advanced';
-}> = [];
-
 interface AgentConsoleProps {
   agents: Agent[];
   agentStates: Record<string, AgentState>;
@@ -67,7 +60,10 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
 
   const selectedAgent = agentId && agentId !== 'new' ? agents.find(a => a.id === agentId) || null : null;
   const selectedState = selectedAgent ? agentStates[selectedAgent.id] : null;
-  const filtered = agents.filter(a => !a.isTemplate && a.name.toLowerCase().includes(search.toLowerCase()));
+  const templateAgents = agents.filter(a => a.isTemplate || a.isDefault);
+  const filtered = agents.filter(
+    a => !a.isTemplate && !a.isDefault && a.name.toLowerCase().includes(search.toLowerCase())
+  );
 
   // Pre-fill canvas when editing an existing agent (from three-dot Edit)
   useEffect(() => {
@@ -271,15 +267,14 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
     }
   };
 
-  const handleUseTemplate = async (template: typeof AGENT_TEMPLATES[0]) => {
+  const handleUseTemplate = async (template: Agent) => {
     setAgentName(template.name);
     setAgentDescription(template.description);
     setAgentCapabilities(template.capabilities.join(', '));
     setAgentColor(template.color);
 
-    const matching = availableWorkflows.filter(wf =>
-      wf.category === template.category ||
-      template.defaultWorkflows.some(dw => wf.name.toLowerCase().includes(dw.toLowerCase()))
+    const matching = availableWorkflows.filter(
+      wf => wf.category?.toLowerCase() === (template.subtitle || '').toLowerCase()
     );
     setCanvasNodes(matching.map((wf, i) => ({
       id: `wn-${Date.now()}-${i}`,
@@ -1542,8 +1537,16 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
 
             {/* Templates */}
             <div style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 16 }}>
-                {AGENT_TEMPLATES.map(template => (
+              {templateAgents.length === 0 ? (
+                <div style={{
+                  border: '1px dashed var(--border)', borderRadius: 8, padding: 24,
+                  textAlign: 'center', color: 'var(--text-muted)', fontSize: 12,
+                }}>
+                  No agent templates available.
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 16 }}>
+                {templateAgents.map(template => (
                   <div
                     key={template.id}
                     style={{
@@ -1595,24 +1598,21 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
                       <span style={{
                         padding: '3px 8px', borderRadius: 3, fontSize: 9, fontWeight: 600,
                         fontFamily: 'var(--font-mono)', textTransform: 'uppercase',
-                        background: template.complexity === 'advanced' ? 'rgba(239,68,68,0.15)' : 'rgba(245,158,11,0.15)',
-                        color: template.complexity === 'advanced' ? '#EF4444' : '#F59E0B',
-                      }}>{template.complexity}</span>
+                        background: template.isTemplate ? 'rgba(239,68,68,0.15)' : 'rgba(245,158,11,0.15)',
+                        color: template.isTemplate ? '#EF4444' : '#F59E0B',
+                      }}>{template.isTemplate ? 'TEMPLATE' : 'DEFAULT'}</span>
                       <span style={{
                         padding: '3px 8px', borderRadius: 3, fontSize: 9,
                         background: 'rgba(0,212,255,0.12)', color: '#00D4FF',
                         fontFamily: 'var(--font-mono)', fontWeight: 600,
-                      }}>{template.category}</span>
+                      }}>{template.subtitle || 'General'}</span>
                     </div>
 
                     <div style={{
                       fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)',
                       borderTop: '1px solid var(--border)', paddingTop: 10,
                     }}>
-                      Default workflows:
-                      {template.defaultWorkflows.map((wf, i) => (
-                        <div key={i} style={{ marginTop: 4, paddingLeft: 8 }}>· {wf}</div>
-                      ))}
+                      Capabilities: {template.capabilities?.length || 0}
                     </div>
 
                     <button style={{
@@ -1628,7 +1628,8 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
                     </button>
                   </div>
                 ))}
-              </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

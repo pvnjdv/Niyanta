@@ -58,7 +58,7 @@ export class AgentManager {
       const { getDB } = require('../db/database');
       const db = getDB();
       
-      let query = 'SELECT id, name, description, category, tags, triggers FROM workflows WHERE status = ? AND allow_agent_invocation = 1';
+      let query = 'SELECT id, name, description, category, tags, triggers FROM workflows WHERE status = ? AND allow_agent_invocation = 1 AND COALESCE(is_agent, 0) = 0';
       const params: any[] = ['active'];
 
       if (options?.category) {

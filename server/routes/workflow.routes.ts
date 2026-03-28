@@ -8,11 +8,16 @@ const workflowEngine = new WorkflowEngine();
 
 // GET all workflows with optional filtering
 router.get('/', (req: Request, res: Response) => {
-  const { status, category, published, agentInvocable } = req.query;
+  const { status, category, published, agentInvocable, includeAgentWorkflows } = req.query;
   
   const db = getDB();
   let query = 'SELECT * FROM workflows WHERE 1=1';
   const params: any[] = [];
+
+  // Keep agent backing workflows isolated from Workflow Studio by default.
+  if (includeAgentWorkflows !== 'true') {
+    query += ' AND COALESCE(is_agent, 0) = 0';
+  }
 
   if (status) {
     query += ' AND status = ?';
@@ -43,7 +48,7 @@ router.get('/', (req: Request, res: Response) => {
 router.get('/discover', (_req: Request, res: Response) => {
   const db = getDB();
   const workflows = db.prepare(
-    'SELECT id, name, description, category, tags, triggers, status FROM workflows WHERE status = ? AND allow_agent_invocation = 1'
+    'SELECT id, name, description, category, tags, triggers, status FROM workflows WHERE status = ? AND allow_agent_invocation = 1 AND COALESCE(is_agent, 0) = 0'
   ).all('active');
   
   // Parse JSON fields
