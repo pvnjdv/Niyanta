@@ -32,6 +32,8 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [renamingAgent, setRenamingAgent] = useState<{ id: string; name: string } | null>(null);
   const [renameValue, setRenameValue] = useState('');
+  const [detailAgentId, setDetailAgentId] = useState<string | null>(null);
+  const [detailLinkedWorkflows, setDetailLinkedWorkflows] = useState<Array<{workflow_id: string; name: string; description: string; category: string; can_trigger: number}>>([]);
 
   // Canvas state (for /agents/new or editing)
   const [agentName, setAgentName] = useState('');
@@ -94,6 +96,14 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
     };
     fetchLinkedWorkflows();
   }, [agentId]);
+
+  useEffect(() => {
+    if (!detailAgentId) { setDetailLinkedWorkflows([]); return; }
+    fetch(`http://localhost:3001/api/agent/${detailAgentId}/workflows`)
+      .then(r => r.ok ? r.json() : { workflows: [] })
+      .then(d => setDetailLinkedWorkflows(d.workflows || []))
+      .catch(() => setDetailLinkedWorkflows([]));
+  }, [detailAgentId]);
 
   // Close dropdown menu on outside click
   useEffect(() => {
@@ -1077,7 +1087,7 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
                   }}
                   onClick={(e) => {
                     if (!(e.target as HTMLElement).closest('.action-btn')) {
-                      navigate(`/agents/${agent.id}`);
+                      setDetailAgentId(agent.id);
                     }
                   }}
                 >
@@ -1222,6 +1232,185 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
           </div>
         )}
       </div>
+
+      {/* ══ Agent Detail Panel ══════════════════════════════════════════════ */}
+      {detailAgentId && (() => {
+        const da = agents.find(a => a.id === detailAgentId);
+        if (!da) return null;
+        const ds = agentStates[da.id];
+        const PROTECTED = ['meeting', 'invoice', 'document'];
+        const statusColor = ds?.status === 'complete' ? '#10B981' : ds?.status === 'error' ? '#DC2626' : ds?.status === 'processing' ? '#D97706' : 'var(--text-muted)';
+
+        return (
+          <>
+            {/* Backdrop */}
+            <div
+              style={{ position: 'fixed', inset: 0, zIndex: 300 }}
+              onClick={() => setDetailAgentId(null)}
+            />
+            {/* Side panel */}
+            <div style={{
+              position: 'fixed', top: 0, right: 0, bottom: 0, width: 400,
+              background: 'var(--bg-panel)', borderLeft: `3px solid ${da.color}`,
+              boxShadow: '-8px 0 32px rgba(0,0,0,0.35)',
+              zIndex: 301, display: 'flex', flexDirection: 'column',
+              overflowY: 'auto',
+            }}>
+              {/* Header */}
+              <div style={{ padding: '20px 20px 16px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                  <div style={{
+                    width: 44, height: 44, borderRadius: 10, background: `${da.color}22`,
+                    border: `1.5px solid ${da.color}66`, display: 'grid', placeItems: 'center',
+                    fontSize: 22, flexShrink: 0,
+                  }}>{da.icon}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 700, fontSize: 15, lineHeight: 1.3, marginBottom: 3 }}>{da.name}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>{da.subtitle}</div>
+                  </div>
+                  <button
+                    onClick={() => setDetailAgentId(null)}
+                    style={{ width: 28, height: 28, borderRadius: 4, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 16, display: 'grid', placeItems: 'center', flexShrink: 0 }}
+                  >×</button>
+                </div>
+
+                {/* Badges row */}
+                <div style={{ display: 'flex', gap: 6, marginTop: 12, flexWrap: 'wrap' }}>
+                  <span style={{
+                    fontFamily: 'var(--font-mono)', fontSize: 8, fontWeight: 600, padding: '2px 6px',
+                    borderRadius: 3, letterSpacing: '0.05em',
+                    background: PROTECTED.includes(da.id) ? 'rgba(124,58,237,0.15)' : 'rgba(5,150,105,0.15)',
+                    color: PROTECTED.includes(da.id) ? '#7C3AED' : '#059669',
+                    border: `1px solid ${PROTECTED.includes(da.id) ? 'rgba(124,58,237,0.4)' : 'rgba(5,150,105,0.4)'}`,
+                  }}>{PROTECTED.includes(da.id) ? 'DEFAULT' : 'CUSTOM'}</span>
+                  {ds && (
+                    <span style={{
+                      fontFamily: 'var(--font-mono)', fontSize: 8, fontWeight: 600, padding: '2px 6px',
+                      borderRadius: 3, letterSpacing: '0.05em', textTransform: 'uppercase',
+                      background: ds.status === 'complete' ? 'rgba(16,185,129,0.12)' : ds.status === 'error' ? 'rgba(220,38,38,0.1)' : ds.status === 'processing' ? 'rgba(217,119,6,0.1)' : 'rgba(107,114,128,0.1)',
+                      color: statusColor,
+                      border: `1px solid ${statusColor === 'var(--text-muted)' ? 'var(--border)' : statusColor + '55'}`,
+                    }}>{ds.status}</span>
+                  )}
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 8, fontWeight: 600, padding: '2px 6px', borderRadius: 3, letterSpacing: '0.05em', background: `${da.color}18`, color: da.color, border: `1px solid ${da.color}44` }}>
+                    NIYANTA CONNECTED
+                  </span>
+                </div>
+              </div>
+
+              {/* Body */}
+              <div style={{ flex: 1, padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+                {/* Description */}
+                <div>
+                  <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.06em', marginBottom: 8 }}>Description</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.65 }}>{da.description || 'No description provided.'}</div>
+                </div>
+
+                {/* Capabilities */}
+                {da.capabilities?.length > 0 && (
+                  <div>
+                    <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.06em', marginBottom: 8 }}>Capabilities</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {da.capabilities.map((cap: string, i: number) => (
+                        <span key={i} style={{ padding: '4px 8px', borderRadius: 3, fontSize: 10, background: `${da.color}12`, color: da.color, border: `1px solid ${da.color}30`, fontFamily: 'var(--font-mono)' }}>{cap}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Last activity */}
+                {ds && (
+                  <div>
+                    <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.06em', marginBottom: 8 }}>Activity</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
+                        <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>TASKS RUN</span>
+                        <span style={{ fontWeight: 600 }}>{ds.taskCount ?? 0}</span>
+                      </div>
+                      {ds.lastActivity && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
+                          <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>LAST RUN</span>
+                          <span>{new Date(ds.lastActivity).toLocaleString()}</span>
+                        </div>
+                      )}
+                      {ds.processingTime != null && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
+                          <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>LAST DURATION</span>
+                          <span>{(ds.processingTime / 1000).toFixed(2)}s</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Linked workflows */}
+                <div>
+                  <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.06em', marginBottom: 8 }}>
+                    Linked Workflows {detailLinkedWorkflows.length > 0 && <span style={{ color: da.color }}>({detailLinkedWorkflows.length})</span>}
+                  </div>
+                  {detailLinkedWorkflows.length === 0 ? (
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>No workflows linked</div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {detailLinkedWorkflows.map(wf => (
+                        <div key={wf.workflow_id} style={{ padding: '8px 10px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-tile)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <div style={{ width: 6, height: 6, borderRadius: '50%', background: da.color, flexShrink: 0 }} />
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 12, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{wf.name}</div>
+                            {wf.category && <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{wf.category}</div>}
+                          </div>
+                          {wf.can_trigger === 1 && (
+                            <span style={{ fontSize: 8, fontFamily: 'var(--font-mono)', color: '#10B981', background: 'rgba(16,185,129,0.12)', padding: '2px 5px', borderRadius: 3, border: '1px solid rgba(16,185,129,0.3)', flexShrink: 0 }}>TRIGGER</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Agent flow */}
+                <div>
+                  <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.06em', marginBottom: 8 }}>Execution Flow</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {['Input Received', 'Relevance Check', 'Workflow Conversion', 'Execute Pipeline', 'Report to Niyanta'].map((step, i, arr) => (
+                      <div key={step} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11 }}>
+                        <div style={{ width: 20, height: 20, borderRadius: '50%', background: `${da.color}20`, border: `1px solid ${da.color}55`, display: 'grid', placeItems: 'center', fontSize: 9, fontWeight: 700, color: da.color, flexShrink: 0 }}>{i + 1}</div>
+                        <span style={{ color: 'var(--text-secondary)' }}>{step}</span>
+                        {i < arr.length - 1 && <div style={{ flex: 1, height: 0, borderBottom: '1px dashed var(--border)' }} />}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Actions footer */}
+              <div style={{ padding: '16px 20px', borderTop: '1px solid var(--border)', flexShrink: 0, display: 'flex', gap: 10 }}>
+                <button
+                  onClick={() => { setDetailAgentId(null); navigate(`/agents/${da.id}/run`); }}
+                  style={{
+                    flex: 1, height: 38, borderRadius: 4,
+                    background: da.color, border: 'none',
+                    color: '#fff', cursor: 'pointer', fontSize: 12,
+                    fontFamily: 'var(--font-mono)', fontWeight: 700, letterSpacing: '0.04em',
+                  }}
+                >▶ RUN AGENT</button>
+                <button
+                  onClick={() => { setDetailAgentId(null); navigate(`/agents/${da.id}`); }}
+                  style={{
+                    height: 38, padding: '0 16px', borderRadius: 4,
+                    background: 'transparent', border: '1px solid var(--border)',
+                    color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 12,
+                    fontFamily: 'var(--font-mono)',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = da.color; e.currentTarget.style.color = da.color; }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
+                >EDIT</button>
+              </div>
+            </div>
+          </>
+        );
+      })()}
 
       {/* ══ Template Gallery Modal ══════════════════════════════════════════ */}
       {showTemplates && (
