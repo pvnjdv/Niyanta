@@ -899,6 +899,24 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
 
   const selNode = canvasNodes.find(n => n.id === selectedNode);
 
+  // Load workflow data when workflowId changes
+  React.useEffect(() => {
+    if (workflowId && workflowId !== 'new') {
+      loadWorkflow(workflowId);
+    } else if (workflowId === 'new') {
+      // Reset for new workflow
+      setWorkflowName('New Workflow');
+      setWorkflowDescription('');
+      setWorkflowCategory('General');
+      setWorkflowTags([]);
+      setWorkflowTriggers([]);
+      setCanvasNodes([]);
+      setNodeConfigs({});
+      setIsPublished(false);
+      setSelectedNode(null);
+    }
+  }, [workflowId]);
+
   // ===== WORKFLOW LIST VIEW =====
   if (!workflowId) {
     const filteredWorkflows = allWorkflows.filter(wf => 
@@ -1122,24 +1140,6 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
   }
 
   // ===== WORKFLOW CANVAS EDITOR =====
-  // Load workflow data when workflowId changes
-  React.useEffect(() => {
-    if (workflowId && workflowId !== 'new') {
-      loadWorkflow(workflowId);
-    } else if (workflowId === 'new') {
-      // Reset for new workflow
-      setWorkflowName('New Workflow');
-      setWorkflowDescription('');
-      setWorkflowCategory('General');
-      setWorkflowTags([]);
-      setWorkflowTriggers([]);
-      setCanvasNodes([]);
-      setNodeConfigs({});
-      setIsPublished(false);
-      setSelectedNode(null);
-    }
-  }, [workflowId]);
-
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       {/* ===== TOP BAR ===== */}
