@@ -2103,14 +2103,14 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
               style={{
                 width: '100%', height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                 fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase',
-                background: 'var(--accent)', color: '#FFFFFF', border: 'none', borderRadius: 4, cursor: 'pointer',
+                background: 'var(--bg-panel)', color: 'var(--accent)', border: '1px solid var(--border)', borderRadius: 4, cursor: 'pointer',
                 transition: 'all 0.15s ease',
               }}
-              onMouseEnter={e => { e.currentTarget.style.opacity = '0.9'; e.currentTarget.style.transform = 'scale(0.98)'; }}
+              onMouseEnter={e => { e.currentTarget.style.opacity = '0.85'; e.currentTarget.style.transform = 'scale(0.98)'; }}
               onMouseLeave={e => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.transform = 'scale(1)'; }}
             >
-              <span style={{ fontSize: 16, color: '#FFFFFF' }}>+</span>
-              <span style={{ color: '#FFFFFF' }}>CREATE NODE</span>
+              <span style={{ fontSize: 16 }}>+</span>
+              <span>CREATE NODE</span>
             </button>
           </div>
         </div>
