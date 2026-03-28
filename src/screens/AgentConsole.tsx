@@ -4,41 +4,11 @@ import { Agent, AgentState } from '../types/agent';
 import { SAMPLES } from '../constants/samples';
 
 // ── Agent Templates ──────────────────────────────────────────────────────────
-const AGENT_TEMPLATES = [
-  {
-    id: 'tpl-finance',
-    name: 'Finance Operations Agent',
-    description: 'End-to-end finance automation — invoice processing, payment validation, expense tracking, and financial reporting. Connects to finance workflows and reports anomalies to Niyanta.',
-    icon: '💰',
-    color: '#059669',
-    category: 'Finance',
-    capabilities: ['Invoice Processing', 'Payment Validation', 'Expense Tracking', 'Financial Reporting', 'Anomaly Detection'],
-    defaultWorkflows: ['Invoice-to-Payment', 'Expense Approval', 'Budget Monitoring'],
-    complexity: 'advanced' as const,
-  },
-  {
-    id: 'tpl-hr',
-    name: 'HR & People Ops Agent',
-    description: 'Manages employee onboarding, leave requests, performance reviews, and compliance checks. Processes HR documents and escalates issues to Niyanta for oversight.',
-    icon: '👥',
-    color: '#7C3AED',
-    category: 'HR',
-    capabilities: ['Onboarding Automation', 'Leave Management', 'Document Verification', 'Compliance Checking', 'Performance Tracking'],
-    defaultWorkflows: ['Employee Onboarding', 'Leave Approval', 'Document Classification'],
-    complexity: 'intermediate' as const,
-  },
-  {
-    id: 'tpl-security',
-    name: 'Security & Compliance Agent',
-    description: 'Monitors security events, enforces compliance policies, performs risk assessments, and generates audit reports. All findings are reported to Niyanta in real-time.',
-    icon: '🛡️',
-    color: '#EF4444',
-    category: 'Security',
-    capabilities: ['Threat Monitoring', 'Policy Enforcement', 'Risk Assessment', 'Audit Reporting', 'Access Control'],
-    defaultWorkflows: ['Security Scan', 'Compliance Check', 'Incident Response'],
-    complexity: 'advanced' as const,
-  },
-];
+const AGENT_TEMPLATES: Array<{
+  id: string; name: string; description: string; icon: string; color: string;
+  category: string; capabilities: string[]; defaultWorkflows: string[];
+  complexity: 'basic' | 'intermediate' | 'advanced';
+}> = [];
 
 interface AgentConsoleProps {
   agents: Agent[];
@@ -60,6 +30,8 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
   const [inputText, setInputText] = useState('');
   const [linkedWorkflows, setLinkedWorkflows] = useState<Array<{workflow_id: string; name: string; description: string; category: string; can_trigger: number}>>([]);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [renamingAgent, setRenamingAgent] = useState<{ id: string; name: string } | null>(null);
+  const [renameValue, setRenameValue] = useState('');
 
   // Canvas state (for /agents/new or editing)
   const [agentName, setAgentName] = useState('');
@@ -229,6 +201,35 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
 
     setShowTemplates(false);
     navigate('/agents/new');
+  };
+
+  const handleRename = async () => {
+    if (!renamingAgent || !renameValue.trim()) return;
+    try {
+      await fetch(`http://localhost:3001/api/agent/${renamingAgent.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: renameValue.trim() }),
+      });
+      window.location.reload();
+    } catch (err) {
+      console.error('Failed to rename agent:', err);
+    }
+    setRenamingAgent(null);
+  };
+
+  const handleSetMaintenance = async (agentId: string, agentName: string) => {
+    if (!confirm(`Put "${agentName}" into maintenance mode? It will be paused and unavailable for execution.`)) return;
+    try {
+      await fetch(`http://localhost:3001/api/agent/${agentId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'maintenance' }),
+      });
+      window.location.reload();
+    } catch (err) {
+      console.error('Failed to set maintenance:', err);
+    }
   };
 
   // ── Canvas mouse handlers ──────────────────────────────────────────────────
@@ -1043,6 +1044,7 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
           <div style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+            gridAutoRows: '1fr',
             gap: 16,
           }}>
             {filtered.map(agent => {
@@ -1050,7 +1052,9 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
               const PROTECTED = ['meeting', 'invoice', 'document'];
               const canDelete = !PROTECTED.includes(agent.id);
               const showMenu = openMenuId === agent.id;
-              
+              const statusColor = state?.status === 'complete' ? '#10B981'
+                : state?.status === 'error' ? '#DC2626' : '#D97706';
+
               return (
                 <div
                   key={agent.id}
@@ -1059,15 +1063,17 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
                     border: '1px solid var(--border)',
                     borderLeft: `3px solid ${agent.color}`,
                     borderRadius: 6,
-                    padding: '16px 18px',
+                    padding: '14px 16px',
                     cursor: 'pointer',
                     transition: 'border-color 0.15s',
                     position: 'relative',
+                    display: 'flex',
+                    flexDirection: 'column',
                   }}
-                  onMouseEnter={e => { e.currentTarget.style.borderColor = agent.color; }}
-                  onMouseLeave={e => { 
-                    (e.currentTarget.style as any).border = '1px solid var(--border)'; 
-                    e.currentTarget.style.borderLeft = `3px solid ${agent.color}`; 
+                  onMouseEnter={e => (e.currentTarget.style.borderColor = agent.color)}
+                  onMouseLeave={e => {
+                    (e.currentTarget.style as any).border = '1px solid var(--border)';
+                    e.currentTarget.style.borderLeft = `3px solid ${agent.color}`;
                   }}
                   onClick={(e) => {
                     if (!(e.target as HTMLElement).closest('.action-btn')) {
@@ -1075,11 +1081,10 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
                     }
                   }}
                 >
+                  {/* ── Header ── */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 600, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {agent.name}
-                      </div>
+                    <div style={{ flex: 1, minWidth: 0, fontWeight: 600, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {agent.name}
                     </div>
                     <span style={{
                       fontFamily: 'var(--font-mono)', fontSize: 8, fontWeight: 600,
@@ -1091,79 +1096,77 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
                     }}>
                       {PROTECTED.includes(agent.id) ? 'DEFAULT' : 'CUSTOM'}
                     </span>
+
+                    {/* Three-dot menu */}
                     <div style={{ position: 'relative' }}>
                       <button
                         className="action-btn"
                         onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === agent.id ? null : agent.id); }}
                         style={{
-                          width: 24, height: 24, borderRadius: 3,
+                          width: 24, height: 24, borderRadius: 3, flexShrink: 0,
                           background: 'transparent', border: '1px solid var(--border)',
-                          color: 'var(--text-muted)', cursor: 'pointer', fontSize: 12,
-                          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                          color: 'var(--text-muted)', cursor: 'pointer', fontSize: 14,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
                         }}
                         onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent-border)'; e.currentTarget.style.color = 'var(--accent)'; }}
                         onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-muted)'; }}
                         title="Options"
-                      >
-                        ⋮
-                      </button>
+                      >⋮</button>
+
                       {showMenu && (
-                        <div 
+                        <div
+                          className="action-btn"
                           style={{
                             position: 'absolute', top: '100%', right: 0, marginTop: 4,
                             background: 'var(--bg-panel)', border: '1px solid var(--border)',
-                            borderRadius: 4, boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
-                            zIndex: 100, minWidth: 140,
+                            borderRadius: 4, boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                            zIndex: 200, minWidth: 148,
                           }}
                           onClick={(e) => e.stopPropagation()}
                         >
+                          {/* Rename */}
                           <button
                             onClick={(e) => {
-                              e.stopPropagation();
-                              setOpenMenuId(null);
-                              navigate(`/agents/${agent.id}/run`);
+                              e.stopPropagation(); setOpenMenuId(null);
+                              setRenamingAgent({ id: agent.id, name: agent.name });
+                              setRenameValue(agent.name);
                             }}
-                            style={{
-                              width: '100%', padding: '8px 12px', textAlign: 'left',
-                              background: 'transparent', border: 'none', cursor: 'pointer',
-                              fontSize: 12, color: 'var(--text-primary)', display: 'flex',
-                              alignItems: 'center', gap: 8, fontFamily: 'var(--font-body)',
-                            }}
+                            style={{ width: '100%', padding: '8px 12px', textAlign: 'left', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-body)' }}
                             onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-tile-hover)'}
                             onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                           >
-                            <span style={{ color: agent.color }}>▶</span> Run Agent
+                            <span style={{ fontSize: 11 }}>✎</span> Rename
                           </button>
+
+                          {/* Maintenance */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation(); setOpenMenuId(null);
+                              handleSetMaintenance(agent.id, agent.name);
+                            }}
+                            style={{ width: '100%', padding: '8px 12px', textAlign: 'left', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-body)', borderTop: '1px solid var(--border)' }}
+                            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(245,158,11,0.08)'; e.currentTarget.style.color = '#D97706'; }}
+                            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-primary)'; }}
+                          >
+                            <span style={{ fontSize: 11 }}>⚙</span> Maintenance
+                          </button>
+
+                          {/* Delete */}
                           {canDelete && (
                             <button
                               onClick={async (e) => {
-                                e.stopPropagation();
-                                setOpenMenuId(null);
+                                e.stopPropagation(); setOpenMenuId(null);
                                 if (!confirm(`Delete agent "${agent.name}"? This cannot be undone.`)) return;
                                 try {
                                   const res = await fetch(`http://localhost:3001/api/agent/${agent.id}`, { method: 'DELETE' });
                                   if (res.ok) window.location.reload();
-                                } catch (err) {
-                                  console.error('Failed to delete agent:', err);
-                                }
+                                } catch (err) { console.error('Delete failed:', err); }
                               }}
-                              style={{
-                                width: '100%', padding: '8px 12px', textAlign: 'left',
-                                background: 'transparent', border: 'none', cursor: 'pointer',
-                                fontSize: 12, color: 'var(--text-primary)', display: 'flex',
-                                alignItems: 'center', gap: 8, fontFamily: 'var(--font-body)',
-                                borderTop: '1px solid var(--border)',
-                              }}
-                              onMouseEnter={e => { 
-                                e.currentTarget.style.background = 'rgba(255, 68, 68, 0.1)'; 
-                                e.currentTarget.style.color = 'var(--status-danger)';
-                              }}
-                              onMouseLeave={e => { 
-                                e.currentTarget.style.background = 'transparent';
-                                e.currentTarget.style.color = 'var(--text-primary)';
-                              }}
+                              style={{ width: '100%', padding: '8px 12px', textAlign: 'left', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-body)', borderTop: '1px solid var(--border)' }}
+                              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(220,38,38,0.08)'; e.currentTarget.style.color = '#DC2626'; }}
+                              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-primary)'; }}
                             >
-                              <span>✕</span> Delete
+                              <span style={{ fontSize: 11 }}>✕</span> Delete
                             </button>
                           )}
                         </div>
@@ -1171,28 +1174,47 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
                     </div>
                   </div>
 
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12, lineHeight: 1.5 }}>
+                  {/* ── Description (fills remaining space) ── */}
+                  <div style={{
+                    fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5, flex: 1,
+                    overflow: 'hidden', display: '-webkit-box',
+                    WebkitLineClamp: 3, WebkitBoxOrient: 'vertical',
+                  }}>
                     {agent.description || 'No description'}
                   </div>
 
+                  {/* ── Footer ── */}
                   <div style={{
-                    display: 'flex', alignItems: 'center', gap: 10,
-                    fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)',
-                    paddingTop: 10, borderTop: '1px solid var(--border)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    paddingTop: 10, marginTop: 10, borderTop: '1px solid var(--border)',
                   }}>
-                    <span style={{ textTransform: 'uppercase', color: agent.color, fontWeight: 600 }}>{agent.icon} {agent.subtitle}</span>
-                    {state && (
-                      <>
-                        <span style={{ opacity: 0.3 }}>·</span>
-                        <span style={{ 
-                          textTransform: 'uppercase',
-                          color: state.status === 'complete' ? '#10B981' :
-                                 state.status === 'error' ? '#DC2626' : '#D97706',
-                        }}>
-                          {state.status}
+                    <div style={{
+                      fontSize: 10, color: agent.color, fontFamily: 'var(--font-mono)',
+                      fontWeight: 600, textTransform: 'uppercase', overflow: 'hidden',
+                      textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    }}>
+                      {agent.icon} {agent.subtitle}
+                      {state && (
+                        <span style={{ color: statusColor }}>
+                          {' '}· {state.status}
                         </span>
-                      </>
-                    )}
+                      )}
+                    </div>
+                    <button
+                      className="action-btn"
+                      onClick={(e) => { e.stopPropagation(); navigate(`/agents/${agent.id}/run`); }}
+                      style={{
+                        height: 26, padding: '0 10px', borderRadius: 4, flexShrink: 0,
+                        background: `${agent.color}18`, border: `1px solid ${agent.color}55`,
+                        color: agent.color, cursor: 'pointer', fontSize: 10,
+                        fontFamily: 'var(--font-mono)', fontWeight: 700, letterSpacing: '0.04em',
+                        display: 'flex', alignItems: 'center', gap: 5,
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.background = `${agent.color}35`; e.currentTarget.style.borderColor = agent.color; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = `${agent.color}18`; e.currentTarget.style.borderColor = `${agent.color}55`; }}
+                    >
+                      ▶ RUN
+                    </button>
                   </div>
                 </div>
               );
@@ -1330,6 +1352,45 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
                   </div>
                 ))}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══ Rename Modal ═══════════════════════════════════════════════════ */}
+      {renamingAgent && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 300, display: 'grid', placeItems: 'center' }}
+          onClick={() => setRenamingAgent(null)}
+        >
+          <div
+            style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 8, padding: 24, width: 380, maxWidth: '90vw' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>Rename Agent</div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 16 }}>Enter a new name for this agent</div>
+            <input
+              value={renameValue}
+              onChange={e => setRenameValue(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') handleRename(); if (e.key === 'Escape') setRenamingAgent(null); }}
+              autoFocus
+              style={{
+                width: '100%', height: 38, padding: '0 12px', borderRadius: 4,
+                border: '1px solid var(--border)', background: 'var(--bg-input)',
+                color: 'var(--text-primary)', fontSize: 13, fontFamily: 'var(--font-body)',
+                outline: 'none', boxSizing: 'border-box',
+              }}
+            />
+            <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setRenamingAgent(null)}
+                style={{ height: 34, padding: '0 16px', borderRadius: 4, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 12 }}
+              >Cancel</button>
+              <button
+                onClick={handleRename}
+                disabled={!renameValue.trim() || renameValue.trim() === renamingAgent.name}
+                style={{ height: 34, padding: '0 16px', borderRadius: 4, border: '1px solid var(--accent-border)', background: 'var(--accent-dim)', color: 'var(--accent)', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
+              >Rename</button>
             </div>
           </div>
         </div>
