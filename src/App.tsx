@@ -10,7 +10,6 @@ import { useTheme } from './hooks/useTheme';
 import { fetchCrossWorkflowInsights } from './services/api';
 
 import NavigationSidebar from './components/layout/NavigationSidebar';
-import TopBar from './components/layout/TopBar';
 import NiyantaAIPanel from './components/chat/NiyantaAIPanel';
 
 import CommandCenter from './screens/CommandCenter';
@@ -72,6 +71,17 @@ const AppContent: React.FC = () => {
     return () => { observer.disconnect(); clearInterval(timer); };
   }, []);
 
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setAiPanelOpen(open => !open);
+      }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, []);
+
   return (
     <div
       style={{
@@ -89,15 +99,6 @@ const AppContent: React.FC = () => {
         alertCount={0}
       />
 
-      <TopBar
-        onToggleAIPanel={() => setAiPanelOpen(!aiPanelOpen)}
-        aiPanelOpen={aiPanelOpen}
-        alertCount={0}
-        theme={theme}
-        onToggleTheme={toggleTheme}
-        sidebarWidth={sidebarWidth}
-      />
-
       {/* Main content */}
       <div
         style={{
@@ -105,7 +106,7 @@ const AppContent: React.FC = () => {
           overflow: 'hidden',
           marginLeft: sidebarWidth,
           marginRight: aiPanelOpen ? 380 : 0,
-          marginTop: 48,
+          marginTop: 0,
           transition: 'margin 250ms ease',
         }}
       >

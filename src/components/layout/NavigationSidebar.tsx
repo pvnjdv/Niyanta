@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 
 interface NavigationSidebarProps {
@@ -40,6 +40,32 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [sidebarSearch, setSidebarSearch] = useState('');
+  const [showSearch, setShowSearch] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
+
+  const searchItems = [
+    { name: 'Command Centre', path: '/' },
+    { name: 'Workflows', path: '/workflows' },
+    { name: 'Agent Studio', path: '/agents' },
+    { name: 'Operations', path: '/monitor' },
+    { name: 'Audit & Compliance', path: '/audit' },
+    { name: 'Services', path: '/services' },
+    { name: 'Notifications', path: '/notifications' },
+    { name: 'Settings', path: '/settings' },
+  ];
+
+  const searchResults = sidebarSearch.trim()
+    ? searchItems.filter(i => i.name.toLowerCase().includes(sidebarSearch.toLowerCase()))
+    : [];
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) setShowSearch(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   const getActiveId = (): string => {
     const p = location.pathname;
@@ -125,6 +151,47 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
 
       {/* Main nav */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '8px 8px', gap: 2, overflowY: 'auto' }}>
+
+        {/* Search */}
+        {!collapsed && (
+          <div ref={searchRef} style={{ position: 'relative', marginBottom: 4, flexShrink: 0 }}>
+            <input
+              value={sidebarSearch}
+              onChange={e => { setSidebarSearch(e.target.value); setShowSearch(true); }}
+              onFocus={() => setShowSearch(true)}
+              placeholder="Search..."
+              style={{
+                width: '100%', height: 32, padding: '0 12px', fontSize: 13,
+                background: 'var(--bg-input)', border: '1px solid var(--border)',
+                borderRadius: 4, color: 'var(--text-primary)', outline: 'none',
+                fontFamily: 'var(--font-body)', boxSizing: 'border-box',
+              }}
+            />
+            {showSearch && searchResults.length > 0 && (
+              <div style={{
+                position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 200,
+                background: 'var(--bg-panel)', border: '1px solid var(--border)',
+                borderRadius: 4, marginTop: 4,
+              }}>
+                {searchResults.map((item, i) => (
+                  <button
+                    key={i}
+                    onClick={() => { navigate(item.path); setSidebarSearch(''); setShowSearch(false); }}
+                    style={{
+                      width: '100%', height: 36, padding: '0 12px', textAlign: 'left',
+                      fontSize: 13, color: 'var(--text-primary)', background: 'transparent',
+                      border: 'none', cursor: 'pointer', fontFamily: 'var(--font-body)',
+                    }}
+                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-tile-hover)')}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                  >
+                    {item.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         {NAV_ITEMS.map((item) => {
           const isActive = activeId === item.id;
           const isHovered = hoveredId === item.id;
@@ -282,31 +349,35 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
         )}
 
         {/* Theme toggle */}
-        <button
+        <div
           onClick={onToggleTheme}
           style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-            height: 36,
-            padding: collapsed ? '0 12px' : '0 12px',
-            borderRadius: 4,
-            border: 'none',
-            cursor: 'pointer',
-            background: 'transparent',
-            color: 'var(--text-secondary)',
-            fontFamily: 'var(--font-body)',
-            fontSize: 13,
+            display: 'flex', alignItems: 'center', gap: 10, height: 36,
+            padding: collapsed ? '0 12px' : '0 12px', cursor: 'pointer',
             justifyContent: collapsed ? 'center' : 'flex-start',
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
+            borderRadius: 4,
           }}
         >
-          <span style={{ fontSize: 16, width: 20, textAlign: 'center', flexShrink: 0 }}>
-            {theme === 'dark' ? '◐' : '◑'}
-          </span>
-          {!collapsed && <span>{theme === 'dark' ? 'Dark' : 'Light'}</span>}
-        </button>
+          {/* Toggle pill */}
+          <div style={{
+            position: 'relative', width: 34, height: 18, borderRadius: 9, flexShrink: 0,
+            background: theme === 'dark' ? 'var(--bg-tile)' : '#8B5CF6',
+            border: '1px solid var(--border)', transition: 'background 0.2s',
+          }}>
+            <div style={{
+              position: 'absolute', top: 2,
+              left: theme === 'dark' ? 2 : 14,
+              width: 12, height: 12, borderRadius: '50%',
+              background: theme === 'dark' ? 'var(--text-muted)' : '#fff',
+              transition: 'left 0.2s',
+            }} />
+          </div>
+          {!collapsed && (
+            <span style={{ fontSize: 13, color: 'var(--text-secondary)', fontFamily: 'var(--font-body)', whiteSpace: 'nowrap' }}>
+              {theme === 'dark' ? 'Dark' : 'Light'}
+            </span>
+          )}
+        </div>
 
         {/* User */}
         <div

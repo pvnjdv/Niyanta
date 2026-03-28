@@ -1522,12 +1522,11 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
               height: 36, padding: '0 20px', borderRadius: 4, fontWeight: 600,
               background: 'var(--accent-dim)', border: '1px solid var(--accent-border)',
               color: 'var(--accent)', cursor: 'pointer', fontSize: 13,
-              fontFamily: 'var(--font-mono)',
+              fontFamily: 'var(--font-mono)', marginLeft: 'auto',
             }}
           >
-            + CREATE NEW WORKFLOW
+            + CREATE
           </button>
-          <div style={{ marginLeft: 'auto' }} />
           <button
             onClick={() => setShowTemplateGallery(true)}
             style={{
