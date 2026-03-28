@@ -30,14 +30,22 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
   
   // Node management
   const [nodeSearch, setNodeSearch] = useState('');
-  const [canvasNodes, setCanvasNodes] = useState<Array<{ id: string; type: string; name: string; x: number; y: number; category: string; color: string }>>([]);
+  const [canvasNodes, setCanvasNodes] = useState<Array<{ id: string; type: string; name: string; x: number; y: number; category: string; color: string; config?: any }>>([]);
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
   const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set());
+  const [nodeConfigs, setNodeConfigs] = useState<Record<string, any>>({});
   
   // Canvas controls
   const [canvasZoom, setCanvasZoom] = useState(100);
   const [gridSnapping, setGridSnapping] = useState(true);
   const gridSize = 28;
+  
+  // Execution state (Phase 4)
+  const [executionLogs, setExecutionLogs] = useState<Array<{ time: string; level: string; node: string; message: string; data?: any }>>([]);
+  const [executionErrors, setExecutionErrors] = useState<Array<{ time: string; node: string; error: string; stack?: string }>>([]);
+  const [nodeExecutionState, setNodeExecutionState] = useState<Record<string, 'pending' | 'running' | 'success' | 'error'>>({});
+  const [executionStartTime, setExecutionStartTime] = useState<number | null>(null);
+  const [executionContext, setExecutionContext] = useState<any>({});
 
   // Mock data
   const mockWorkflows = [
@@ -106,6 +114,75 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
     'Dashboard Update': 'Update dashboard visualizations',
   };
 
+  // Node Configuration Schemas (Phase 2)
+  const nodeSchemas: Record<string, any> = {
+    'OCR': {
+      fields: [
+        { name: 'language', label: 'Language', type: 'select', required: true, options: ['English', 'Spanish', 'French', 'German', 'Auto-detect'], default: 'Auto-detect' },
+        { name: 'dpi', label: 'DPI Quality', type: 'number', min: 150, max: 600, default: 300, help: 'Higher DPI = better quality but slower' },
+        { name: 'preprocessImage', label: 'Preprocess Image', type: 'toggle', default: true, help: 'Apply image enhancement before OCR' },
+        { name: 'outputFormat', label: 'Output Format', type: 'select', options: ['Plain Text', 'Structured JSON', 'Markdown'], default: 'Plain Text' },
+      ]
+    },
+    'LLM Reasoning': {
+      fields: [
+        { name: 'model', label: 'Model', type: 'select', required: true, options: ['llama-3.3-70b', 'llama-3.1-8b', 'mixtral-8x7b'], default: 'llama-3.3-70b' },
+        { name: 'prompt', label: 'System Prompt', type: 'textarea', rows: 4, required: true, placeholder: 'You are a helpful assistant...', help: 'Define the AI behavior and context' },
+        { name: 'temperature', label: 'Temperature', type: 'slider', min: 0, max: 2, step: 0.1, default: 0.7, help: '0=deterministic, 2=creative' },
+        { name: 'maxTokens', label: 'Max Tokens', type: 'number', min: 100, max: 8000, default: 2000 },
+        { name: 'includeContext', label: 'Include Workflow Context', type: 'toggle', default: true },
+      ]
+    },
+    'If/Else': {
+      fields: [
+        { name: 'condition', label: 'Condition', type: 'text', required: true, placeholder: 'data.status === "approved"', help: 'JavaScript expression to evaluate' },
+        { name: 'operator', label: 'Operator', type: 'select', options: ['equals', 'not equals', 'greater than', 'less than', 'contains', 'regex'], default: 'equals' },
+        { name: 'value', label: 'Compare Value', type: 'text', placeholder: 'Enter value...' },
+        { name: 'caseSensitive', label: 'Case Sensitive', type: 'toggle', default: false },
+      ]
+    },
+    'Notification': {
+      fields: [
+        { name: 'title', label: 'Title', type: 'text', required: true, placeholder: 'Notification title' },
+        { name: 'message', label: 'Message', type: 'textarea', rows: 3, required: true, placeholder: 'Message content...' },
+        { name: 'priority', label: 'Priority', type: 'select', options: ['Low', 'Normal', 'High', 'Critical'], default: 'Normal' },
+        { name: 'recipients', label: 'Recipients', type: 'text', placeholder: 'user@example.com, user2@example.com', help: 'Comma-separated list' },
+      ]
+    },
+    'Save Data': {
+      fields: [
+        { name: 'table', label: 'Table Name', type: 'text', required: true, placeholder: 'table_name' },
+        { name: 'operation', label: 'Operation', type: 'select', options: ['Insert', 'Update', 'Upsert'], default: 'Insert' },
+        { name: 'dataPath', label: 'Data Path', type: 'text', placeholder: 'context.extractedData', help: 'Path to data in workflow context' },
+        { name: 'primaryKey', label: 'Primary Key', type: 'text', placeholder: 'id' },
+      ]
+    },
+    'Invoice Processor': {
+      fields: [
+        { name: 'extractFields', label: 'Extract Fields', type: 'multiselect', options: ['Invoice Number', 'Date', 'Vendor', 'Amount', 'Tax', 'Line Items'], default: ['Invoice Number', 'Date', 'Amount'] },
+        { name: 'validateAmount', label: 'Validate Amount', type: 'toggle', default: true },
+        { name: 'minAmount', label: 'Min Amount', type: 'number', min: 0, default: 0, condition: 'validateAmount' },
+        { name: 'maxAmount', label: 'Max Amount', type: 'number', min: 0, default: 100000, condition: 'validateAmount' },
+        { name: 'requireApproval', label: 'Require Approval Above', type: 'number', min: 0, default: 5000, help: 'Approval threshold amount' },
+      ]
+    },
+    'Schedule': {
+      fields: [
+        { name: 'cronExpression', label: 'Cron Expression', type: 'text', required: true, placeholder: '0 9 * * 1-5', help: 'Every weekday at 9 AM' },
+        { name: 'timezone', label: 'Timezone', type: 'select', options: ['UTC', 'America/New_York', 'America/Los_Angeles', 'Europe/London', 'Asia/Tokyo'], default: 'UTC' },
+        { name: 'enabled', label: 'Enabled', type: 'toggle', default: true },
+      ]
+    },
+    'Loop': {
+      fields: [
+        { name: 'arrayPath', label: 'Array Path', type: 'text', required: true, placeholder: 'context.items', help: 'Path to array in context' },
+        { name: 'maxIterations', label: 'Max Iterations', type: 'number', min: 1, max: 1000, default: 100, help: 'Safety limit' },
+        { name: 'parallel', label: 'Run in Parallel', type: 'toggle', default: false },
+        { name: 'continueOnError', label: 'Continue on Error', type: 'toggle', default: false },
+      ]
+    },
+  };
+
   // Initialize expanded categories
   React.useEffect(() => {
     setExpandedCats(new Set(nodeCategories.map(c => c.name)));
@@ -130,8 +207,352 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
       y = Math.round(y / gridSize) * gridSize;
     }
     
-    setCanvasNodes(prev => [...prev, { id, type: name, name, x, y, category: cat.name, color: cat.color }]);
+    // Initialize default config from schema
+    const schema = nodeSchemas[name];
+    const defaultConfig: any = {};
+    if (schema?.fields) {
+      schema.fields.forEach((field: any) => {
+        if (field.default !== undefined) {
+          defaultConfig[field.name] = field.default;
+        }
+      });
+    }
+    
+    setCanvasNodes(prev => [...prev, { id, type: name, name, x, y, category: cat.name, color: cat.color, config: defaultConfig }]);
+    setNodeConfigs(prev => ({ ...prev, [id]: defaultConfig }));
     setSelectedNode(id);
+  };
+
+  // Update node configuration
+  const updateNodeConfig = (nodeId: string, field: string, value: any) => {
+    setNodeConfigs(prev => ({
+      ...prev,
+      [nodeId]: { ...(prev[nodeId] || {}), [field]: value }
+    }));
+    
+    setCanvasNodes(prev => prev.map(node => 
+      node.id === nodeId ? { ...node, config: { ...(node.config || {}), [field]: value } } : node
+    ));
+  };
+
+  // Validate node configuration
+  const validateNodeConfig = (nodeType: string, config: any): { valid: boolean; errors: string[] } => {
+    const schema = nodeSchemas[nodeType];
+    if (!schema) return { valid: true, errors: [] };
+    
+    const errors: string[] = [];
+    
+    schema.fields.forEach((field: any) => {
+      if (field.required && !config[field.name]) {
+        errors.push(`${field.label} is required`);
+      }
+      
+      if (field.type === 'number' && config[field.name] !== undefined) {
+        const val = config[field.name];
+        if (field.min !== undefined && val < field.min) {
+          errors.push(`${field.label} must be at least ${field.min}`);
+        }
+        if (field.max !== undefined && val > field.max) {
+          errors.push(`${field.label} must be at most ${field.max}`);
+        }
+      }
+    });
+    
+    return { valid: errors.length === 0, errors };
+  };
+
+  // Configuration Presets
+  const configPresets: Record<string, Record<string, any>> = {
+    'OCR': {
+      'High Quality': { language: 'Auto-detect', dpi: 600, preprocessImage: true, outputFormat: 'Structured JSON' },
+      'Fast Processing': { language: 'Auto-detect', dpi: 150, preprocessImage: false, outputFormat: 'Plain Text' },
+      'Multilingual': { language: 'Auto-detect', dpi: 300, preprocessImage: true, outputFormat: 'Structured JSON' },
+    },
+    'LLM Reasoning': {
+      'Creative Writer': { model: 'llama-3.3-70b', temperature: 1.5, maxTokens: 4000, includeContext: true },
+      'Analytical': { model: 'llama-3.3-70b', temperature: 0.2, maxTokens: 2000, includeContext: true },
+      'Balanced': { model: 'llama-3.3-70b', temperature: 0.7, maxTokens: 2000, includeContext: true },
+    },
+    'Invoice Processor': {
+      'Standard Invoice': { extractFields: ['Invoice Number', 'Date', 'Vendor', 'Amount'], validateAmount: true, requireApproval: 5000 },
+      'Detailed Processing': { extractFields: ['Invoice Number', 'Date', 'Vendor', 'Amount', 'Tax', 'Line Items'], validateAmount: true, requireApproval: 1000 },
+    },
+  };
+
+  // Apply preset configuration
+  const applyPreset = (nodeId: string, nodeType: string, presetName: string) => {
+    const preset = configPresets[nodeType]?.[presetName];
+    if (!preset) return;
+    
+    Object.entries(preset).forEach(([field, value]) => {
+      updateNodeConfig(nodeId, field, value);
+    });
+  };
+
+  // Workflow Execution (Phase 4)
+  const executeWorkflow = async () => {
+    if (canvasNodes.length === 0) {
+      addLog('ERROR', 'Workflow', 'No nodes to execute');
+      return;
+    }
+    
+    // Validate all nodes
+    const invalidNodes = canvasNodes.filter(node => {
+      const validation = validateNodeConfig(node.type, nodeConfigs[node.id] || {});
+      return !validation.valid;
+    });
+    
+    if (invalidNodes.length > 0) {
+      addLog('ERROR', 'Workflow', `${invalidNodes.length} node(s) have invalid configuration`);
+      setWorkflowStatus('error');
+      return;
+    }
+    
+    // Reset execution state
+    setWorkflowStatus('running');
+    setExecutionLogs([]);
+    setExecutionErrors([]);
+    setNodeExecutionState({});
+    setExecutionStartTime(Date.now());
+    setExecutionContext({});
+    setShowBottomPanel(true);
+    setBottomTab('logs');
+    
+    addLog('INFO', 'Workflow', `Starting execution: ${workflowName}`);
+    addLog('INFO', 'System', `Environment: ${environment}`);
+    addLog('INFO', 'System', `${canvasNodes.length} nodes in workflow`);
+    
+    // Simulate execution (sequential)
+    try {
+      for (let i = 0; i < canvasNodes.length; i++) {
+        const node = canvasNodes[i];
+        await executeNode(node);
+        
+        // Wait between nodes
+        await new Promise(resolve => setTimeout(resolve, 800));
+      }
+      
+      setWorkflowStatus('idle');
+      addLog('SUCCESS', 'Workflow', `Execution completed successfully in ${((Date.now() - (executionStartTime || 0)) / 1000).toFixed(2)}s`);
+    } catch (error: any) {
+      setWorkflowStatus('error');
+      addLog('ERROR', 'Workflow', `Execution failed: ${error.message}`);
+    }
+  };
+  
+  const executeNode = async (node: any) => {
+    setNodeExecutionState(prev => ({ ...prev, [node.id]: 'running' }));
+    addLog('INFO', node.name, 'Executing node...');
+    
+    // Simulate processing time
+    const processingTime = 500 + Math.random() * 1500;
+    await new Promise(resolve => setTimeout(resolve, processingTime));
+    
+    // Simulate success/failure (95% success rate)
+    const success = Math.random() > 0.05;
+    
+    if (success) {
+      setNodeExecutionState(prev => ({ ...prev, [node.id]: 'success' }));
+      
+      // Generate mock output based on node type
+      let output: any;
+      switch (node.type) {
+        case 'OCR':
+          output = { extractedText: 'Sample invoice text...', confidence: 0.95 };
+          break;
+        case 'LLM Reasoning':
+          output = { response: 'AI-generated analysis...', tokensUsed: 250 };
+          break;
+        case 'Invoice Processor':
+          output = { invoiceNumber: 'INV-12345', amount: 1250.00, vendor: 'Acme Corp' };
+          break;
+        default:
+          output = { status: 'completed', timestamp: new Date().toISOString() };
+      }
+      
+      addLog('SUCCESS', node.name, `Execution completed in ${(processingTime / 1000).toFixed(2)}s`, output);
+      
+      // Update context
+      setExecutionContext(prev => ({ ...prev, [node.id]: output }));
+    } else {
+      setNodeExecutionState(prev => ({ ...prev, [node.id]: 'error' }));
+      const errorMsg = 'Simulated execution error';
+      addLog('ERROR', node.name, errorMsg);
+      setExecutionErrors(prev => [...prev, { 
+        time: new Date().toLocaleTimeString(), 
+        node: node.name, 
+        error: errorMsg,
+        stack: 'at executeNode (WorkflowStudio.tsx:line 123)'
+      }]);
+      throw new Error(errorMsg);
+    }
+  };
+  
+  const addLog = (level: string, node: string, message: string, data?: any) => {
+    const timestamp = new Date().toLocaleTimeString() + '.' + String(Date.now() % 1000).padStart(3, '0');
+    setExecutionLogs(prev => [...prev, { time: timestamp, level, node, message, data }]);
+  };
+  
+  const stopWorkflow = () => {
+    setWorkflowStatus('idle');
+    addLog('INFO', 'System', 'Workflow execution stopped by user');
+  };
+
+  // Dynamic Form Field Renderer
+  const renderFormField = (field: any, nodeId: string, currentValue: any) => {
+    const value = currentValue ?? field.default;
+    
+    switch (field.type) {
+      case 'text':
+        return (
+          <div key={field.name} style={{ marginBottom: 12 }}>
+            <label style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-secondary)', display: 'block', marginBottom: 4, textTransform: 'uppercase' }}>
+              {field.label} {field.required && <span style={{ color: 'var(--status-danger)' }}>*</span>}
+            </label>
+            <input
+              type="text"
+              value={value || ''}
+              onChange={(e) => updateNodeConfig(nodeId, field.name, e.target.value)}
+              placeholder={field.placeholder}
+              required={field.required}
+              style={{ width: '100%', height: 32, padding: '0 10px', fontSize: 12 }}
+            />
+            {field.help && <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', marginTop: 4 }}>{field.help}</div>}
+          </div>
+        );
+      
+      case 'textarea':
+        return (
+          <div key={field.name} style={{ marginBottom: 12 }}>
+            <label style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-secondary)', display: 'block', marginBottom: 4, textTransform: 'uppercase' }}>
+              {field.label} {field.required && <span style={{ color: 'var(--status-danger)' }}>*</span>}
+            </label>
+            <textarea
+              value={value || ''}
+              onChange={(e) => updateNodeConfig(nodeId, field.name, e.target.value)}
+              placeholder={field.placeholder}
+              rows={field.rows || 3}
+              required={field.required}
+              style={{ width: '100%', minHeight: field.rows ? field.rows * 24 : 72, resize: 'vertical', padding: '8px 10px', fontSize: 12 }}
+            />
+            {field.help && <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', marginTop: 4 }}>{field.help}</div>}
+          </div>
+        );
+      
+      case 'number':
+        return (
+          <div key={field.name} style={{ marginBottom: 12 }}>
+            <label style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-secondary)', display: 'block', marginBottom: 4, textTransform: 'uppercase' }}>
+              {field.label} {field.required && <span style={{ color: 'var(--status-danger)' }}>*</span>}
+            </label>
+            <input
+              type="number"
+              value={value ?? ''}
+              onChange={(e) => updateNodeConfig(nodeId, field.name, parseFloat(e.target.value))}
+              min={field.min}
+              max={field.max}
+              required={field.required}
+              style={{ width: '100%', height: 32, padding: '0 10px', fontSize: 12 }}
+            />
+            {field.help && <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', marginTop: 4 }}>{field.help}</div>}
+          </div>
+        );
+      
+      case 'select':
+        return (
+          <div key={field.name} style={{ marginBottom: 12 }}>
+            <label style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-secondary)', display: 'block', marginBottom: 4, textTransform: 'uppercase' }}>
+              {field.label} {field.required && <span style={{ color: 'var(--status-danger)' }}>*</span>}
+            </label>
+            <select
+              value={value || field.default || ''}
+              onChange={(e) => updateNodeConfig(nodeId, field.name, e.target.value)}
+              required={field.required}
+              style={{ width: '100%', height: 32, padding: '0 8px', fontSize: 12 }}
+            >
+              {field.options?.map((opt: string) => (
+                <option key={opt} value={opt}>{opt}</option>
+              ))}
+            </select>
+            {field.help && <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', marginTop: 4 }}>{field.help}</div>}
+          </div>
+        );
+      
+      case 'toggle':
+        return (
+          <div key={field.name} style={{ marginBottom: 12 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={value ?? field.default ?? false}
+                onChange={(e) => updateNodeConfig(nodeId, field.name, e.target.checked)}
+                style={{ width: 16, height: 16 }}
+              />
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>
+                {field.label}
+              </span>
+            </label>
+            {field.help && <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', marginTop: 4, marginLeft: 24 }}>{field.help}</div>}
+          </div>
+        );
+      
+      case 'slider':
+        return (
+          <div key={field.name} style={{ marginBottom: 12 }}>
+            <label style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-secondary)', display: 'flex', justifyContent: 'space-between', marginBottom: 4, textTransform: 'uppercase' }}>
+              <span>{field.label}</span>
+              <span style={{ color: 'var(--accent)', fontWeight: 600 }}>{value ?? field.default}</span>
+            </label>
+            <input
+              type="range"
+              value={value ?? field.default}
+              onChange={(e) => updateNodeConfig(nodeId, field.name, parseFloat(e.target.value))}
+              min={field.min}
+              max={field.max}
+              step={field.step || 1}
+              style={{ width: '100%' }}
+            />
+            {field.help && <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', marginTop: 4 }}>{field.help}</div>}
+          </div>
+        );
+      
+      case 'multiselect':
+        const selectedValues = value || field.default || [];
+        return (
+          <div key={field.name} style={{ marginBottom: 12 }}>
+            <label style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-secondary)', display: 'block', marginBottom: 6, textTransform: 'uppercase' }}>
+              {field.label} {field.required && <span style={{ color: 'var(--status-danger)' }}>*</span>}
+            </label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {field.options?.map((opt: string) => {
+                const isSelected = selectedValues.includes(opt);
+                return (
+                  <button
+                    key={opt}
+                    onClick={() => {
+                      const newValues = isSelected
+                        ? selectedValues.filter((v: string) => v !== opt)
+                        : [...selectedValues, opt];
+                      updateNodeConfig(nodeId, field.name, newValues);
+                    }}
+                    style={{
+                      padding: '4px 10px', fontSize: 10, fontFamily: 'var(--font-mono)',
+                      background: isSelected ? 'var(--accent-dim)' : 'var(--bg-base)',
+                      border: isSelected ? '1px solid var(--accent-border)' : '1px solid var(--border)',
+                      color: isSelected ? 'var(--accent)' : 'var(--text-secondary)',
+                      cursor: 'pointer', borderRadius: 2,
+                    }}
+                  >{opt}</button>
+                );
+              })}
+            </div>
+            {field.help && <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', marginTop: 4 }}>{field.help}</div>}
+          </div>
+        );
+      
+      default:
+        return null;
+    }
   };
 
   const statusColors = {
@@ -198,7 +619,7 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
         {/* Control Buttons */}
         <div style={{ display: 'flex', gap: 6 }}>
           <button 
-            onClick={() => setWorkflowStatus(workflowStatus === 'running' ? 'idle' : 'running')}
+            onClick={() => workflowStatus === 'running' ? stopWorkflow() : executeWorkflow()}
             style={{
               height: 32, padding: '0 16px', fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 600,
               background: 'var(--accent-dim)', border: '1px solid var(--accent-border)',
@@ -396,32 +817,55 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
           )}
 
           {/* Nodes */}
-          {canvasNodes.map(node => (
+          {canvasNodes.map(node => {
+            const execState = nodeExecutionState[node.id];
+            const isExecuting = execState === 'running';
+            const hasCompleted = execState === 'success';
+            const hasFailed = execState === 'error';
+            
+            return (
             <div
               key={node.id}
               onClick={(e) => { e.stopPropagation(); setSelectedNode(node.id); }}
               style={{
                 position: 'absolute', left: node.x, top: node.y, width: 180, minHeight: 64,
-                background: 'var(--bg-tile)',
-                border: selectedNode === node.id ? `2px solid ${node.color}` : '1px solid var(--border)',
-                boxShadow: selectedNode === node.id ? `0 0 0 3px ${node.color}20` : undefined,
+                background: hasFailed ? 'var(--status-danger-bg)' : 'var(--bg-tile)',
+                border: selectedNode === node.id ? `2px solid ${node.color}` : 
+                        hasFailed ? '2px solid var(--status-danger)' :
+                        hasCompleted ? '2px solid var(--status-success)' :
+                        isExecuting ? `2px solid ${node.color}` :
+                        '1px solid var(--border)',
+                boxShadow: selectedNode === node.id ? `0 0 0 3px ${node.color}20` : 
+                           isExecuting ? `0 0 0 3px ${node.color}40, 0 0 20px ${node.color}60` : undefined,
                 cursor: 'move',
                 borderRadius: 4,
+                animation: isExecuting ? 'pulse 1.5s ease-in-out infinite' : undefined,
               }}
             >
               <div style={{
                 height: 32, borderBottom: '1px solid var(--border)', display: 'flex',
                 alignItems: 'center', gap: 6, padding: '0 10px',
+                background: isExecuting ? `${node.color}20` : undefined,
               }}>
                 <span style={{ width: 8, height: 8, borderRadius: '50%', background: node.color }} />
                 <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, textTransform: 'uppercase', color: 'var(--text-muted)' }}>{node.category}</span>
+                
+                {/* Execution Status Indicator */}
+                {execState && (
+                  <span style={{ marginLeft: 'auto', marginRight: 4, fontSize: 12 }}>
+                    {isExecuting && '⟳'}
+                    {hasCompleted && '✓'}
+                    {hasFailed && '✕'}
+                  </span>
+                )}
+                
                 <button 
                   onClick={(e) => { 
                     e.stopPropagation(); 
                     setCanvasNodes(prev => prev.filter(n => n.id !== node.id)); 
                     if (selectedNode === node.id) setSelectedNode(null);
                   }}
-                  style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--text-muted)', opacity: 0.5, background: 'none', border: 'none', cursor: 'pointer' }}
+                  style={{ marginLeft: execState ? 0 : 'auto', fontSize: 10, color: 'var(--text-muted)', opacity: 0.5, background: 'none', border: 'none', cursor: 'pointer' }}
                 >✕</button>
               </div>
               <div style={{ padding: '10px 12px' }}>
@@ -437,7 +881,8 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
                 width: 10, height: 10, borderRadius: '50%', border: '1px solid var(--border)', background: 'var(--bg-base)',
               }} />
             </div>
-          ))}
+          );
+          })}
 
           </div>
           {/* End Canvas Transform Container */}
@@ -536,12 +981,47 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
               <div style={{ padding: 16 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
                   <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 15, flex: 1 }}>{selNode.name}</div>
-                  <div style={{
-                    fontFamily: 'var(--font-mono)', fontSize: 9, padding: '4px 8px',
-                    background: 'var(--status-success-bg)', color: 'var(--status-success)',
-                    border: '1px solid var(--status-success)', borderRadius: 2,
-                  }}>✓ VALID</div>
+                  {(() => {
+                    const validation = validateNodeConfig(selNode.type, nodeConfigs[selNode.id] || {});
+                    return (
+                      <div 
+                        style={{
+                          fontFamily: 'var(--font-mono)', fontSize: 9, padding: '4px 8px',
+                          background: validation.valid ? 'var(--status-success-bg)' : 'var(--status-danger-bg)',
+                          color: validation.valid ? 'var(--status-success)' : 'var(--status-danger)',
+                          border: `1px solid ${validation.valid ? 'var(--status-success)' : 'var(--status-danger)'}`,
+                          borderRadius: 2,
+                        }}
+                        title={validation.errors.join(', ')}
+                      >
+                        {validation.valid ? '✓ VALID' : '⚠ ' + validation.errors.length + ' ERROR' + (validation.errors.length > 1 ? 'S' : '')}
+                      </div>
+                    );
+                  })()}
                 </div>
+                
+                {/* Configuration Presets */}
+                {configPresets[selNode.type] && (
+                  <div style={{ marginBottom: 12 }}>
+                    <label style={{ fontFamily: 'var(--font-mono)', fontSize: 9, textTransform: 'uppercase', color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>
+                      LOAD PRESET
+                    </label>
+                    <select
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          applyPreset(selNode.id, selNode.type, e.target.value);
+                          e.target.value = ''; // Reset selector
+                        }
+                      }}
+                      style={{ width: '100%', height: 32, padding: '0 8px', fontSize: 12 }}
+                    >
+                      <option value="">Select a preset...</option>
+                      {Object.keys(configPresets[selNode.type]).map(presetName => (
+                        <option key={presetName} value={presetName}>{presetName}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 
                 <div style={{ marginBottom: 12 }}>
                   <label style={{ fontFamily: 'var(--font-mono)', fontSize: 9, textTransform: 'uppercase', color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>
@@ -557,18 +1037,35 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
                   <textarea rows={3} placeholder="Node description..." style={{ width: '100%', minHeight: 80, resize: 'vertical', padding: '8px 10px', fontSize: 13 }} />
                 </div>
 
-                {/* Node-specific config will go here in Phase 2 */}
-                <div style={{ 
-                  padding: 12, background: 'var(--bg-base)', 
-                  border: '1px solid var(--border)', borderRadius: 2, marginBottom: 12 
-                }}>
-                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', marginBottom: 8 }}>
-                    NODE CONFIGURATION
+                {/* Dynamic Node Configuration */}
+                {nodeSchemas[selNode.type] ? (
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={{ 
+                      fontFamily: 'var(--font-mono)', fontSize: 9, 
+                      textTransform: 'uppercase', color: 'var(--text-secondary)', 
+                      marginBottom: 12, paddingBottom: 8, borderBottom: '1px solid var(--border)',
+                      fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6,
+                    }}>
+                      <span>⚙</span>
+                      <span>NODE CONFIGURATION</span>
+                    </div>
+                    {nodeSchemas[selNode.type].fields.map((field: any) => 
+                      renderFormField(field, selNode.id, nodeConfigs[selNode.id]?.[field.name])
+                    )}
                   </div>
-                  <div style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'var(--text-secondary)' }}>
-                    Dynamic configuration form will appear here based on node type (Phase 2)
+                ) : (
+                  <div style={{ 
+                    padding: 12, background: 'var(--bg-base)', 
+                    border: '1px solid var(--border)', borderRadius: 2, marginBottom: 12 
+                  }}>
+                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', marginBottom: 6 }}>
+                      NO CONFIGURATION NEEDED
+                    </div>
+                    <div style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'var(--text-secondary)' }}>
+                      This node type doesn't require additional configuration
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {/* Output Preview */}
                 <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16, marginTop: 16, marginBottom: 12 }}>
@@ -723,11 +1220,11 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
                 }}
               >
                 {tab}
-                {tab === 'errors' && mockErrors.length > 0 && (
+                {tab === 'errors' && executionErrors.length > 0 && (
                   <span style={{ 
                     marginLeft: 6, fontSize: 9, padding: '2px 5px', 
                     background: 'var(--status-danger)', color: 'white', borderRadius: 2 
-                  }}>{mockErrors.length}</span>
+                  }}>{executionErrors.length}</span>
                 )}
               </button>
             ))}
@@ -761,7 +1258,7 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
           <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
             {bottomTab === 'logs' && (
               <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>
-                {mockLogs.filter(log => 
+                {executionLogs.filter(log => 
                   !logFilter || log.message.toLowerCase().includes(logFilter.toLowerCase()) || 
                   log.node.toLowerCase().includes(logFilter.toLowerCase())
                 ).map((log, i) => (
@@ -793,9 +1290,9 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
                     )}
                   </div>
                 ))}
-                {mockLogs.length === 0 && (
+                {executionLogs.length === 0 && (
                   <div style={{ color: 'var(--text-muted)', textAlign: 'center', padding: 20 }}>
-                    No execution logs yet. Run the workflow to see logs here.
+                    No execution logs yet. Click RUN to execute the workflow.
                   </div>
                 )}
               </div>
@@ -803,7 +1300,7 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
             
             {bottomTab === 'errors' && (
               <div>
-                {mockErrors.length > 0 ? mockErrors.map((err, i) => (
+                {executionErrors.length > 0 ? executionErrors.map((err, i) => (
                   <div 
                     key={i}
                     style={{ 
