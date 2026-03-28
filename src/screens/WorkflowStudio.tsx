@@ -1507,6 +1507,41 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
       return false;
     };
 
+    const handleRename = async (id: string, currentName: string) => {
+      const nextName = prompt('Enter new workflow name:', currentName);
+      if (nextName === null) return;
+      const trimmedName = nextName.trim();
+      if (!trimmedName || trimmedName === currentName) return;
+
+      try {
+        const res = await fetch(`http://localhost:3001/api/workflow/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: trimmedName }),
+        });
+
+        if (!res.ok) {
+          const d = await res.json().catch(() => ({}));
+          alert(`Rename failed: ${d.message || res.status}`);
+          return;
+        }
+
+        const payload = await res.json().catch(() => ({}));
+        const updated = payload?.workflow;
+        setAllWorkflows(prev => prev.map(w =>
+          w.id === id
+            ? {
+                ...w,
+                name: updated?.name || trimmedName,
+                updated_at: updated?.updated_at || new Date().toISOString(),
+              }
+            : w
+        ));
+      } catch (err) {
+        alert(`Rename failed: ${err instanceof Error ? err.message : 'Network error'}`);
+      }
+    };
+
     const detailWorkflow = detailWorkflowId ? allWorkflows.find(w => w.id === detailWorkflowId) || null : null;
     const detailTags = (() => {
       if (!detailWorkflow) return [] as string[];
@@ -1670,7 +1705,8 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
                     onMouseLeave={e => { (e.currentTarget.style as any).border = '1px solid var(--border)'; e.currentTarget.style.borderLeft = `3px solid ${catColor}`; }}
                     onClick={(e) => {
                       if (!(e.target as HTMLElement).closest('.workflow-action-btn')) {
-                        navigate(`/workflows/${workflow.id}`);
+                        setOpenWorkflowMenuId(null);
+                        setDetailWorkflowId(workflow.id);
                       }
                     }}
                   >
@@ -1725,13 +1761,13 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
                             onClick={(e) => {
                               e.stopPropagation();
                               setOpenWorkflowMenuId(null);
-                              setDetailWorkflowId(workflow.id);
+                              handleRename(workflow.id, workflow.name || 'Untitled Workflow');
                             }}
                             style={{ width: '100%', padding: '8px 12px', textAlign: 'left', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-body)' }}
                             onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-tile-hover)'}
                             onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                           >
-                            <span style={{ fontSize: 11 }}>ℹ</span> Details
+                            <span style={{ fontSize: 11 }}>✎</span> Rename
                           </button>
                           <button
                             onClick={(e) => {
@@ -1774,7 +1810,35 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
                       <span style={{ textTransform: 'uppercase', color: catColor, fontWeight: 600 }}>{workflow.category || 'General'}</span>
                       <span style={{ opacity: 0.3 }}>·</span>
                       <span style={{ textTransform: 'uppercase' }}>{workflow.status || 'draft'}</span>
-                      <span style={{ marginLeft: 'auto' }}>Updated {new Date(workflow.updated_at).toLocaleDateString()}</span>
+                      <span>Updated {new Date(workflow.updated_at).toLocaleDateString()}</span>
+                      <button
+                        className="workflow-action-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/workflows/${workflow.id}`);
+                        }}
+                        style={{
+                          marginLeft: 'auto',
+                          height: 24,
+                          padding: '0 10px',
+                          borderRadius: 4,
+                          background: `${catColor}18`,
+                          border: `1px solid ${catColor}55`,
+                          color: catColor,
+                          cursor: 'pointer',
+                          fontSize: 10,
+                          fontFamily: 'var(--font-mono)',
+                          fontWeight: 700,
+                          letterSpacing: '0.04em',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 5,
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.background = `${catColor}35`; e.currentTarget.style.borderColor = catColor; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = `${catColor}18`; e.currentTarget.style.borderColor = `${catColor}55`; }}
+                      >
+                        OPEN
+                      </button>
                     </div>
                   </div>
                 );
