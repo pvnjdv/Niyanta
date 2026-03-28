@@ -10,6 +10,7 @@ interface WorkflowTemplate {
   estimatedTime: string;
   icon: string;
   triggers: string[];
+  nodes?: { id: string; type: string; name: string }[];
 }
 
 interface TemplateGalleryProps {
@@ -211,142 +212,177 @@ export const TemplateGallery: React.FC<TemplateGalleryProps> = ({ onTemplateSele
           ) : (
             <div style={{ 
               display: 'grid', 
-              gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))',
               gap: 16 
             }}>
-              {filteredTemplates.map(template => (
-                <div
-                  key={template.id}
-                  onClick={() => setSelectedTemplate(template)}
-                  style={{
-                    padding: 20, border: '1px solid var(--border)',
-                    background: selectedTemplate?.id === template.id ? 'var(--bg-tile)' : 'var(--bg-panel)',
-                    cursor: 'pointer', transition: 'all 0.15s',
-                    borderLeft: `4px solid ${getComplexityColor(template.complexity)}`,
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
-                >
-                  {/* Header */}
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 12 }}>
-                    <div style={{ 
-                      fontSize: 32, lineHeight: 1, flexShrink: 0 
-                    }}>
-                      {template.icon}
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ 
-                        fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 700,
-                        marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8,
+              {filteredTemplates.map(template => {
+                const isSelected = selectedTemplate?.id === template.id;
+                const complexityColor = getComplexityColor(template.complexity);
+                const catColors: Record<string, string> = {
+                  Finance: '#10B981', HR: '#EC4899', Operations: '#3B82F6',
+                  Security: '#EF4444', Compliance: '#F59E0B', IT: '#8B5CF6',
+                  'Document Processing': '#06B6D4', General: '#6B7280',
+                };
+                const catColor = catColors[template.category] || '#6B7280';
+                const nodeCount = (template.nodes || []).length;
+
+                return (
+                  <div
+                    key={template.id}
+                    onClick={() => { setSelectedTemplate(template); setCustomName(''); }}
+                    style={{
+                      display: 'flex', flexDirection: 'column', gap: 0,
+                      border: `1px solid ${isSelected ? catColor : 'var(--border)'}`,
+                      borderTop: `3px solid ${catColor}`,
+                      background: isSelected ? `${catColor}0d` : 'var(--bg-panel)',
+                      cursor: 'pointer', transition: 'all 0.15s', borderRadius: 6,
+                      boxShadow: isSelected ? `0 4px 20px ${catColor}30` : 'none',
+                      overflow: 'hidden',
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isSelected) {
+                        e.currentTarget.style.borderColor = catColor;
+                        e.currentTarget.style.boxShadow = `0 4px 16px ${catColor}20`;
+                        e.currentTarget.style.transform = 'translateY(-2px)';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isSelected) {
+                        e.currentTarget.style.borderColor = 'var(--border)';
+                        e.currentTarget.style.boxShadow = 'none';
+                        e.currentTarget.style.transform = 'translateY(0)';
+                      }
+                    }}
+                  >
+                    {/* Card header strip */}
+                    <div style={{ padding: '14px 16px 12px', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                      <div style={{
+                        width: 48, height: 48, borderRadius: 10, flexShrink: 0,
+                        background: `${catColor}20`, border: `1px solid ${catColor}44`,
+                        display: 'grid', placeItems: 'center', fontSize: 24,
                       }}>
-                        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {template.icon}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 700, fontSize: 14, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginBottom: 4 }}>
                           {template.name}
-                        </span>
-                      </div>
-                      <div style={{ 
-                        fontFamily: 'var(--font-mono)', fontSize: 9, 
-                        color: getComplexityColor(template.complexity),
-                        textTransform: 'uppercase', fontWeight: 600,
-                      }}>
-                        {template.complexity}
+                        </div>
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: catColor, textTransform: 'uppercase', fontWeight: 700, padding: '1px 5px', background: `${catColor}18`, borderRadius: 3 }}>{template.category}</span>
+                          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: complexityColor, textTransform: 'uppercase', fontWeight: 700, padding: '1px 5px', background: `${complexityColor}18`, borderRadius: 3 }}>{template.complexity}</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  {/* Description */}
-                  <div style={{ 
-                    fontFamily: 'var(--font-body)', fontSize: 12, 
-                    color: 'var(--text-secondary)', lineHeight: 1.5,
-                    marginBottom: 12, minHeight: 36,
-                  }}>
-                    {template.description}
-                  </div>
-
-                  {/* Metadata */}
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
-                    <div style={{ 
-                      fontFamily: 'var(--font-mono)', fontSize: 9,
-                      padding: '3px 8px', background: 'var(--bg-accent)',
-                      border: '1px solid var(--border)', borderRadius: 2,
-                    }}>
-                      📂 {template.category}
+                    {/* Description */}
+                    <div style={{ padding: '0 16px 12px', fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.55, minHeight: 40 }}>
+                      {template.description.length > 130 ? template.description.slice(0, 127) + '…' : template.description}
                     </div>
-                    <div style={{ 
-                      fontFamily: 'var(--font-mono)', fontSize: 9,
-                      padding: '3px 8px', background: 'var(--bg-accent)',
-                      border: '1px solid var(--border)', borderRadius: 2,
-                    }}>
-                      ⏱ {template.estimatedTime}
-                    </div>
-                  </div>
 
-                  {/* Tags */}
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                    {template.tags.slice(0, 4).map(tag => (
-                      <span key={tag} style={{ 
-                        fontFamily: 'var(--font-mono)', fontSize: 9,
-                        padding: '2px 6px', background: 'var(--bg-base)',
-                        color: 'var(--text-muted)', borderRadius: 2,
-                      }}>
-                        #{tag}
-                      </span>
-                    ))}
+                    {/* Stats row */}
+                    <div style={{ padding: '8px 16px', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)', background: 'rgba(0,0,0,0.12)', display: 'flex', gap: 16, alignItems: 'center' }}>
+                      {nodeCount > 0 && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                          <span style={{ fontSize: 11, opacity: 0.5 }}>◈</span>
+                          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)' }}>{nodeCount} NODES</span>
+                        </div>
+                      )}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <span style={{ fontSize: 11, opacity: 0.5 }}>⏱</span>
+                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)' }}>{template.estimatedTime}</span>
+                      </div>
+                      {(template.triggers || []).length > 0 && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginLeft: 'auto' }}>
+                          <span style={{ fontSize: 10, opacity: 0.5 }}>▶</span>
+                          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase' }}>{template.triggers[0]}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Tags */}
+                    <div style={{ padding: '10px 16px 14px', display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                      {template.tags.slice(0, 5).map(tag => (
+                        <span key={tag} style={{
+                          fontFamily: 'var(--font-mono)', fontSize: 9,
+                          padding: '2px 7px', borderRadius: 3,
+                          background: 'var(--bg-base)', color: 'var(--text-muted)',
+                          border: '1px solid var(--border)',
+                        }}>#{tag}</span>
+                      ))}
+                    </div>
+
+                    {/* Use button (shows on hover/select) */}
+                    {isSelected && (
+                      <div style={{ padding: '0 16px 14px' }}>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); }}
+                          style={{
+                            width: '100%', height: 32, fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700,
+                            background: catColor, border: 'none', color: 'white', borderRadius: 4, cursor: 'pointer',
+                            letterSpacing: '0.05em',
+                          }}
+                        >
+                          ✦ SELECT THIS TEMPLATE
+                        </button>
+                      </div>
+                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
 
-        {/* Footer with Preview */}
+        {/* Footer */}
         {selectedTemplate && (
           <div style={{ 
-            borderTop: '1px solid var(--border)', padding: 20,
-            display: 'flex', gap: 20, background: 'var(--bg-tile)',
+            borderTop: '1px solid var(--border)', padding: '14px 20px',
+            display: 'flex', gap: 12, alignItems: 'center', background: 'var(--bg-tile)',
             flexShrink: 0,
           }}>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>
-                SELECTED TEMPLATE
+            <div style={{ fontSize: 22, lineHeight: 1 }}>{selectedTemplate.icon}</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {selectedTemplate.name}
               </div>
-              <div style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 700, marginBottom: 8 }}>
-                {selectedTemplate.icon} {selectedTemplate.name}
+              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                {selectedTemplate.category} · {selectedTemplate.complexity} · {(selectedTemplate.nodes || []).length} nodes
               </div>
-              <input
-                type="text"
-                placeholder="Custom workflow name (optional)"
-                value={customName}
-                onChange={(e) => setCustomName(e.target.value)}
-                style={{
-                  width: '100%', height: 36, padding: '0 12px',
-                  fontFamily: 'var(--font-body)', fontSize: 13,
-                  background: 'var(--bg-panel)', border: '1px solid var(--border)',
-                  color: 'var(--text-primary)',
-                }}
-              />
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <button
-                onClick={() => { setSelectedTemplate(null); setCustomName(''); }}
-                style={{
-                  height: 40, padding: '0 20px', fontFamily: 'var(--font-mono)', fontSize: 11,
-                  background: 'transparent', border: '1px solid var(--border)',
-                  color: 'var(--text-secondary)', cursor: 'pointer',
-                }}
-              >
-                CANCEL
-              </button>
-              <button
-                onClick={handleUseTemplate}
-                style={{
-                  height: 40, padding: '0 24px', fontFamily: 'var(--font-mono)', fontSize: 11,
-                  background: '#8B5CF6', border: '1px solid #8B5CF6',
-                  color: 'white', cursor: 'pointer', fontWeight: 600,
-                }}
-              >
-                ✨ USE TEMPLATE
-              </button>
-            </div>
+            <input
+              type="text"
+              placeholder="Custom name (optional)"
+              value={customName}
+              onChange={(e) => setCustomName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleUseTemplate(); }}
+              style={{
+                width: 220, height: 36, padding: '0 12px',
+                fontFamily: 'var(--font-body)', fontSize: 12,
+                background: 'var(--bg-panel)', border: '1px solid var(--border)',
+                color: 'var(--text-primary)', borderRadius: 4, outline: 'none',
+              }}
+            />
+            <button
+              onClick={() => { setSelectedTemplate(null); setCustomName(''); }}
+              style={{
+                height: 36, padding: '0 16px', fontFamily: 'var(--font-mono)', fontSize: 11,
+                background: 'transparent', border: '1px solid var(--border)',
+                color: 'var(--text-secondary)', cursor: 'pointer', borderRadius: 4,
+              }}
+            >
+              CANCEL
+            </button>
+            <button
+              onClick={handleUseTemplate}
+              style={{
+                height: 36, padding: '0 24px', fontFamily: 'var(--font-mono)', fontSize: 11,
+                background: '#8B5CF6', border: '1px solid #8B5CF6',
+                color: 'white', cursor: 'pointer', fontWeight: 700, borderRadius: 4,
+                letterSpacing: '0.04em',
+              }}
+            >
+              ✨ USE TEMPLATE
+            </button>
           </div>
         )}
       </div>

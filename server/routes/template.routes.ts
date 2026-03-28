@@ -89,13 +89,13 @@ router.post('/:id/instantiate', (req: Request, res: Response) => {
       condition: edge.condition
     }));
     
-    // Create workflow from template
+    // Create workflow from template (is_default=0 — user-created copy)
     db.prepare(`
       INSERT INTO workflows (
         id, name, description, nodes, edges, status, category, 
-        tags, triggers, allow_agent_invocation, created_at, updated_at
+        tags, triggers, allow_agent_invocation, is_default, created_at, updated_at
       )
-      VALUES (?, ?, ?, ?, ?, 'draft', ?, ?, ?, 1, ?, ?)
+      VALUES (?, ?, ?, ?, ?, 'draft', ?, ?, ?, 1, 0, ?, ?)
     `).run(
       workflowId,
       customName || template.name,

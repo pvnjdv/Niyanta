@@ -36,9 +36,6 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
   const [searchFilter, setSearchFilter] = useState('');
   const [allWorkflows, setAllWorkflows] = useState<any[]>([]);
   const [loadingWorkflows, setLoadingWorkflows] = useState(true);
-  const [templates, setTemplates] = useState<any[]>([]);
-  const [loadingTemplates, setLoadingTemplates] = useState(true);
-  const [templateInstantiating, setTemplateInstantiating] = useState<string | null>(null);
   const [showTemplateGallery, setShowTemplateGallery] = useState(false);
   
   // Mock execution data
@@ -130,23 +127,7 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
         setLoadingWorkflows(false);
       }
     };
-    const fetchTemplates = async () => {
-      if (workflowId) return;
-      setLoadingTemplates(true);
-      try {
-        const res = await fetch('http://localhost:3001/api/templates');
-        if (res.ok) {
-          const data = await res.json();
-          setTemplates(data.templates || []);
-        }
-      } catch (err) {
-        console.error('Failed to fetch templates:', err);
-      } finally {
-        setLoadingTemplates(false);
-      }
-    };
     fetchWorkflows();
-    fetchTemplates();
   }, [workflowId]);
 
   // Mock data
@@ -1546,6 +1527,7 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
           >
             + CREATE NEW WORKFLOW
           </button>
+          <div style={{ marginLeft: 'auto' }} />
           <button
             onClick={() => setShowTemplateGallery(true)}
             style={{
@@ -1573,16 +1555,28 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
                   {searchFilter ? 'No workflows found' : 'No workflows yet'}
                 </div>
                 {!searchFilter && (
-                  <button
-                    onClick={() => navigate('/workflows/new')}
-                    style={{
-                      marginTop: 12, height: 36, padding: '0 20px', borderRadius: 4,
-                      background: 'var(--accent-dim)', border: '1px solid var(--accent-border)',
-                      color: 'var(--accent)', cursor: 'pointer', fontSize: 13, fontWeight: 600,
-                    }}
-                  >
-                    Create Your First Workflow
-                  </button>
+                  <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap', marginTop: 12 }}>
+                    <button
+                      onClick={() => navigate('/workflows/new')}
+                      style={{
+                        height: 36, padding: '0 20px', borderRadius: 4,
+                        background: 'var(--accent-dim)', border: '1px solid var(--accent-border)',
+                        color: 'var(--accent)', cursor: 'pointer', fontSize: 13, fontWeight: 600,
+                      }}
+                    >
+                      Create Your First Workflow
+                    </button>
+                    <button
+                      onClick={() => setShowTemplateGallery(true)}
+                      style={{
+                        height: 36, padding: '0 20px', borderRadius: 4,
+                        background: 'rgba(139,92,246,0.12)', border: '1px solid rgba(139,92,246,0.4)',
+                        color: '#8B5CF6', cursor: 'pointer', fontSize: 13, fontWeight: 600,
+                      }}
+                    >
+                      Browse Templates
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
@@ -1671,6 +1665,16 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
                       >
                         🗑
                       </button>
+                      <span style={{
+                        fontFamily: 'var(--font-mono)', fontSize: 8, fontWeight: 700,
+                        padding: '2px 6px', borderRadius: 3, letterSpacing: '0.06em',
+                        background: workflow.is_default ? 'rgba(139,92,246,0.15)' : 'rgba(16,185,129,0.12)',
+                        color: workflow.is_default ? '#8B5CF6' : '#10B981',
+                        border: `1px solid ${workflow.is_default ? 'rgba(139,92,246,0.35)' : 'rgba(16,185,129,0.3)'}`,
+                        flexShrink: 0, alignSelf: 'flex-start', marginTop: 2,
+                      }}>
+                        {workflow.is_default ? 'DEFAULT' : 'CUSTOM'}
+                      </span>
                     </div>
 
                     <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12, lineHeight: 1.5, minHeight: 36 }}>
@@ -1710,144 +1714,13 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
             </div>
           )}
 
-          {/* ===== PREBUILT TEMPLATES SECTION ===== */}
-          <div style={{ marginTop: 40 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
-              <div style={{ height: 1, flex: 1, background: 'var(--border)' }} />
-              <div style={{
-                fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700,
-                color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.12em',
-                padding: '0 16px',
-              }}>📚 Prebuilt Templates — click to use</div>
-              <div style={{ height: 1, flex: 1, background: 'var(--border)' }} />
-            </div>
-
-            {loadingTemplates ? (
-              <div style={{ textAlign: 'center', padding: '32px 0', fontSize: 12, color: 'var(--text-muted)' }}>Loading templates...</div>
-            ) : (
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
-                gap: 14,
-              }}>
-                {templates.map(tmpl => {
-                  const complexityColor = tmpl.complexity === 'beginner' ? '#10B981' : tmpl.complexity === 'intermediate' ? '#F59E0B' : '#EF4444';
-                  const catColors: Record<string, string> = { Finance: '#10B981', HR: '#EC4899', Operations: '#3B82F6', Security: '#EF4444', Compliance: '#F59E0B', IT: '#8B5CF6', 'Document Processing': '#06B6D4', General: '#6B7280' };
-                  const catColor = catColors[tmpl.category] || '#6B7280';
-                  const isInstantiating = templateInstantiating === tmpl.id;
-                  return (
-                    <div
-                      key={tmpl.id}
-                      style={{
-                        background: 'var(--bg-panel)',
-                        border: '1px solid var(--border)',
-                        borderTop: `3px solid ${catColor}`,
-                        borderRadius: 8,
-                        padding: '16px 18px 14px',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: 10,
-                        transition: 'box-shadow 0.18s, border-color 0.18s',
-                      }}
-                      onMouseEnter={e => {
-                        e.currentTarget.style.boxShadow = `0 6px 20px ${catColor}28`;
-                        e.currentTarget.style.borderColor = catColor;
-                      }}
-                      onMouseLeave={e => {
-                        e.currentTarget.style.boxShadow = 'none';
-                        e.currentTarget.style.borderColor = 'var(--border)';
-                      }}
-                    >
-                      {/* Header */}
-                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                        <div style={{
-                          width: 44, height: 44, borderRadius: 8, flexShrink: 0,
-                          background: `${catColor}22`, border: `1px solid ${catColor}44`,
-                          display: 'grid', placeItems: 'center', fontSize: 22,
-                        }}>
-                          {tmpl.icon}
-                        </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            {tmpl.name}
-                          </div>
-                          <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: catColor, textTransform: 'uppercase', fontWeight: 600 }}>{tmpl.category}</span>
-                            <span style={{ color: 'var(--border)' }}>·</span>
-                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: complexityColor, textTransform: 'uppercase', fontWeight: 600 }}>{tmpl.complexity}</span>
-                            <span style={{ color: 'var(--border)' }}>·</span>
-                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)' }}>{(tmpl.nodes || []).length} nodes</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Description */}
-                      <div style={{ fontSize: 11.5, color: 'var(--text-secondary)', lineHeight: 1.55 }}>
-                        {(tmpl.description || '').length > 120 ? (tmpl.description || '').slice(0, 117) + '…' : tmpl.description}
-                      </div>
-
-                      {/* Tags */}
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                        {(tmpl.tags || []).slice(0, 5).map((tag: string) => (
-                          <span key={tag} style={{
-                            fontFamily: 'var(--font-mono)', fontSize: 8.5,
-                            padding: '2px 6px', borderRadius: 3,
-                            background: 'var(--bg-base)', color: 'var(--text-muted)',
-                            border: '1px solid var(--border)',
-                          }}>#{tag}</span>
-                        ))}
-                      </div>
-
-                      {/* Footer */}
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 8, borderTop: '1px solid var(--border)' }}>
-                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)' }}>⏱ {tmpl.estimatedTime}</span>
-                        <button
-                          disabled={isInstantiating}
-                          onClick={async () => {
-                            setTemplateInstantiating(tmpl.id);
-                            try {
-                              const res = await fetch(`http://localhost:3001/api/templates/${tmpl.id}/instantiate`, {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ customName: tmpl.name }),
-                              });
-                              const data = await res.json();
-                              if (data.success) {
-                                navigate(`/workflows/${data.workflowId}`);
-                              } else {
-                                alert(`Failed: ${data.message || 'Unknown error'}`);
-                              }
-                            } catch (err) {
-                              alert('Failed to create workflow from template');
-                            } finally {
-                              setTemplateInstantiating(null);
-                            }
-                          }}
-                          style={{
-                            height: 28, padding: '0 14px',
-                            borderRadius: 4, fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700,
-                            background: isInstantiating ? 'var(--bg-tile)' : `${catColor}22`,
-                            border: `1px solid ${catColor}66`,
-                            color: isInstantiating ? 'var(--text-muted)' : catColor,
-                            cursor: isInstantiating ? 'not-allowed' : 'pointer',
-                            transition: 'all 0.15s',
-                          }}
-                        >
-                          {isInstantiating ? '⏳ CREATING...' : '✦ USE TEMPLATE'}
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
         </div>
         {showTemplateGallery && (
           <TemplateGallery
             onTemplateSelect={(newWorkflowId) => {
               setShowTemplateGallery(false);
               navigate(`/workflows/${newWorkflowId}`);
+              setAllWorkflows(prev => prev); // trigger re-fetch on next render
             }}
             onClose={() => setShowTemplateGallery(false)}
           />

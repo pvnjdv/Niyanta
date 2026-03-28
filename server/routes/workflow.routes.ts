@@ -71,8 +71,8 @@ router.post('/', (req: Request, res: Response) => {
 
   try {
     db.prepare(`
-      INSERT INTO workflows (id, name, description, nodes, edges, status, category, tags, triggers, allow_agent_invocation, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO workflows (id, name, description, nodes, edges, status, category, tags, triggers, allow_agent_invocation, is_default, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
     `).run(
       id, 
       name, 

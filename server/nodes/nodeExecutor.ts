@@ -271,32 +271,44 @@ async function executeManualTrigger(node: NodeToExecute, context: WorkflowContex
 }
 
 async function executeWebhookTrigger(node: NodeToExecute, context: WorkflowContext): Promise<WorkflowContext> {
+  const payload = (node.config.webhookPayload as Record<string, unknown>) || {};
+  const method = (node.config.method as string) || 'POST';
+  const endpoint = (node.config.endpoint as string) || '/webhook';
   return {
     ...context,
-    workflowState: {
-      ...context.workflowState,
-      currentNodeId: node.instanceId,
+    metadata: {
+      ...context.metadata,
+      trigger: { type: 'webhook', method, endpoint, payloadKeys: Object.keys(payload), receivedAt: new Date().toISOString() },
+      webhookPayload: payload,
     },
+    workflowState: { ...context.workflowState, currentNodeId: node.instanceId, status: 'RUNNING' },
   };
 }
 
 async function executeFileUploadTrigger(node: NodeToExecute, context: WorkflowContext): Promise<WorkflowContext> {
+  const file = (node.config.file as Record<string, unknown>) || {};
+  const acceptedTypes = (node.config.acceptedTypes as string) || '*';
   return {
     ...context,
-    workflowState: {
-      ...context.workflowState,
-      currentNodeId: node.instanceId,
+    metadata: {
+      ...context.metadata,
+      trigger: { type: 'file_upload', uploadedAt: new Date().toISOString(), acceptedTypes },
+      uploadedFile: { name: file.name || 'unknown', size: file.size || 0, mimeType: file.mimeType || 'application/octet-stream', path: file.path || '' },
     },
+    workflowState: { ...context.workflowState, currentNodeId: node.instanceId, status: 'RUNNING' },
   };
 }
 
 async function executeTimerTrigger(node: NodeToExecute, context: WorkflowContext): Promise<WorkflowContext> {
+  const cron = (node.config.cron as string) || '0 9 * * *';
+  const timezone = (node.config.timezone as string) || 'UTC';
   return {
     ...context,
-    workflowState: {
-      ...context.workflowState,
-      currentNodeId: node.instanceId,
+    metadata: {
+      ...context.metadata,
+      trigger: { type: 'timer', cron, timezone, triggeredAt: new Date().toISOString() },
     },
+    workflowState: { ...context.workflowState, currentNodeId: node.instanceId, status: 'RUNNING' },
   };
 }
 
@@ -528,20 +540,29 @@ reasoning (string), optionScores (array of { option, score, pros, cons }), crite
 // ============ DECISION NODES ============
 
 async function executeApproval(node: NodeToExecute, context: WorkflowContext): Promise<WorkflowContext> {
-  const approver = node.config.approver as string;
+  const approver = (node.config.approver as string) || '';
+  const autoApproveThreshold = (node.config.autoApproveThreshold as number) ?? 1000;
+  const amount = (context.invoice?.amount as number) ?? (context.finance?.amount as number) ?? 0;
+
+  if (amount && amount > autoApproveThreshold) {
+    try {
+      const db = getDB();
+      db.prepare(
+        `INSERT INTO pending_approvals (id, workflow_run_id, approver, amount, context, status, created_at)
+         VALUES (?, ?, ?, ?, ?, 'pending', datetime('now'))`
+      ).run(uuid(), context.runId, approver, amount, JSON.stringify(context.metadata));
+    } catch { /* table may not exist */ }
+    return {
+      ...context,
+      metadata: { ...context.metadata, approvalStatus: 'pending', pendingApprover: approver, amount },
+      workflowState: { ...context.workflowState, currentNodeId: node.instanceId, status: 'WAITING_APPROVAL' },
+    };
+  }
 
   return {
     ...context,
-    metadata: {
-      ...context.metadata,
-      approvalDecision: 'approved',
-      approvedBy: approver,
-      approvedAt: new Date().toISOString(),
-    },
-    workflowState: {
-      ...context.workflowState,
-      currentNodeId: node.instanceId,
-    },
+    metadata: { ...context.metadata, approvalDecision: 'approved', approvedBy: 'auto', approvedAt: new Date().toISOString(), amount },
+    workflowState: { ...context.workflowState, currentNodeId: node.instanceId },
   };
 }
 
@@ -666,40 +687,57 @@ async function executeApprovalChain(node: NodeToExecute, context: WorkflowContex
 // ============ ACTION NODES ============
 
 async function executeInvoiceProcessing(node: NodeToExecute, context: WorkflowContext): Promise<WorkflowContext> {
+  const autoApproveThreshold = (node.config.autoApproveThreshold as number) ?? 5000;
+  const extractFields = (node.config.extractFields as boolean) ?? true;
+
+  let extractedFields: Record<string, unknown> = {};
+  if (extractFields && (context.document?.content || Object.keys(context.document || {}).length > 0)) {
+    try {
+      const systemPrompt = `You are an invoice extraction specialist. Extract structured data from the invoice context.
+Return JSON with: vendor (string), amount (number), currency (string), dueDate (string ISO), invoiceNumber (string), lineItems (array), paymentTerms (string)`;
+      extractedFields = await callGroqJSON<Record<string, unknown>>(
+        systemPrompt,
+        `Extract invoice fields from: ${JSON.stringify(context.document)}`,
+        'llama-3.3-70b-versatile'
+      );
+    } catch { /* use whatever is already in invoice context */ }
+  }
+
+  const mergedInvoice: Record<string, unknown> = { ...context.invoice, ...extractedFields, processed: true, processedAt: new Date().toISOString() };
+  const amount = (mergedInvoice.amount as number) || 0;
+  const needsApproval = amount > autoApproveThreshold;
+
   return {
     ...context,
-    invoice: {
-      ...context.invoice,
-      processed: true,
-      processedAt: new Date().toISOString(),
-    },
-    task: {
-      ...context.task,
-      type: 'invoice_processed',
-    },
-    workflowState: {
-      ...context.workflowState,
-      currentNodeId: node.instanceId,
-    },
+    invoice: mergedInvoice,
+    task: { ...context.task, type: 'invoice_processed', needsApproval },
+    workflowState: { ...context.workflowState, currentNodeId: node.instanceId },
   };
 }
 
 async function executeTaskAssignment(node: NodeToExecute, context: WorkflowContext): Promise<WorkflowContext> {
-  const assignee = node.config.assignee as string;
-  const priority = node.config.priority || 'medium';
+  const assignee = (node.config.assignee as string) || '';
+  const priority = (node.config.priority as string) || 'medium';
+  const title = (node.config.title as string) || `Task from workflow ${context.workflowId}`;
+  const dueDateRaw = (node.config.dueDate as string) || '3d';
+  const notifyAssignee = (node.config.notifyAssignee as boolean) ?? true;
+
+  // Resolve relative due dates (e.g. '1d', '3h', '1w')
+  let dueDate: string;
+  const match = dueDateRaw.match(/^(\d+)([dhw])$/);
+  if (match) {
+    const n = parseInt(match[1], 10);
+    const unit = match[2];
+    const ms = unit === 'h' ? n * 3600000 : unit === 'd' ? n * 86400000 : n * 604800000;
+    dueDate = new Date(Date.now() + ms).toISOString();
+  } else {
+    dueDate = dueDateRaw;
+  }
 
   return {
     ...context,
-    task: {
-      ...context.task,
-      assignedTo: assignee,
-      priority,
-      assignedAt: new Date().toISOString(),
-    },
-    workflowState: {
-      ...context.workflowState,
-      currentNodeId: node.instanceId,
-    },
+    task: { ...context.task, id: uuid(), title, assignedTo: assignee, priority, assignedAt: new Date().toISOString(), dueDate, notifyAssignee, status: 'open' },
+    workflowState: { ...context.workflowState, currentNodeId: node.instanceId },
   };
 }
 
@@ -730,23 +768,33 @@ async function executeNotification(node: NodeToExecute, context: WorkflowContext
 }
 
 async function executeReportGeneration(node: NodeToExecute, context: WorkflowContext): Promise<WorkflowContext> {
-  const reportType = node.config.reportType as string;
+  const reportType = (node.config.reportType as string) || 'summary';
+  const format = (node.config.format as string) || 'PDF';
+  const title = (node.config.title as string) || `${reportType} Report`;
+  const includeCharts = (node.config.includeCharts as boolean) ?? false;
 
-  return {
-    ...context,
-    metadata: {
-      ...context.metadata,
-      reportGenerated: {
-        type: reportType,
-        generatedAt: new Date().toISOString(),
-        fileId: `report_${Date.now()}.pdf`,
-      },
-    },
-    workflowState: {
-      ...context.workflowState,
-      currentNodeId: node.instanceId,
-    },
-  };
+  let reportSummary = '';
+  try {
+    const systemPrompt = `You are a business report writer. Generate a concise executive summary for a ${reportType} report.
+Return JSON with: summary (string), sections (array of {title, content}), keyMetrics (array of {name, value})`;
+    const result = await callGroqJSON<Record<string, unknown>>(
+      systemPrompt,
+      `Generate ${reportType} report from workflow context: ${JSON.stringify({ invoice: context.invoice, finance: context.finance, metadata: context.metadata }, null, 2)}`,
+      'llama-3.3-70b-versatile'
+    );
+    reportSummary = (result.summary as string) || '';
+    return {
+      ...context,
+      metadata: { ...context.metadata, reportGenerated: { type: reportType, format, title, fileId: `report_${Date.now()}.${format.toLowerCase()}`, includeCharts, summary: reportSummary, generatedAt: new Date().toISOString(), ...result } },
+      workflowState: { ...context.workflowState, currentNodeId: node.instanceId },
+    };
+  } catch {
+    return {
+      ...context,
+      metadata: { ...context.metadata, reportGenerated: { type: reportType, format, title, fileId: `report_${Date.now()}.${format.toLowerCase()}`, generatedAt: new Date().toISOString() } },
+      workflowState: { ...context.workflowState, currentNodeId: node.instanceId },
+    };
+  }
 }
 
 async function executeFormSubmission(node: NodeToExecute, context: WorkflowContext): Promise<WorkflowContext> {
@@ -1270,21 +1318,26 @@ async function executePayment(node: NodeToExecute, context: WorkflowContext): Pr
 
 async function executeRuleEngine(node: NodeToExecute, context: WorkflowContext): Promise<WorkflowContext> {
   const rules = (node.config.rules as string[]) || [];
-  const inputPath = (node.config.inputPath as string) || 'context.data';
-  const results: Array<{ rule: string; passed: boolean }> = rules.map((rule) => ({ rule, passed: true }));
-  const allPassed = results.every((r) => r.passed);
+  const stopOnFirstFail = (node.config.stopOnFirstFail as boolean) ?? false;
+  const flatCtx: Record<string, unknown> = { ...context.metadata, ...context.document, ...context.invoice, ...context.finance, ...context.employee, ...context.procurement };
 
+  const results: Array<{ rule: string; passed: boolean; reason?: string }> = [];
+  for (const rule of rules) {
+    // Rule format: "field op value" e.g. "amount > 1000" or "status == approved"
+    const parts = rule.trim().match(/^(\S+)\s+(==|!=|>|<|>=|<=|contains|exists)\s*(.*)$/);
+    if (!parts) { results.push({ rule, passed: true, reason: 'unparseable rule — skipped' }); continue; }
+    const [, field, op, val] = parts;
+    const fieldVal = flatCtx[field];
+    const parsed = isNaN(Number(val)) ? val.replace(/^['"]|['"]$/g, '') : Number(val);
+    const passed = safeCompare(fieldVal, op, parsed);
+    results.push({ rule, passed });
+    if (!passed && stopOnFirstFail) break;
+  }
+
+  const allPassed = results.every((r) => r.passed);
   return {
     ...context,
-    metadata: {
-      ...context.metadata,
-      ruleEngineResult: {
-        inputPath,
-        results,
-        allPassed,
-        evaluatedAt: new Date().toISOString(),
-      },
-    },
+    metadata: { ...context.metadata, ruleEngineResult: { results, allPassed, rulesEvaluated: results.length, evaluatedAt: new Date().toISOString() } },
     workflowState: { ...context.workflowState, currentNodeId: node.instanceId },
   };
 }

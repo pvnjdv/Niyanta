@@ -2,6 +2,7 @@ import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
 import { v4 as uuid } from 'uuid';
+import { workflowTemplates } from '../templates/workflow-templates';
 
 const DB_PATH = process.env.DB_PATH || './niyanta.db';
 const SCHEMA_PATH = path.join(__dirname, 'schema.sql');
@@ -44,6 +45,7 @@ function initializeSchema(): void {
     'ALTER TABLE workflows ADD COLUMN tags TEXT DEFAULT "[]"',
     'ALTER TABLE workflows ADD COLUMN triggers TEXT DEFAULT "[]"',
     'ALTER TABLE workflows ADD COLUMN allow_agent_invocation INTEGER DEFAULT 1',
+    'ALTER TABLE workflows ADD COLUMN is_default INTEGER DEFAULT 0',
   ];
   for (const m of migrations) {
     try { db.prepare(m).run(); } catch { /* column already exists */ }
@@ -76,6 +78,7 @@ function initializeSchema(): void {
 
   seedDefaultAgents();
   seedDefaultNodes();
+  seedDefaultWorkflows();
 }
 
 interface AgentSeed {
@@ -166,6 +169,44 @@ function seedDefaultAgents(): void {
 
 function seedDefaultNodes(): void {
   // Node seeding happens via NodeRegistry at startup.
+}
+
+function seedDefaultWorkflows(): void {
+  const conn = db;
+  const existing = conn.prepare("SELECT COUNT(*) as count FROM workflows WHERE is_default = 1").get() as { count: number };
+  if (existing.count > 0) return;
+
+  const insert = conn.prepare(`
+    INSERT OR IGNORE INTO workflows
+      (id, name, description, nodes, edges, status, category, tags, triggers, allow_agent_invocation, is_default, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?, 1, 1, datetime('now'), datetime('now'))
+  `);
+
+  for (const tmpl of workflowTemplates) {
+    const workflowId = `default_${tmpl.id}`;
+
+    const nodeIdMap: Record<string, string> = {};
+    const nodes = tmpl.nodes.map(n => {
+      const newId = `node-${uuid()}`;
+      nodeIdMap[n.id] = newId;
+      return { instanceId: newId, nodeType: n.type, name: n.name, config: n.config, position: n.position, retryConfig: { maxRetries: 3, timeout: 30, failurePolicy: 'retry' } };
+    });
+
+    const edges = tmpl.edges.map(e => ({
+      id: `edge-${uuid()}`,
+      fromNodeId: nodeIdMap[e.fromNodeId],
+      toNodeId: nodeIdMap[e.toNodeId],
+      condition: e.condition,
+    }));
+
+    insert.run(
+      workflowId, tmpl.name, tmpl.description,
+      JSON.stringify(nodes), JSON.stringify(edges),
+      tmpl.category,
+      JSON.stringify(tmpl.tags),
+      JSON.stringify(tmpl.triggers),
+    );
+  }
 }
 
 export default getDB;
