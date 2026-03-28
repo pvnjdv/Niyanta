@@ -1,10 +1,7 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Agent, AgentState } from '../types/agent';
 import { SAMPLES } from '../constants/samples';
-import { NODE_GROUPS, NodeDefinition, getNodeColor, getNodeName, getNodeIcon } from '../constants/nodes';
-import { WorkflowNodeInstance, WorkflowEdge } from '../types/workflow';
-import { v4 as uuid } from 'uuid';
 
 interface AgentConsoleProps {
   agents: Agent[];
@@ -14,134 +11,91 @@ interface AgentConsoleProps {
   onRunAll: () => Promise<void>;
 }
 
-/* ─── Canvas Constants ─── */
-const GRID_SIZE = 20;
-const NODE_W = 200;
-const NODE_H = 64;
-
-/* ─── Helpers ─── */
-function snap(v: number) { return Math.round(v / GRID_SIZE) * GRID_SIZE; }
-
-function getEdgePath(from: WorkflowNodeInstance, to: WorkflowNodeInstance): string {
-  const sx = from.position.x + NODE_W;
-  const sy = from.position.y + NODE_H / 2;
-  const ex = to.position.x;
-  const ey = to.position.y + NODE_H / 2;
-  const dx = Math.abs(ex - sx) * 0.5;
-  return `M${sx},${sy} C${sx + dx},${sy} ${ex - dx},${ey} ${ex},${ey}`;
-}
-
-/* ─── Main Component ─── */
 const AgentConsole: React.FC<AgentConsoleProps> = ({
   agents, agentStates, onExecuteAgent, runAllProgress, onRunAll,
 }) => {
   const navigate = useNavigate();
   const { agentId } = useParams<{ agentId?: string }>();
-  const canvasRef = useRef<HTMLDivElement>(null);
 
-  // Agent list state
+  // State
   const [search, setSearch] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState('');
   const [newDesc, setNewDesc] = useState('');
+  const [newCapabilities, setNewCapabilities] = useState('');
+  const [selectedWorkflows, setSelectedWorkflows] = useState<string[]>([]);
+  const [availableWorkflows, setAvailableWorkflows] = useState<Array<{id: string; name: string; description: string; category: string}>>([]);
+  const [linkedWorkflows, setLinkedWorkflows] = useState<Array<{workflow_id: string; name: string; description: string; category: string; can_trigger: number}>>([]);
+  const [inputText, setInputText] = useState('');
 
-  // Canvas state for selected agent
   const selectedId = agentId || null;
   const selectedAgent = selectedId ? agents.find(a => a.id === selectedId) || null : null;
   const selectedState = selectedAgent ? agentStates[selectedAgent.id] : null;
-
-  const [nodes, setNodes] = useState<WorkflowNodeInstance[]>([]);
-  const [edges, setEdges] = useState<WorkflowEdge[]>([]);
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
-  const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
-  const [connecting, setConnecting] = useState<string | null>(null);
-  const [nodePaletteOpen, setNodePaletteOpen] = useState(true);
-  const [inputText, setInputText] = useState('');
-
   const filtered = agents.filter(a => a.name.toLowerCase().includes(search.toLowerCase()));
 
-  // Load agent's backing workflow nodes (placeholder for now)
+  // Fetch available workflows
   useEffect(() => {
-    if (selectedId) {
-      // Default starter nodes for agents if none exist
-      if (nodes.length === 0) {
-        setNodes([
-          { instanceId: uuid(), nodeType: 'manual_trigger', name: 'Trigger', config: {}, position: { x: 60, y: 160 } },
-          { instanceId: uuid(), nodeType: 'llm_analysis', name: 'LLM Analysis', config: {}, position: { x: 340, y: 160 } },
-          { instanceId: uuid(), nodeType: 'notification', name: 'Notify', config: {}, position: { x: 620, y: 160 } },
-        ]);
-        // Auto-connect after setting nodes
-        setTimeout(() => {
-          setNodes(prev => {
-            if (prev.length >= 3) {
-              setEdges([
-                { id: uuid(), fromNodeId: prev[0].instanceId, toNodeId: prev[1].instanceId },
-                { id: uuid(), fromNodeId: prev[1].instanceId, toNodeId: prev[2].instanceId },
-              ]);
-            }
-            return prev;
-          });
-        }, 0);
+    const fetchWorkflows = async () => {
+      try {
+        const res = await fetch('http://localhost:3001/api/workflow');
+        if (res.ok) {
+          const data = await res.json();
+          setAvailableWorkflows(data.workflows || []);
+        }
+      } catch (err) {
+        console.error('Failed to fetch workflows:', err);
       }
-    } else {
-      setNodes([]);
-      setEdges([]);
-    }
+    };
+    fetchWorkflows();
+  }, []);
+  
+  // Fetch linked workflows for selected agent
+  useEffect(() => {
+    const fetchLinkedWorkflows = async () => {
+      if (!selectedId) {
+        setLinkedWorkflows([]);
+        return;
+      }
+      
+      try {
+        const res = await fetch(`http://localhost:3001/api/agent/${selectedId}/workflows`);
+        if (res.ok) {
+          const data = await res.json();
+          setLinkedWorkflows(data.workflows || []);
+        }
+      } catch (err) {
+        console.error('Failed to fetch linked workflows:', err);
+      }
+    };
+    fetchLinkedWorkflows();
   }, [selectedId]);
 
-  // Node drag handlers
-  const handleNodeMouseDown = useCallback((e: React.MouseEvent, nodeId: string) => {
-    e.stopPropagation();
-    const node = nodes.find(n => n.instanceId === nodeId);
-    if (!node) return;
-    setDraggingNodeId(nodeId);
-    setSelectedNodeId(nodeId);
-    setDragOffset({ x: e.clientX - node.position.x, y: e.clientY - node.position.y });
-  }, [nodes]);
-
-  const handleCanvasMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!draggingNodeId) return;
-    setNodes(prev => prev.map(n =>
-      n.instanceId === draggingNodeId
-        ? { ...n, position: { x: snap(e.clientX - dragOffset.x), y: snap(e.clientY - dragOffset.y) } }
-        : n
-    ));
-  }, [draggingNodeId, dragOffset]);
-
-  const handleCanvasMouseUp = useCallback(() => {
-    setDraggingNodeId(null);
-  }, []);
-
-  // Add node from palette
-  const addNode = useCallback((def: NodeDefinition) => {
-    const newNode: WorkflowNodeInstance = {
-      instanceId: uuid(),
-      nodeType: def.type,
-      name: def.name,
-      config: {},
-      position: { x: 200 + Math.random() * 200, y: 100 + Math.random() * 200 },
-    };
-    setNodes(prev => [...prev, newNode]);
-    setSelectedNodeId(newNode.instanceId);
-  }, []);
-
-  // Connect nodes
-  const handleConnectorClick = useCallback((nodeId: string, isOutput: boolean) => {
-    if (isOutput) {
-      setConnecting(nodeId);
-    } else if (connecting && connecting !== nodeId) {
-      setEdges(prev => [...prev, { id: uuid(), fromNodeId: connecting, toNodeId: nodeId }]);
-      setConnecting(null);
+  // Create agent
+  const handleCreate = async () => {
+    if (!newName.trim()) return;
+    try {
+      const res = await fetch('http://localhost:3001/api/agent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          name: newName.trim(), 
+          description: newDesc.trim(),
+          capabilities: newCapabilities.trim(),
+          workflows: selectedWorkflows,
+        }),
+      });
+      if (res.ok) {
+        setShowCreate(false);
+        setNewName('');
+        setNewDesc('');
+        setNewCapabilities('');
+        setSelectedWorkflows([]);
+        window.location.reload();
+      }
+    } catch (err) {
+      console.error('Failed to create agent:', err);
     }
-  }, [connecting]);
-
-  // Delete node
-  const deleteNode = useCallback((nodeId: string) => {
-    setNodes(prev => prev.filter(n => n.instanceId !== nodeId));
-    setEdges(prev => prev.filter(e => e.fromNodeId !== nodeId && e.toNodeId !== nodeId));
-    if (selectedNodeId === nodeId) setSelectedNodeId(null);
-  }, [selectedNodeId]);
+  };
 
   // Run agent
   const handleRun = async () => {
@@ -151,121 +105,131 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
     await onExecuteAgent(selectedId, input);
   };
 
-  // Create agent
-  const handleCreate = async () => {
-    if (!newName.trim()) return;
-    try {
-      const res = await fetch('/api/agent', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newName.trim(), description: newDesc.trim() }),
-      });
-      if (res.ok) {
-        setShowCreate(false);
-        setNewName('');
-        setNewDesc('');
-        // TODO: refresh agent list from API
-        window.location.reload();
-      }
-    } catch (err) {
-      console.error('Create agent failed:', err);
-    }
-  };
-
-  /* ─── Render ─── */
-
-  // If no agent selected, show agent list
+  // Agent list view
   if (!selectedId) {
     return (
-      <div style={{ height: '100%', overflow: 'auto', padding: 24 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-          <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 700, margin: 0 }}>
-            Agent Studio
-          </h2>
+      <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--bg-base)' }}>
+        {/* Top Bar */}
+        <div style={{
+          height: 56, display: 'flex', alignItems: 'center', padding: '0 24px', gap: 12,
+          borderBottom: '1px solid var(--border)', background: 'var(--bg-dock)', flexShrink: 0,
+        }}>
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search agents..."
+            style={{
+              flex: 1, maxWidth: 400, height: 36, padding: '0 14px', fontSize: 13,
+              background: 'var(--bg-input)', border: '1px solid var(--border)',
+              borderRadius: 4, color: 'var(--text-primary)', outline: 'none',
+            }}
+          />
           <button
             onClick={() => setShowCreate(true)}
             style={{
-              height: 36, padding: '0 16px', borderRadius: 4,
-              border: '1px solid var(--border)', background: 'var(--bg-tile)',
-              color: 'var(--text-primary)', cursor: 'pointer',
-              fontFamily: 'var(--font-mono)', fontSize: 12,
+              height: 36, padding: '0 20px', borderRadius: 4, fontWeight: 600,
+              background: 'var(--accent-dim)', border: '1px solid var(--accent-border)',
+              color: 'var(--accent)', cursor: 'pointer', fontSize: 13,
             }}
           >
-            + New Agent
+            + CREATE AGENT
           </button>
         </div>
 
-        {/* Search */}
-        <input
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Search agents..."
-          style={{
-            width: '100%', maxWidth: 400, height: 36, padding: '0 12px',
-            background: 'var(--bg-input)', border: '1px solid var(--border)',
-            borderRadius: 4, fontFamily: 'var(--font-body)', fontSize: 13,
-            color: 'var(--text-primary)', marginBottom: 20, outline: 'none',
-          }}
-        />
-
-        {/* Agent grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280, 1fr))', gap: 16 }}>
-          {filtered.map(agent => {
-            const state = agentStates[agent.id];
-            return (
-              <div
-                key={agent.id}
-                onClick={() => navigate(`/agents/${agent.id}`)}
-                style={{
-                  padding: 20,
-                  background: 'var(--bg-tile)',
-                  border: '1px solid var(--border)',
-                  borderRadius: 4,
-                  cursor: 'pointer',
-                  transition: 'border-color 150ms',
-                }}
-                onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--text-secondary)')}
-                onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border)')}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-                  <div style={{
-                    width: 40, height: 40, borderRadius: 4,
-                    background: agent.color || 'var(--bg-input)',
-                    display: 'grid', placeItems: 'center',
-                    fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 700,
-                    color: '#fff',
-                  }}>
-                    {agent.icon}
-                  </div>
-                  <div>
-                    <div style={{ fontFamily: 'var(--font-body)', fontSize: 14, fontWeight: 600 }}>
-                      {agent.name}
-                    </div>
-                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-secondary)' }}>
-                      {agent.subtitle}
-                    </div>
-                  </div>
-                </div>
-                <div style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8 }}>
-                  {agent.description}
-                </div>
-                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                  {(agent.capabilities || []).map((cap, i) => (
-                    <span key={i} style={{
-                      fontFamily: 'var(--font-mono)', fontSize: 9, padding: '2px 6px',
-                      border: '1px solid var(--border)', borderRadius: 2,
-                      color: 'var(--text-secondary)',
+        {/* Agent Grid */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+            gap: 16,
+          }}>
+            {filtered.map(agent => {
+              const state = agentStates[agent.id];
+              return (
+                <div
+                  key={agent.id}
+                  onClick={() => navigate(`/agents/${agent.id}`)}
+                  style={{
+                    background: 'var(--bg-panel)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 8,
+                    padding: 20,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.borderColor = agent.color;
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.boxShadow = `0 8px 24px ${agent.glow}`;
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.borderColor = 'var(--border)';
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = 'none';
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                    <div style={{
+                      width: 48, height: 48, borderRadius: 8, background: agent.color,
+                      display: 'grid', placeItems: 'center', color: '#fff',
+                      fontFamily: 'var(--font-mono)', fontSize: 16, fontWeight: 700,
+                      boxShadow: `0 4px 12px ${agent.glow}`,
                     }}>
-                      {cap}
-                    </span>
-                  ))}
+                      {agent.icon}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 2 }}>
+                        {agent.name}
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                        {agent.subtitle}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12, lineHeight: 1.5 }}>
+                    {agent.description || 'No description'}
+                  </div>
+
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+                    {agent.capabilities.slice(0, 3).map((cap, i) => (
+                      <span key={i} style={{
+                        padding: '4px 8px', borderRadius: 4, fontSize: 10,
+                        background: 'var(--bg-tile)', color: 'var(--text-muted)',
+                        fontFamily: 'var(--font-mono)', textTransform: 'uppercase',
+                      }}>
+                        {cap}
+                      </span>
+                    ))}
+                    {agent.capabilities.length > 3 && (
+                      <span style={{
+                        padding: '4px 8px', borderRadius: 4, fontSize: 10,
+                        background: 'var(--bg-tile)', color: 'var(--text-muted)',
+                        fontFamily: 'var(--font-mono)',
+                      }}>
+                        +{agent.capabilities.length - 3}
+                      </span>
+                    )}
+                  </div>
+
+                  {state && (
+                    <div style={{
+                      padding: '8px 12px', borderRadius: 4, fontSize: 11,
+                      background: state.status === 'success' ? 'rgba(0, 255, 136, 0.1)' :
+                                 state.status === 'error' ? 'rgba(255, 68, 68, 0.1)' :
+                                 'rgba(255, 165, 0, 0.1)',
+                      color: state.status === 'success' ? '#00ff88' :
+                             state.status === 'error' ? '#ff4444' : '#ffa500',
+                      fontFamily: 'var(--font-mono)',
+                    }}>
+                      {state.status.toUpperCase()}
+                      {state.processingTime && ` • ${state.processingTime}ms`}
+                    </div>
+                  )}
                 </div>
-                <div style={{ marginTop: 12, fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)' }}>
-                  Status: {state?.status || 'idle'}
-                </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
 
         {/* Create Modal */}
@@ -277,39 +241,127 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
             <div
               style={{
                 background: 'var(--bg-panel)', border: '1px solid var(--border)',
-                borderRadius: 4, padding: 24, width: 400, maxWidth: '90vw',
+                borderRadius: 8, padding: 24, width: 500, maxWidth: '90vw', maxHeight: '85vh', overflowY: 'auto',
               }}
               onClick={e => e.stopPropagation()}
             >
-              <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 16, margin: '0 0 16px' }}>Create Agent</h3>
+              <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 18, margin: '0 0 20px', fontWeight: 600 }}>
+                Create New Agent
+              </h3>
+              
+              <label style={{ display: 'block', fontSize: 11, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 6 }}>
+                Agent Name *
+              </label>
               <input
                 value={newName}
                 onChange={e => setNewName(e.target.value)}
-                placeholder="Agent name"
+                placeholder="e.g., Invoice Processing Agent"
                 style={{
-                  width: '100%', height: 36, padding: '0 12px', marginBottom: 12,
+                  width: '100%', height: 40, padding: '0 12px', marginBottom: 16,
                   background: 'var(--bg-input)', border: '1px solid var(--border)',
-                  borderRadius: 4, fontFamily: 'var(--font-body)', fontSize: 13,
+                  borderRadius: 4, fontFamily: 'var(--font-body)', fontSize: 14,
                   color: 'var(--text-primary)', outline: 'none',
                 }}
               />
+              
+              <label style={{ display: 'block', fontSize: 11, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 6 }}>
+                Description
+              </label>
               <textarea
                 value={newDesc}
                 onChange={e => setNewDesc(e.target.value)}
-                placeholder="Description"
-                rows={3}
+                placeholder="Brief description of agent's purpose"
+                rows={2}
                 style={{
-                  width: '100%', padding: '8px 12px', marginBottom: 16,
+                  width: '100%', padding: '10px 12px', marginBottom: 16,
                   background: 'var(--bg-input)', border: '1px solid var(--border)',
                   borderRadius: 4, fontFamily: 'var(--font-body)', fontSize: 13,
                   color: 'var(--text-primary)', resize: 'vertical', outline: 'none',
                 }}
               />
-              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              
+              <label style={{ display: 'block', fontSize: 11, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 6 }}>
+                Capabilities / Tasks
+              </label>
+              <textarea
+                value={newCapabilities}
+                onChange={e => setNewCapabilities(e.target.value)}
+                placeholder="e.g., OCR extraction, invoice validation, payment processing"
+                rows={3}
+                style={{
+                  width: '100%', padding: '10px 12px', marginBottom: 16,
+                  background: 'var(--bg-input)', border: '1px solid var(--border)',
+                  borderRadius: 4, fontFamily: 'var(--font-body)', fontSize: 13,
+                  color: 'var(--text-primary)', resize: 'vertical', outline: 'none',
+                }}
+              />
+              
+              <label style={{ display: 'block', fontSize: 11, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 6 }}>
+                Workflows This Agent Can Execute ({selectedWorkflows.length} selected)
+              </label>
+              <div style={{
+                maxHeight: 200,
+                overflowY: 'auto',
+                border: '1px solid var(--border)',
+                borderRadius: 4,
+                background: 'var(--bg-input)',
+                marginBottom: 20,
+              }}>
+                {availableWorkflows.length === 0 ? (
+                  <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>
+                    No workflows available. Create workflows first in Workflow Studio.
+                  </div>
+                ) : (
+                  availableWorkflows.map(workflow => (
+                    <label
+                      key={workflow.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        padding: '12px',
+                        borderBottom: '1px solid var(--border)',
+                        cursor: 'pointer',
+                        background: selectedWorkflows.includes(workflow.id) ? 'rgba(0, 212, 255, 0.1)' : 'transparent',
+                      }}
+                      onMouseEnter={e => {
+                        if (!selectedWorkflows.includes(workflow.id)) {
+                          e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+                        }
+                      }}
+                      onMouseLeave={e => {
+                        if (!selectedWorkflows.includes(workflow.id)) {
+                          e.currentTarget.style.background = 'transparent';
+                        }
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedWorkflows.includes(workflow.id)}
+                        onChange={e => {
+                          if (e.target.checked) {
+                            setSelectedWorkflows(prev => [...prev, workflow.id]);
+                          } else {
+                            setSelectedWorkflows(prev => prev.filter(id => id !== workflow.id));
+                          }
+                        }}
+                        style={{ marginRight: 12, cursor: 'pointer' }}
+                      />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 500, fontSize: 13, marginBottom: 2 }}>{workflow.name}</div>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                          {workflow.category} • {workflow.description || 'No description'}
+                        </div>
+                      </div>
+                    </label>
+                  ))
+                )}
+              </div>
+
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
                 <button
                   onClick={() => setShowCreate(false)}
                   style={{
-                    height: 36, padding: '0 16px', borderRadius: 4,
+                    height: 40, padding: '0 20px', borderRadius: 4,
                     border: '1px solid var(--border)', background: 'transparent',
                     color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13,
                   }}
@@ -318,14 +370,17 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
                 </button>
                 <button
                   onClick={handleCreate}
+                  disabled={!newName.trim()}
                   style={{
-                    height: 36, padding: '0 16px', borderRadius: 4,
-                    border: '1px solid var(--border)', background: 'var(--bg-tile)',
-                    color: 'var(--text-primary)', cursor: 'pointer', fontSize: 13,
-                    fontWeight: 600,
+                    height: 40, padding: '0 20px', borderRadius: 4, fontWeight: 600,
+                    border: '1px solid var(--accent-border)',
+                    background: newName.trim() ? 'var(--accent-dim)' : 'var(--bg-tile)',
+                    color: newName.trim() ? 'var(--accent)' : 'var(--text-muted)',
+                    cursor: newName.trim() ? 'pointer' : 'not-allowed',
+                    fontSize: 13,
                   }}
                 >
-                  Create
+                  Create Agent
                 </button>
               </div>
             </div>
@@ -335,40 +390,44 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
     );
   }
 
-  // Agent Studio view with canvas
+  // Individual agent chat view
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       {/* Toolbar */}
       <div style={{
-        height: 48, display: 'flex', alignItems: 'center', padding: '0 16px', gap: 12,
-        borderBottom: '1px solid var(--border)', flexShrink: 0,
+        height: 56, display: 'flex', alignItems: 'center', padding: '0 20px', gap: 12,
+        borderBottom: '1px solid var(--border)', flexShrink: 0, background: 'var(--bg-dock)',
       }}>
         <button
           onClick={() => navigate('/agents')}
           style={{
-            height: 32, padding: '0 10px', borderRadius: 4,
+            height: 36, padding: '0 12px', borderRadius: 4,
             border: '1px solid var(--border)', background: 'transparent',
             color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 14,
           }}
         >
           ← Back
         </button>
+        
         <div style={{
-          width: 32, height: 32, borderRadius: 4,
+          width: 40, height: 40, borderRadius: 8,
           background: selectedAgent?.color || '#666',
           display: 'grid', placeItems: 'center',
-          fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, color: '#fff',
+          fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 700, color: '#fff',
+          boxShadow: `0 4px 12px ${selectedAgent?.glow}`,
         }}>
           {selectedAgent?.icon}
         </div>
+        
         <div>
-          <div style={{ fontFamily: 'var(--font-body)', fontSize: 14, fontWeight: 600 }}>
+          <div style={{ fontFamily: 'var(--font-body)', fontSize: 15, fontWeight: 600 }}>
             {selectedAgent?.name}
           </div>
-          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)' }}>
+          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)' }}>
             {selectedAgent?.subtitle}
           </div>
         </div>
+        
         <div style={{ flex: 1 }} />
 
         {/* Input + Run */}
@@ -376,11 +435,11 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
           value={inputText}
           onChange={e => setInputText(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') handleRun(); }}
-          placeholder="Input data (or use sample)..."
+          placeholder="Type your message..."
           style={{
-            width: 300, height: 32, padding: '0 10px',
+            width: 350, height: 40, padding: '0 14px',
             background: 'var(--bg-input)', border: '1px solid var(--border)',
-            borderRadius: 4, fontFamily: 'var(--font-body)', fontSize: 12,
+            borderRadius: 4, fontFamily: 'var(--font-body)', fontSize: 13,
             color: 'var(--text-primary)', outline: 'none',
           }}
         />
@@ -388,226 +447,155 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
           onClick={handleRun}
           disabled={selectedState?.status === 'processing'}
           style={{
-            height: 32, padding: '0 16px', borderRadius: 4,
-            border: '1px solid var(--border)',
+            height: 40, padding: '0 20px', borderRadius: 4, fontWeight: 600,
+            border: '1px solid var(--accent-border)',
             background: selectedState?.status === 'processing' ? 'var(--bg-tile)' : 'var(--accent-dim)',
             color: selectedState?.status === 'processing' ? 'var(--text-muted)' : 'var(--accent)',
             cursor: selectedState?.status === 'processing' ? 'wait' : 'pointer',
-            fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 600,
+            fontFamily: 'var(--font-mono)', fontSize: 12,
           }}
         >
-          {selectedState?.status === 'processing' ? 'Running...' : '▶ Run'}
-        </button>
-        <button
-          onClick={() => setNodePaletteOpen(!nodePaletteOpen)}
-          style={{
-            height: 32, padding: '0 10px', borderRadius: 4,
-            border: '1px solid var(--border)', background: nodePaletteOpen ? 'var(--accent-dim)' : 'transparent',
-            color: nodePaletteOpen ? 'var(--accent)' : 'var(--text-secondary)',
-            cursor: 'pointer', fontFamily: 'var(--font-mono)', fontSize: 11,
-          }}
-        >
-          Nodes
+          {selectedState?.status === 'processing' ? 'PROCESSING...' : 'SEND'}
         </button>
       </div>
 
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative' }}>
-        {/* Canvas */}
-        <div
-          ref={canvasRef}
-          style={{
-            flex: 1,
-            position: 'relative',
-            overflow: 'auto',
-            background: 'var(--bg-base)',
-            backgroundImage: `radial-gradient(circle, var(--border) 1px, transparent 1px)`,
-            backgroundSize: `${GRID_SIZE}px ${GRID_SIZE}px`,
-            cursor: draggingNodeId ? 'grabbing' : 'default',
-          }}
-          onMouseMove={handleCanvasMouseMove}
-          onMouseUp={handleCanvasMouseUp}
-          onClick={() => { setSelectedNodeId(null); setConnecting(null); }}
-        >
-          {/* Edges */}
-          <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}>
-            {edges.map(edge => {
-              const fromNode = nodes.find(n => n.instanceId === edge.fromNodeId);
-              const toNode = nodes.find(n => n.instanceId === edge.toNodeId);
-              if (!fromNode || !toNode) return null;
-              return (
-                <path
-                  key={edge.id}
-                  d={getEdgePath(fromNode, toNode)}
-                  stroke="var(--text-muted)"
-                  strokeWidth={2}
-                  fill="none"
-                  strokeDasharray={connecting ? '4,4' : 'none'}
-                />
-              );
-            })}
-          </svg>
-
-          {/* Nodes */}
-          {nodes.map(node => {
-            const isSelected = selectedNodeId === node.instanceId;
-            const isConnecting = connecting === node.instanceId;
-            return (
-              <div
-                key={node.instanceId}
-                style={{
-                  position: 'absolute',
-                  left: node.position.x,
-                  top: node.position.y,
-                  width: NODE_W,
-                  height: NODE_H,
-                  background: 'var(--bg-panel)',
-                  border: `1px solid ${isSelected ? 'var(--accent)' : isConnecting ? 'var(--text-secondary)' : 'var(--border)'}`,
-                  borderRadius: 4,
-                  display: 'flex',
-                  alignItems: 'center',
-                  padding: '0 12px',
-                  gap: 10,
-                  cursor: 'grab',
-                  userSelect: 'none',
-                  zIndex: isSelected ? 10 : 1,
-                  boxShadow: isSelected ? '0 0 0 1px var(--accent)' : 'none',
-                }}
-                onMouseDown={(e) => handleNodeMouseDown(e, node.instanceId)}
-                onClick={(e) => { e.stopPropagation(); setSelectedNodeId(node.instanceId); }}
-              >
-                {/* Input connector */}
-                <div
-                  style={{
-                    position: 'absolute', left: -6, top: '50%', transform: 'translateY(-50%)',
-                    width: 12, height: 12, borderRadius: '50%',
-                    background: 'var(--bg-panel)', border: '2px solid var(--border)',
-                    cursor: 'pointer', zIndex: 20,
-                  }}
-                  onClick={(e) => { e.stopPropagation(); handleConnectorClick(node.instanceId, false); }}
-                />
-
-                {/* Node content */}
-                <span style={{ fontSize: 16 }}>{getNodeIcon(node.nodeType)}</span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{
-                    fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 600,
-                    color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                  }}>
-                    {node.name}
-                  </div>
-                  <div style={{
-                    fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)',
-                  }}>
-                    {node.nodeType}
-                  </div>
+      {/* Main Content */}
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+        {/* Chat Area */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--bg-base)' }}>
+          <div style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
+            {selectedState?.result ? (
+              <div style={{
+                background: 'var(--bg-panel)',
+                border: '1px solid var(--border)',
+                borderRadius: 8,
+                padding: 20,
+              }}>
+                <div style={{
+                  fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)',
+                  textTransform: 'uppercase', marginBottom: 12,
+                }}>
+                  AGENT RESPONSE
+                  {selectedState.processingTime && (
+                    <span style={{ marginLeft: 8 }}>• {selectedState.processingTime}ms</span>
+                  )}
                 </div>
-
-                {/* Delete button */}
-                {isSelected && (
-                  <button
-                    onClick={(e) => { e.stopPropagation(); deleteNode(node.instanceId); }}
-                    style={{
-                      position: 'absolute', top: -8, right: -8,
-                      width: 18, height: 18, borderRadius: '50%',
-                      background: 'var(--status-danger)', color: '#fff',
-                      border: 'none', cursor: 'pointer', fontSize: 10,
-                      display: 'grid', placeItems: 'center', zIndex: 20,
-                    }}
-                  >
-                    ✕
-                  </button>
-                )}
-
-                {/* Output connector */}
-                <div
-                  style={{
-                    position: 'absolute', right: -6, top: '50%', transform: 'translateY(-50%)',
-                    width: 12, height: 12, borderRadius: '50%',
-                    background: connecting === node.instanceId ? 'var(--accent)' : 'var(--bg-panel)',
-                    border: `2px solid ${connecting === node.instanceId ? 'var(--accent)' : 'var(--border)'}`,
-                    cursor: 'pointer', zIndex: 20,
-                  }}
-                  onClick={(e) => { e.stopPropagation(); handleConnectorClick(node.instanceId, true); }}
-                />
+                <pre style={{
+                  fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-primary)',
+                  whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0,
+                  lineHeight: 1.6,
+                }}>
+                  {typeof selectedState.result === 'string' 
+                    ? selectedState.result 
+                    : JSON.stringify(selectedState.result, null, 2)}
+                </pre>
               </div>
-            );
-          })}
+            ) : (
+              <div style={{
+                height: '100%',
+                display: 'grid',
+                placeItems: 'center',
+                color: 'var(--text-muted)',
+                fontSize: 13,
+              }}>
+                Send a message to {selectedAgent?.name}
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Node Palette — right side */}
-        {nodePaletteOpen && (
+        {/* Right Panel - Linked Workflows */}
+        <div style={{
+          width: 320,
+          borderLeft: '1px solid var(--border)',
+          background: 'var(--bg-panel)',
+          display: 'flex',
+          flexDirection: 'column',
+          flexShrink: 0,
+        }}>
           <div style={{
-            width: 240, borderLeft: '1px solid var(--border)',
-            background: 'var(--bg-panel)', overflowY: 'auto',
-            flexShrink: 0,
+            padding: '16px 20px',
+            borderBottom: '1px solid var(--border)',
+            background: 'rgba(0, 212, 255, 0.05)',
           }}>
             <div style={{
-              padding: '12px 16px', borderBottom: '1px solid var(--border)',
-              fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 600,
-              color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em',
+              fontFamily: 'var(--font-mono)',
+              fontSize: 10,
+              color: 'var(--text-muted)',
+              textTransform: 'uppercase',
+              marginBottom: 6,
+              letterSpacing: '0.05em',
             }}>
-              Node Palette
+              LINKED WORKFLOWS
             </div>
-            {NODE_GROUPS.map(group => (
-              <div key={group.id}>
-                <div style={{
-                  padding: '10px 16px 4px', fontFamily: 'var(--font-mono)',
-                  fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase',
-                  letterSpacing: '0.05em',
-                }}>
-                  {group.icon} {group.name}
-                </div>
-                {group.nodes.map(node => (
-                  <button
-                    key={node.type}
-                    onClick={() => addNode(node)}
-                    style={{
-                      width: '100%', height: 36, padding: '0 16px',
-                      textAlign: 'left', display: 'flex', alignItems: 'center', gap: 8,
-                      background: 'transparent', border: 'none', cursor: 'pointer',
-                      fontFamily: 'var(--font-body)', fontSize: 12, color: 'var(--text-primary)',
-                    }}
-                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-tile-hover)')}
-                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                    title={node.description}
-                  >
-                    <span style={{ fontSize: 14 }}>{node.icon}</span>
-                    <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {node.name}
-                    </span>
-                  </button>
-                ))}
+            <div style={{
+              fontSize: 12,
+              color: 'var(--text-secondary)',
+              lineHeight: 1.5,
+            }}>
+              Workflows this agent can execute
+            </div>
+          </div>
+          
+          <div style={{ flex: 1, overflowY: 'auto' }}>
+            {linkedWorkflows.length === 0 ? (
+              <div style={{
+                padding: '40px 20px',
+                textAlign: 'center',
+                color: 'var(--text-muted)',
+                fontSize: 12,
+                lineHeight: 1.6,
+              }}>
+                No workflows linked yet.
+                <br />
+                Edit agent to add workflows.
               </div>
-            ))}
+            ) : (
+              linkedWorkflows.map(wf => (
+                <div
+                  key={wf.workflow_id}
+                  style={{
+                    padding: '16px 20px',
+                    borderBottom: '1px solid var(--border)',
+                    cursor: 'pointer',
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-tile-hover)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                  onClick={() => window.open(`/workflows`, '_blank')}
+                >
+                  <div style={{
+                    fontWeight: 500,
+                    fontSize: 13,
+                    marginBottom: 6,
+                    color: 'var(--text-primary)',
+                  }}>
+                    {wf.name}
+                  </div>
+                  <div style={{
+                    fontSize: 11,
+                    color: 'var(--text-muted)',
+                    marginBottom: 8,
+                    lineHeight: 1.4,
+                  }}>
+                    {wf.category} • {wf.description || 'No description'}
+                  </div>
+                  <div style={{
+                    display: 'inline-block',
+                    padding: '3px 8px',
+                    borderRadius: 3,
+                    background: 'rgba(0, 255, 136, 0.1)',
+                    color: '#00ff88',
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: 9,
+                    fontWeight: 600,
+                  }}>
+                    CAN EXECUTE
+                  </div>
+                </div>
+              ))
+            )}
           </div>
-        )}
-
-        {/* Execution result panel — bottom overlay */}
-        {selectedState?.result && (
-          <div style={{
-            position: 'absolute', bottom: 0, left: 0, right: nodePaletteOpen ? 240 : 0,
-            maxHeight: 200, overflowY: 'auto',
-            background: 'var(--bg-panel)', borderTop: '1px solid var(--border)',
-            padding: 16,
-          }}>
-            <div style={{
-              fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)',
-              textTransform: 'uppercase', marginBottom: 8,
-            }}>
-              Last Execution Result
-              {selectedState.processingTime && (
-                <span style={{ marginLeft: 8 }}>{selectedState.processingTime}ms</span>
-              )}
-            </div>
-            <pre style={{
-              fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-primary)',
-              whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0,
-              maxHeight: 140, overflow: 'auto',
-            }}>
-              {JSON.stringify(selectedState.result, null, 2)}
-            </pre>
-          </div>
-        )}
+        </div>
       </div>
     </div>
   );

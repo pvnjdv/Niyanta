@@ -53,24 +53,34 @@ router.get('/list', (_req: Request, res: Response) => {
 
 // ── Create a new agent ───────────────────────────────────────────────
 router.post('/', (req: Request, res: Response) => {
-  const { name, description, icon, capabilities, systemPrompt, subtitle } = req.body;
+  const { name, description, icon, capabilities, workflows, systemPrompt, subtitle } = req.body;
 
   if (!name || typeof name !== 'string' || name.trim().length === 0) {
     return res.status(400).json({ error: 'ValidationError', message: 'name is required' });
-  }
-  if (!systemPrompt || typeof systemPrompt !== 'string' || systemPrompt.trim().length === 0) {
-    return res.status(400).json({ error: 'ValidationError', message: 'systemPrompt is required' });
   }
 
   try {
     const orchestrator = getOrchestrator();
     const agentManager = orchestrator.getAgentManager();
+    
+    // Parse capabilities as array if it's a string (comma-separated)
+    let capabilitiesArray: string[] = [];
+    if (typeof capabilities === 'string' && capabilities.trim()) {
+      capabilitiesArray = capabilities.split(',').map(c => c.trim()).filter(c => c);
+    } else if (Array.isArray(capabilities)) {
+      capabilitiesArray = capabilities;
+    }
+    
+    // Default system prompt if not provided
+    const defaultSystemPrompt = systemPrompt?.trim() || 
+      `You are ${name}. ${description || 'An intelligent agent.'}${capabilities ? ` Capabilities: ${capabilities}` : ''}`;
+    
     const agentDef = agentManager.createAgent({
       name: name.trim(),
       description: description || '',
       icon: icon || name.slice(0, 2).toUpperCase(),
-      capabilities: Array.isArray(capabilities) ? capabilities : [],
-      systemPrompt: systemPrompt.trim(),
+      capabilities: capabilitiesArray,
+      systemPrompt: defaultSystemPrompt,
       subtitle: subtitle || '',
     });
 
@@ -102,7 +112,19 @@ router.post('/', (req: Request, res: Response) => {
        VALUES (?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, datetime('now'))`
     ).run(agentDef.agent_id, agentDef.name, agentDef.subtitle, JSON.stringify(agentDef.capabilities), agentDef.color, agentDef.icon, agentDef.glow, agentDef.description, agentDef.systemPrompt, workflowId);
 
-    return res.status(201).json({ success: true, agent: { ...agentDef, workflow_id: workflowId } });
+    // Link agent to selected workflows
+    if (Array.isArray(workflows) && workflows.length > 0) {
+      const insertWorkflowLink = db.prepare(
+        `INSERT OR IGNORE INTO agent_workflows (id, agent_id, workflow_id, can_trigger, can_modify, created_at)
+         VALUES (?, ?, ?, 1, 0, datetime('now'))`
+      );
+      
+      for (const workflowId of workflows) {
+        insertWorkflowLink.run(`aw_${agentDef.agent_id}_${workflowId}`, agentDef.agent_id, workflowId);
+      }
+    }
+
+    return res.status(201).json({ success: true, agent: { ...agentDef, workflow_id: workflowId, linked_workflows: workflows || [] } });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     return res.status(500).json({ success: false, error: 'AgentCreationFailed', message });
@@ -385,6 +407,69 @@ router.post('/workflows/:workflowId/invoke', async (req: Request, res: Response)
       message,
       timestamp: new Date().toISOString(),
     });
+  }
+});
+
+// ── Get workflows linked to an agent ─────────────────────────────────
+router.get('/:id/workflows', (req: Request, res: Response) => {
+  const { id } = req.params;
+  
+  try {
+    const { getDB } = require('../db/database');
+    const db = getDB();
+    
+    // Get linked workflows
+    const links = db.prepare(`
+      SELECT aw.workflow_id, aw.can_trigger, aw.can_modify, aw.created_at,
+             w.name, w.description, w.category, w.status
+      FROM agent_workflows aw
+      JOIN workflows w ON w.id = aw.workflow_id
+      WHERE aw.agent_id = ?
+      ORDER BY aw.created_at DESC
+    `).all(id);
+    
+    return res.json({ success: true, workflows: links });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return res.status(500).json({ success: false, error: 'FetchWorkflowsFailed', message });
+  }
+});
+
+// ── Link/unlink workflows to an agent ────────────────────────────────
+router.post('/:id/workflows', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { workflowIds, action } = req.body; // action: 'add' or 'remove'
+  
+  if (!Array.isArray(workflowIds) || !action) {
+    return res.status(400).json({ error: 'ValidationError', message: 'workflowIds (array) and action (add/remove) are required' });
+  }
+  
+  try {
+    const { getDB } = require('../db/database');
+    const db = getDB();
+    
+    if (action === 'add') {
+      const stmt = db.prepare(`
+        INSERT OR IGNORE INTO agent_workflows (id, agent_id, workflow_id, can_trigger, can_modify, created_at)
+        VALUES (?, ?, ?, 1, 0, datetime('now'))
+      `);
+      
+      for (const workflowId of workflowIds) {
+        stmt.run(`aw_${id}_${workflowId}`, id, workflowId);
+      }
+    } else if (action === 'remove') {
+      const stmt = db.prepare('DELETE FROM agent_workflows WHERE agent_id = ? AND workflow_id = ?');
+      for (const workflowId of workflowIds) {
+        stmt.run(id, workflowId);
+      }
+    } else {
+      return res.status(400).json({ error: 'ValidationError', message: 'action must be "add" or "remove"' });
+    }
+    
+    return res.json({ success: true, message: `Workflows ${action === 'add' ? 'linked' : 'unlinked'} successfully` });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return res.status(500).json({ success: false, error: 'WorkflowLinkFailed', message });
   }
 });
 
