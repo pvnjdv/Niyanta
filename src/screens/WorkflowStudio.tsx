@@ -37,6 +37,8 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
   const [allWorkflows, setAllWorkflows] = useState<any[]>([]);
   const [loadingWorkflows, setLoadingWorkflows] = useState(true);
   const [showTemplateGallery, setShowTemplateGallery] = useState(false);
+  const [openWorkflowMenuId, setOpenWorkflowMenuId] = useState<string | null>(null);
+  const [detailWorkflowId, setDetailWorkflowId] = useState<string | null>(null);
   
   // Mock execution data
   const mockLogs = [
@@ -129,6 +131,24 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
     };
     fetchWorkflows();
   }, [workflowId]);
+
+  React.useEffect(() => {
+    if (!openWorkflowMenuId) return;
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest('.workflow-action-btn')) return;
+      setOpenWorkflowMenuId(null);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [openWorkflowMenuId]);
+
+  React.useEffect(() => {
+    if (!detailWorkflowId) return;
+    if (!allWorkflows.some(w => w.id === detailWorkflowId)) {
+      setDetailWorkflowId(null);
+    }
+  }, [allWorkflows, detailWorkflowId]);
 
   // Mock data
   const mockWorkflows = [
@@ -1479,11 +1499,56 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
         });
         if (res.ok) {
           setAllWorkflows(prev => prev.filter(w => w.id !== id));
+          return true;
         }
       } catch (err) {
         console.error('Failed to delete workflow:', err);
       }
+      return false;
     };
+
+    const detailWorkflow = detailWorkflowId ? allWorkflows.find(w => w.id === detailWorkflowId) || null : null;
+    const detailTags = (() => {
+      if (!detailWorkflow) return [] as string[];
+      if (Array.isArray(detailWorkflow.tags)) return detailWorkflow.tags as string[];
+      if (typeof detailWorkflow.tags === 'string') {
+        try {
+          const parsed = JSON.parse(detailWorkflow.tags);
+          return Array.isArray(parsed) ? parsed as string[] : [];
+        } catch {
+          return detailWorkflow.tags ? [detailWorkflow.tags] : [];
+        }
+      }
+      return [] as string[];
+    })();
+
+    const detailTriggers = (() => {
+      if (!detailWorkflow) return [] as string[];
+      if (Array.isArray(detailWorkflow.triggers)) return detailWorkflow.triggers as string[];
+      if (typeof detailWorkflow.triggers === 'string') {
+        try {
+          const parsed = JSON.parse(detailWorkflow.triggers);
+          return Array.isArray(parsed) ? parsed as string[] : [];
+        } catch {
+          return detailWorkflow.triggers ? [detailWorkflow.triggers] : [];
+        }
+      }
+      return [] as string[];
+    })();
+
+    const detailNodeCount = (() => {
+      if (!detailWorkflow) return 0;
+      if (Array.isArray(detailWorkflow.nodes)) return detailWorkflow.nodes.length;
+      if (typeof detailWorkflow.nodes === 'string') {
+        try {
+          const parsed = JSON.parse(detailWorkflow.nodes);
+          return Array.isArray(parsed) ? parsed.length : 0;
+        } catch {
+          return 0;
+        }
+      }
+      return 0;
+    })();
 
     const getCategoryColor = (category: string) => {
       const colors: Record<string, string> = {
@@ -1604,7 +1669,7 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
                     onMouseEnter={e => { e.currentTarget.style.borderColor = catColor; }}
                     onMouseLeave={e => { (e.currentTarget.style as any).border = '1px solid var(--border)'; e.currentTarget.style.borderLeft = `3px solid ${catColor}`; }}
                     onClick={(e) => {
-                      if (!(e.target as HTMLElement).closest('.delete-btn')) {
+                      if (!(e.target as HTMLElement).closest('.workflow-action-btn')) {
                         navigate(`/workflows/${workflow.id}`);
                       }
                     }}
@@ -1625,21 +1690,76 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
                       }}>
                         {workflow.is_default ? 'DEFAULT' : 'CUSTOM'}
                       </span>
+                      <div style={{ position: 'relative' }}>
                       <button
-                        className="delete-btn"
-                        onClick={(e) => { e.stopPropagation(); handleDelete(workflow.id, workflow.name); }}
+                        className="workflow-action-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOpenWorkflowMenuId(openWorkflowMenuId === workflow.id ? null : workflow.id);
+                        }}
                         style={{
                           width: 24, height: 24, borderRadius: 3,
                           background: 'transparent', border: '1px solid var(--border)',
-                          color: 'var(--text-muted)', cursor: 'pointer', fontSize: 12,
+                          color: 'var(--text-muted)', cursor: 'pointer', fontSize: 14,
                           display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                         }}
-                        onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--status-danger)'; e.currentTarget.style.color = 'var(--status-danger)'; }}
+                        onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent-border)'; e.currentTarget.style.color = 'var(--accent)'; }}
                         onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-muted)'; }}
-                        title="Delete workflow"
+                        title="Options"
                       >
-                        ✕
+                        ⋮
                       </button>
+
+                      {openWorkflowMenuId === workflow.id && (
+                        <div
+                          className="workflow-action-btn"
+                          style={{
+                            position: 'absolute', top: '100%', right: 0, marginTop: 4,
+                            background: 'var(--bg-panel)', border: '1px solid var(--border)',
+                            borderRadius: 4, boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                            zIndex: 220, minWidth: 168,
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenWorkflowMenuId(null);
+                              setDetailWorkflowId(workflow.id);
+                            }}
+                            style={{ width: '100%', padding: '8px 12px', textAlign: 'left', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-body)' }}
+                            onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-tile-hover)'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                          >
+                            <span style={{ fontSize: 11 }}>ℹ</span> Details
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenWorkflowMenuId(null);
+                              navigate(`/workflows/${workflow.id}`);
+                            }}
+                            style={{ width: '100%', padding: '8px 12px', textAlign: 'left', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-body)', borderTop: '1px solid var(--border)' }}
+                            onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-tile-hover)'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                          >
+                            <span style={{ fontSize: 11 }}>✎</span> Open in Studio
+                          </button>
+                          <button
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              setOpenWorkflowMenuId(null);
+                              await handleDelete(workflow.id, workflow.name);
+                            }}
+                            style={{ width: '100%', padding: '8px 12px', textAlign: 'left', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-body)', borderTop: '1px solid var(--border)' }}
+                            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(220,38,38,0.08)'; e.currentTarget.style.color = '#DC2626'; }}
+                            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-primary)'; }}
+                          >
+                            <span style={{ fontSize: 11 }}>✕</span> Delete
+                          </button>
+                        </div>
+                      )}
+                      </div>
                     </div>
 
                     <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12, lineHeight: 1.5 }}>
@@ -1663,6 +1783,156 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
           )}
 
         </div>
+
+        {detailWorkflow && (
+          <>
+            <div
+              style={{ position: 'fixed', inset: 0, zIndex: 300 }}
+              onClick={() => setDetailWorkflowId(null)}
+            />
+
+            <div style={{
+              position: 'fixed', top: 0, right: 0, bottom: 0, width: 420,
+              background: 'var(--bg-panel)', borderLeft: `3px solid ${getCategoryColor(detailWorkflow.category || 'General')}`,
+              boxShadow: '-8px 0 32px rgba(0,0,0,0.35)',
+              zIndex: 301, display: 'flex', flexDirection: 'column', overflowY: 'auto',
+            }}>
+              <div style={{ padding: '20px 20px 16px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                  <div style={{
+                    width: 44, height: 44, borderRadius: 10,
+                    background: `${getCategoryColor(detailWorkflow.category || 'General')}20`,
+                    border: `1.5px solid ${getCategoryColor(detailWorkflow.category || 'General')}66`,
+                    display: 'grid', placeItems: 'center', fontSize: 20, flexShrink: 0,
+                  }}>◈</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 700, fontSize: 15, lineHeight: 1.3, marginBottom: 3 }}>
+                      {detailWorkflow.name || 'Untitled Workflow'}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>
+                      {detailWorkflow.category || 'General'}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setDetailWorkflowId(null)}
+                    style={{ width: 28, height: 28, borderRadius: 4, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 16, display: 'grid', placeItems: 'center', flexShrink: 0 }}
+                  >×</button>
+                </div>
+
+                <div style={{ display: 'flex', gap: 6, marginTop: 12, flexWrap: 'wrap' }}>
+                  <span style={{
+                    fontFamily: 'var(--font-mono)', fontSize: 8, fontWeight: 600, padding: '2px 6px',
+                    borderRadius: 3, letterSpacing: '0.05em',
+                    background: detailWorkflow.is_default ? 'rgba(124,58,237,0.15)' : 'rgba(5,150,105,0.15)',
+                    color: detailWorkflow.is_default ? '#7C3AED' : '#059669',
+                    border: `1px solid ${detailWorkflow.is_default ? 'rgba(124,58,237,0.4)' : 'rgba(5,150,105,0.4)'}`,
+                  }}>{detailWorkflow.is_default ? 'DEFAULT' : 'CUSTOM'}</span>
+
+                  <span style={{
+                    fontFamily: 'var(--font-mono)', fontSize: 8, fontWeight: 600, padding: '2px 6px',
+                    borderRadius: 3, letterSpacing: '0.05em', textTransform: 'uppercase',
+                    background: 'rgba(107,114,128,0.14)', color: 'var(--text-secondary)',
+                    border: '1px solid var(--border)',
+                  }}>{detailWorkflow.status || 'draft'}</span>
+
+                  <span style={{
+                    fontFamily: 'var(--font-mono)', fontSize: 8, fontWeight: 600, padding: '2px 6px',
+                    borderRadius: 3, letterSpacing: '0.05em',
+                    background: `${getCategoryColor(detailWorkflow.category || 'General')}18`,
+                    color: getCategoryColor(detailWorkflow.category || 'General'),
+                    border: `1px solid ${getCategoryColor(detailWorkflow.category || 'General')}44`,
+                  }}>{detailNodeCount} NODES</span>
+                </div>
+              </div>
+
+              <div style={{ flex: 1, padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 18 }}>
+                <div>
+                  <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.06em', marginBottom: 8 }}>Description</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.65 }}>
+                    {detailWorkflow.description || 'No description provided.'}
+                  </div>
+                </div>
+
+                <div>
+                  <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.06em', marginBottom: 8 }}>Metadata</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
+                      <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>CATEGORY</span>
+                      <span>{detailWorkflow.category || 'General'}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
+                      <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>STATUS</span>
+                      <span style={{ textTransform: 'uppercase' }}>{detailWorkflow.status || 'draft'}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
+                      <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>LAST UPDATED</span>
+                      <span>{detailWorkflow.updated_at ? new Date(detailWorkflow.updated_at).toLocaleString() : 'N/A'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.06em', marginBottom: 8 }}>
+                    Tags {detailTags.length > 0 && <span style={{ color: getCategoryColor(detailWorkflow.category || 'General') }}>({detailTags.length})</span>}
+                  </div>
+                  {detailTags.length === 0 ? (
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>No tags</div>
+                  ) : (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {detailTags.map((tag, i) => (
+                        <span key={`${tag}-${i}`} style={{ padding: '4px 8px', borderRadius: 3, fontSize: 10, background: 'var(--bg-tile)', color: 'var(--text-secondary)', border: '1px solid var(--border)', fontFamily: 'var(--font-mono)' }}>{tag}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.06em', marginBottom: 8 }}>
+                    Triggers {detailTriggers.length > 0 && <span style={{ color: getCategoryColor(detailWorkflow.category || 'General') }}>({detailTriggers.length})</span>}
+                  </div>
+                  {detailTriggers.length === 0 ? (
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>No triggers configured</div>
+                  ) : (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {detailTriggers.map((trigger, i) => (
+                        <span key={`${trigger}-${i}`} style={{ padding: '4px 8px', borderRadius: 3, fontSize: 10, background: `${getCategoryColor(detailWorkflow.category || 'General')}12`, color: getCategoryColor(detailWorkflow.category || 'General'), border: `1px solid ${getCategoryColor(detailWorkflow.category || 'General')}30`, fontFamily: 'var(--font-mono)' }}>{trigger}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div style={{ borderTop: '1px solid var(--border)', padding: '14px 20px', display: 'flex', gap: 8, flexShrink: 0 }}>
+                <button
+                  onClick={() => navigate(`/workflows/${detailWorkflow.id}`)}
+                  style={{
+                    flex: 1, height: 34, borderRadius: 4,
+                    background: 'var(--accent-dim)', border: '1px solid var(--accent-border)',
+                    color: 'var(--accent)', cursor: 'pointer', fontSize: 12,
+                    fontFamily: 'var(--font-mono)', fontWeight: 600,
+                  }}
+                >
+                  OPEN IN STUDIO
+                </button>
+                <button
+                  onClick={async () => {
+                    const deleted = await handleDelete(detailWorkflow.id, detailWorkflow.name || 'Untitled Workflow');
+                    if (deleted) setDetailWorkflowId(null);
+                  }}
+                  style={{
+                    height: 34, padding: '0 14px', borderRadius: 4,
+                    background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.35)',
+                    color: '#DC2626', cursor: 'pointer', fontSize: 12,
+                    fontFamily: 'var(--font-mono)', fontWeight: 600,
+                  }}
+                >
+                  DELETE
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+
         {showTemplateGallery && (
           <TemplateGallery
             onTemplateSelect={(newWorkflowId) => {
