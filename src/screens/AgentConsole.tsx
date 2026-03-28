@@ -117,7 +117,6 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
       }
     };
     hydrateEditCanvas();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agentId]);
 
   // ── Fetch workflows ────────────────────────────────────────────────────────
