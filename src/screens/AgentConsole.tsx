@@ -10,7 +10,7 @@ const AGENT_TEMPLATES = [
     name: 'Finance Operations Agent',
     description: 'End-to-end finance automation — invoice processing, payment validation, expense tracking, and financial reporting. Connects to finance workflows and reports anomalies to Niyanta.',
     icon: '💰',
-    color: '#10B981',
+    color: '#059669',
     category: 'Finance',
     capabilities: ['Invoice Processing', 'Payment Validation', 'Expense Tracking', 'Financial Reporting', 'Anomaly Detection'],
     defaultWorkflows: ['Invoice-to-Payment', 'Expense Approval', 'Budget Monitoring'],
@@ -21,7 +21,7 @@ const AGENT_TEMPLATES = [
     name: 'HR & People Ops Agent',
     description: 'Manages employee onboarding, leave requests, performance reviews, and compliance checks. Processes HR documents and escalates issues to Niyanta for oversight.',
     icon: '👥',
-    color: '#8B5CF6',
+    color: '#7C3AED',
     category: 'HR',
     capabilities: ['Onboarding Automation', 'Leave Management', 'Document Verification', 'Compliance Checking', 'Performance Tracking'],
     defaultWorkflows: ['Employee Onboarding', 'Leave Approval', 'Document Classification'],
@@ -135,15 +135,15 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
   // ── Canvas helpers ─────────────────────────────────────────────────────────
   const getCategoryColor = (category: string) => {
     const colors: Record<string, string> = {
-      'Finance': '#10B981', 'HR': '#EC4899', 'Operations': '#3B82F6',
-      'Security': '#EF4444', 'Compliance': '#F59E0B', 'IT': '#8B5CF6',
+      'Finance': '#059669', 'HR': '#EC4899', 'Operations': '#3B82F6',
+      'Security': '#EF4444', 'Compliance': '#F59E0B', 'IT': '#7C3AED',
       'Document Processing': '#06B6D4', 'General': '#6B7280',
     };
     return colors[category] || '#6B7280';
   };
 
   const getRoleColor = (role: string) => {
-    return role === 'input' ? '#3B82F6' : role === 'process' ? '#F59E0B' : '#10B981';
+    return role === 'input' ? '#3B82F6' : role === 'process' ? '#F59E0B' : '#059669';
   };
 
   const addWorkflowToCanvas = (workflow: {id: string; name: string; category: string}) => {
@@ -416,11 +416,11 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
             {/* Niyanta reporting node (always present) */}
             <div style={{
               padding: '14px 16px', borderTop: '1px solid var(--border)',
-              background: 'rgba(139, 92, 246, 0.08)',
+              background: 'rgba(124, 58, 237, 0.08)',
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                 <div style={{
-                  width: 24, height: 24, borderRadius: 6, background: '#8B5CF6',
+                  width: 24, height: 24, borderRadius: 6, background: '#7C3AED',
                   display: 'grid', placeItems: 'center', fontSize: 12, color: '#fff', fontWeight: 700,
                 }}>N</div>
                 <span style={{ fontSize: 12, fontWeight: 600, color: '#A78BFA' }}>Niyanta Orchestrator</span>
@@ -511,7 +511,7 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
                 <div style={{
                   position: 'absolute', left: 60, top: 80,
                   width: 220, padding: '16px',
-                  background: 'linear-gradient(135deg, rgba(0,212,255,0.15), rgba(139,92,246,0.15))',
+                  background: 'linear-gradient(135deg, rgba(0,212,255,0.15), rgba(124,58,237,0.15))',
                   border: `2px solid ${agentColor}`,
                   borderRadius: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
                   userSelect: 'none',
@@ -542,20 +542,20 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
                   <div style={{
                     position: 'absolute', left: 60, top: 400,
                     width: 220, padding: '14px',
-                    background: 'rgba(139, 92, 246, 0.15)',
-                    border: '2px solid #8B5CF6',
+                    background: 'rgba(124, 58, 237, 0.15)',
+                    border: '2px solid #7C3AED',
                     borderRadius: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
                     userSelect: 'none',
                   }}>
                     {/* Input handle */}
                     <div style={{
                       position: 'absolute', left: -8, top: '50%', transform: 'translateY(-50%)',
-                      width: 16, height: 16, borderRadius: '50%', background: '#8B5CF6',
+                      width: 16, height: 16, borderRadius: '50%', background: '#7C3AED',
                       border: '2px solid var(--bg-base)',
                     }} />
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       <div style={{
-                        width: 36, height: 36, borderRadius: 8, background: '#8B5CF6',
+                        width: 36, height: 36, borderRadius: 8, background: '#7C3AED',
                         display: 'grid', placeItems: 'center', color: '#fff', fontWeight: 700, fontSize: 13,
                       }}>N</div>
                       <div>
@@ -767,7 +767,7 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
                 Agent Color
               </label>
               <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
-                {['#00D4FF', '#10B981', '#8B5CF6', '#EC4899', '#F59E0B', '#EF4444', '#3B82F6', '#F97316'].map(c => (
+                {['#00D4FF', '#059669', '#7C3AED', '#EC4899', '#F59E0B', '#EF4444', '#3B82F6', '#F97316'].map(c => (
                   <div
                     key={c}
                     onClick={() => setAgentColor(c)}
@@ -1034,8 +1034,8 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
               }}>Create Your First Agent</button>
               <button onClick={() => setShowTemplates(true)} style={{
                 height: 36, padding: '0 20px', borderRadius: 4,
-                background: 'rgba(139,92,246,0.12)', border: '1px solid rgba(139,92,246,0.4)',
-                color: '#8B5CF6', cursor: 'pointer', fontSize: 13, fontWeight: 600,
+                background: 'rgba(124,58,237,0.15)', border: '1px solid rgba(124,58,237,0.5)',
+                color: '#7C3AED', cursor: 'pointer', fontSize: 13, fontWeight: 600,
               }}>Browse Templates</button>
             </div>
           </div>
@@ -1084,9 +1084,9 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
                     <span style={{
                       fontFamily: 'var(--font-mono)', fontSize: 8, fontWeight: 600,
                       padding: '2px 5px', borderRadius: 3, letterSpacing: '0.04em',
-                      background: PROTECTED.includes(agent.id) ? 'rgba(139,92,246,0.1)' : 'rgba(16,185,129,0.08)',
-                      color: PROTECTED.includes(agent.id) ? '#8B5CF6' : '#10B981',
-                      border: `1px solid ${PROTECTED.includes(agent.id) ? 'rgba(139,92,246,0.35)' : 'rgba(16,185,129,0.3)'}`,
+                      background: PROTECTED.includes(agent.id) ? 'rgba(124,58,237,0.15)' : 'rgba(5,150,105,0.15)',
+                      color: PROTECTED.includes(agent.id) ? '#7C3AED' : '#059669',
+                      border: `1px solid ${PROTECTED.includes(agent.id) ? 'rgba(124,58,237,0.4)' : 'rgba(5,150,105,0.4)'}`,
                       flexShrink: 0,
                     }}>
                       {PROTECTED.includes(agent.id) ? 'DEFAULT' : 'CUSTOM'}
@@ -1186,8 +1186,8 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
                         <span style={{ opacity: 0.3 }}>·</span>
                         <span style={{ 
                           textTransform: 'uppercase',
-                          color: state.status === 'complete' ? '#00ff88' :
-                                 state.status === 'error' ? '#ff4444' : '#ffa500',
+                          color: state.status === 'complete' ? '#10B981' :
+                                 state.status === 'error' ? '#DC2626' : '#D97706',
                         }}>
                           {state.status}
                         </span>
@@ -1222,7 +1222,7 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
             }}>
               <div style={{
                 width: 40, height: 40, borderRadius: 10,
-                background: 'linear-gradient(135deg, #00D4FF, #8B5CF6)',
+                background: 'linear-gradient(135deg, #00D4FF, #7C3AED)',
                 display: 'grid', placeItems: 'center', color: '#fff', fontSize: 18,
               }}>🤖</div>
               <div>

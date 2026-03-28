@@ -139,13 +139,13 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
 
   // Node categories with icons
   const nodeCategories = [
-    { name: 'TRIGGER', color: '#8B5CF6', icon: '▶', items: ['Manual Trigger', 'File Upload', 'API Trigger', 'Timer', 'Schedule', 'Webhook'] },
+    { name: 'TRIGGER', color: '#7C3AED', icon: '▶', items: ['Manual Trigger', 'File Upload', 'API Trigger', 'Timer', 'Schedule', 'Webhook'] },
     { name: 'DOCUMENT', color: '#EC4899', icon: '■', items: ['OCR', 'PDF Reader', 'Document Classifier', 'Field Extractor', 'Validation', 'Header/Footer Cleaner'] },
-    { name: 'DATA', color: '#10B981', icon: '●', items: ['Save Data', 'Read Data', 'Cache', 'Metadata'] },
+    { name: 'DATA', color: '#059669', icon: '●', items: ['Save Data', 'Read Data', 'Cache', 'Metadata'] },
     { name: 'AI', color: '#F59E0B', icon: '◆', items: ['LLM Reasoning', 'Classification', 'Summarization', 'Decision', 'Risk Analysis'] },
     { name: 'LOGIC', color: '#3B82F6', icon: '◈', items: ['If/Else', 'Switch', 'Loop', 'Parallel', 'Merge', 'Delay', 'Retry'] },
     { name: 'BUSINESS', color: '#EF4444', icon: '▲', items: ['Invoice Processor', 'Approval', 'Task Assignment', 'Purchase Order', 'Payment'] },
-    { name: 'NOTIFICATION', color: '#8B5CF6', icon: '◉', items: ['Notification', 'Alert'] },
+    { name: 'NOTIFICATION', color: '#7C3AED', icon: '◉', items: ['Notification', 'Alert'] },
     { name: 'MONITORING', color: '#F97316', icon: '◐', items: ['SLA Timer', 'Metrics', 'Bottleneck Detector'] },
     { name: 'OUTPUT', color: '#06B6D4', icon: '◧', items: ['CSV Export', 'Excel Export', 'PDF Report', 'JSON Export', 'Dashboard Update'] },
   ];
@@ -1487,12 +1487,12 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
 
     const getCategoryColor = (category: string) => {
       const colors: Record<string, string> = {
-        'Finance': '#10B981',
+        'Finance': '#059669',
         'HR': '#EC4899',
         'Operations': '#3B82F6',
         'Security': '#EF4444',
         'Compliance': '#F59E0B',
-        'IT': '#8B5CF6',
+        'IT': '#7C3AED',
         'Document Processing': '#06B6D4',
         'General': '#6B7280',
       };
@@ -1571,8 +1571,8 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
                       onClick={() => setShowTemplateGallery(true)}
                       style={{
                         height: 36, padding: '0 20px', borderRadius: 4,
-                        background: 'rgba(139,92,246,0.12)', border: '1px solid rgba(139,92,246,0.4)',
-                        color: '#8B5CF6', cursor: 'pointer', fontSize: 13, fontWeight: 600,
+                        background: 'rgba(124,58,237,0.15)', border: '1px solid rgba(124,58,237,0.5)',
+                        color: '#7C3AED', cursor: 'pointer', fontSize: 13, fontWeight: 600,
                       }}
                     >
                       Browse Templates
@@ -1618,9 +1618,9 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
                       <span style={{
                         fontFamily: 'var(--font-mono)', fontSize: 8, fontWeight: 600,
                         padding: '2px 5px', borderRadius: 3, letterSpacing: '0.04em',
-                        background: workflow.is_default ? 'rgba(139,92,246,0.1)' : 'rgba(16,185,129,0.08)',
-                        color: workflow.is_default ? '#8B5CF6' : '#10B981',
-                        border: `1px solid ${workflow.is_default ? 'rgba(139,92,246,0.35)' : 'rgba(16,185,129,0.3)'}`,
+                        background: workflow.is_default ? 'rgba(124,58,237,0.15)' : 'rgba(5,150,105,0.15)',
+                        color: workflow.is_default ? '#7C3AED' : '#059669',
+                        border: `1px solid ${workflow.is_default ? 'rgba(124,58,237,0.4)' : 'rgba(5,150,105,0.4)'}`,
                         flexShrink: 0,
                       }}>
                         {workflow.is_default ? 'DEFAULT' : 'CUSTOM'}
