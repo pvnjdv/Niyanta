@@ -8,6 +8,7 @@ export interface Agent {
   description: string;
   capabilities: string[];
   status: 'idle' | 'processing' | 'complete' | 'error';
+  isTemplate?: boolean;
 }
 
 export interface Message {

@@ -207,6 +207,20 @@ export class AgentManager {
         description: 'Classifies and extracts document data.',
         systemPrompt: 'You are the Document Intelligence Agent. Detect document type, fields, missing fields, and validation status. Return strict JSON only.'
       },
+      {
+        agent_id: 'finance_ops', name: 'Finance Operations', subtitle: 'Budget & expense intelligence',
+        icon: 'FO', color: '#059669', glow: 'rgba(5,150,105,0.2)',
+        capabilities: ['budget analysis', 'expense tracking', 'anomaly detection', 'forecasting'], status: 'active',
+        description: 'Analyzes financial data, monitors budgets, and detects expense anomalies.',
+        systemPrompt: 'You are the Finance Operations Agent. Analyze financial data including budgets, expenses, and invoices. Detect anomalies and generate insights. Return strict JSON with: summary, budgetStatus, anomalies, recommendations, riskLevel, whyChain.'
+      },
+      {
+        agent_id: 'hr_ops', name: 'HR Operations', subtitle: 'People & workforce intelligence',
+        icon: 'HR', color: '#EC4899', glow: 'rgba(236,72,153,0.2)',
+        capabilities: ['onboarding', 'leave management', 'compliance', 'performance tracking'], status: 'active',
+        description: 'Manages HR workflows including onboarding, leave requests, and compliance.',
+        systemPrompt: 'You are the HR Operations Agent. Handle employee requests including onboarding, leave management, and policy queries. Return strict JSON with: requestType, decision, reason, nextSteps, complianceStatus, whyChain.'
+      },
     ];
 
     for (const agent of agentDefinitions) {

@@ -23,6 +23,7 @@ function apiAgentToFrontend(a: Record<string, unknown>): Agent {
     description: (a.description || '') as string,
     capabilities: Array.isArray(a.capabilities) ? a.capabilities as string[] : [],
     status: 'idle',
+    isTemplate: !!(a.is_template),
   };
 }
 

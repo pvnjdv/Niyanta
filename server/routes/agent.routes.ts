@@ -48,7 +48,18 @@ router.post('/run', validateAgentRun, async (req: Request, res: Response) => {
 router.get('/list', (_req: Request, res: Response) => {
   const orchestrator = getOrchestrator();
   const agents = orchestrator.getAgentManager().getAllAgents();
-  res.json({ agents });
+  // Merge is_template flag from DB
+  try {
+    const { getDB } = require('../db/database');
+    const db = getDB();
+    const templateIds = new Set(
+      (db.prepare("SELECT id FROM agents WHERE is_template=1").all() as Array<{id: string}>).map(r => r.id)
+    );
+    const enriched = agents.map(a => ({ ...a, is_template: templateIds.has(a.agent_id) ? 1 : 0 }));
+    return res.json({ agents: enriched });
+  } catch {
+    return res.json({ agents });
+  }
 });
 
 // ── Create a new agent ───────────────────────────────────────────────
@@ -197,23 +208,24 @@ router.put('/:id', (req: Request, res: Response) => {
 // ── Delete an agent ──────────────────────────────────────────────────
 router.delete('/:id', (req: Request, res: Response) => {
   const { id } = req.params;
-  const PROTECTED = ['meeting', 'invoice', 'document'];
-  if (PROTECTED.includes(id)) {
-    return res.status(403).json({ error: 'Forbidden', message: 'Cannot delete default agents' });
-  }
 
   try {
-    const orchestrator = getOrchestrator();
-    const agentManager = orchestrator.getAgentManager();
-    const existing = agentManager.getAgent(id);
-    if (!existing) {
-      return res.status(404).json({ error: 'NotFound', message: `Agent ${id} not found` });
-    }
-
-    agentManager.deleteAgent(id);
-
     const { getDB } = require('../db/database');
     const db = getDB();
+
+    // Check if agent is a protected template
+    const agentRow = db.prepare('SELECT is_template FROM agents WHERE id = ?').get(id) as { is_template: number } | undefined;
+    if (agentRow?.is_template) {
+      return res.status(403).json({ error: 'Forbidden', message: 'Cannot delete template agents' });
+    }
+
+    const orchestrator = getOrchestrator();
+    const agentManager = orchestrator.getAgentManager();
+    if (!agentManager.getAgent(id)) {
+      return res.status(404).json({ error: 'NotFound', message: `Agent ${id} not found` });
+    }
+    agentManager.deleteAgent(id);
+
     const workflowId = `wf_agent_${id}`;
     // Delete workflow runs and their logs
     const runs = db.prepare('SELECT id FROM workflow_runs WHERE workflow_id = ?').all(workflowId);

@@ -46,10 +46,13 @@ function initializeSchema(): void {
     'ALTER TABLE workflows ADD COLUMN triggers TEXT DEFAULT "[]"',
     'ALTER TABLE workflows ADD COLUMN allow_agent_invocation INTEGER DEFAULT 1',
     'ALTER TABLE workflows ADD COLUMN is_default INTEGER DEFAULT 0',
+    'ALTER TABLE agents ADD COLUMN is_template INTEGER DEFAULT 0',
+    'ALTER TABLE agents ADD COLUMN canvas_layout TEXT',
   ];
   for (const m of migrations) {
     try { db.prepare(m).run(); } catch { /* column already exists */ }
   }
+  syncTemplateAgents();
   
   // Create agent_workflows junction table
   try {
@@ -79,6 +82,79 @@ function initializeSchema(): void {
   seedDefaultAgents();
   seedDefaultNodes();
   seedDefaultWorkflows();
+}
+
+// ── Template Agents (always exist, cannot be deleted) ──────────────────────
+const TEMPLATE_AGENT_SEEDS: AgentSeed[] = [
+  {
+    id: 'meeting', name: 'Meeting Intelligence', subtitle: 'Transcript to action',
+    icon: 'MI', color: '#666666', glow: 'rgba(102,102,102,0.2)',
+    capabilities: ['summary', 'decisions', 'tasks', 'risks'],
+    description: 'Extracts outcomes from meeting transcripts.',
+    systemPrompt: 'You are the Meeting Intelligence Agent. Analyze meeting transcripts and extract summary, attendees, decisions, tasks (with owners and deadlines), risks, sentiment, and WHY-CHAIN audit trail. Respond only with valid JSON containing: summary, attendees, decisions, tasks, risks, sentiment, whyChain.'
+  },
+  {
+    id: 'invoice', name: 'Invoice Processor', subtitle: 'AP approval intelligence',
+    icon: 'IP', color: '#888888', glow: 'rgba(136,136,136,0.2)',
+    capabilities: ['validation', 'decisioning', 'anomaly checks'],
+    description: 'Validates invoices and makes decision recommendations.',
+    systemPrompt: 'You are the Invoice Processing Agent. Analyze invoice data and decide AUTO-APPROVE, FLAG, or REJECT based on amount thresholds, anomalies, vendor history, and completeness. Return strict JSON with: decision, confidence, reason, lineItems, anomalies, complianceChecks, whyChain.'
+  },
+  {
+    id: 'document', name: 'Document Intelligence', subtitle: 'Document understanding',
+    icon: 'DI', color: '#AAAAAA', glow: 'rgba(170,170,170,0.2)',
+    capabilities: ['classification', 'field extraction', 'validation'],
+    description: 'Classifies and extracts document data.',
+    systemPrompt: 'You are the Document Intelligence Agent. Detect document type, extract structured fields, identify missing required fields, validate data formats, and flag discrepancies. Return strict JSON with: documentType, confidence, extractedFields, missingFields, validationStatus, flags, whyChain.'
+  },
+  {
+    id: 'finance_ops', name: 'Finance Operations', subtitle: 'Budget & expense intelligence',
+    icon: 'FO', color: '#059669', glow: 'rgba(5,150,105,0.2)',
+    capabilities: ['budget analysis', 'expense tracking', 'anomaly detection', 'forecasting'],
+    description: 'Analyzes financial data, monitors budgets, and detects expense anomalies.',
+    systemPrompt: 'You are the Finance Operations Agent. Analyze financial data including budgets, expenses, purchase orders, and invoices. Detect anomalies, track budget utilization, and generate financial insights. Return strict JSON with: summary, budgetStatus, anomalies, recommendations, riskLevel, whyChain.'
+  },
+  {
+    id: 'hr_ops', name: 'HR Operations', subtitle: 'People & workforce intelligence',
+    icon: 'HR', color: '#EC4899', glow: 'rgba(236,72,153,0.2)',
+    capabilities: ['onboarding', 'leave management', 'compliance', 'performance tracking'],
+    description: 'Manages HR workflows including onboarding, leave requests, and compliance.',
+    systemPrompt: 'You are the HR Operations Agent. Handle employee requests including onboarding, leave management, policy queries, and performance tracking. Ensure compliance with HR policies. Return strict JSON with: requestType, decision, reason, nextSteps, complianceStatus, whyChain.'
+  },
+];
+
+function syncTemplateAgents(): void {
+  const conn = db;
+  const insertWorkflow = conn.prepare(
+    `INSERT OR IGNORE INTO workflows (id, name, description, nodes, edges, status, category, is_agent, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, 'active', 'agent', 1, datetime('now'), datetime('now'))`
+  );
+  const upsertAgent = conn.prepare(
+    `INSERT OR IGNORE INTO agents (id, name, subtitle, capabilities, status, color, icon, glow, description, system_prompt, workflow_id, is_template, created_at)
+     VALUES (?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, 1, datetime('now'))`
+  );
+  // Mark existing template agents as is_template
+  conn.prepare(
+    `UPDATE agents SET is_template=1 WHERE id IN ('meeting','invoice','document','finance_ops','hr_ops')`
+  ).run();
+
+  for (const agent of TEMPLATE_AGENT_SEEDS) {
+    const workflowId = `wf_agent_${agent.id}`;
+    const triggerId = `${agent.id}_trigger`;
+    const llmId = `${agent.id}_llm`;
+    const notifyId = `${agent.id}_notify`;
+    const nodes = [
+      { instanceId: triggerId, nodeType: 'chat_input', name: 'Chat / Data Input', config: {}, position: { x: 100, y: 200 } },
+      { instanceId: llmId, nodeType: 'llm_analysis', name: `${agent.name} Analysis`, config: { prompt: agent.systemPrompt }, position: { x: 400, y: 200 } },
+      { instanceId: notifyId, nodeType: 'niyanta_output', name: 'Output & Niyanta Report', config: { channel: 'internal' }, position: { x: 700, y: 200 } },
+    ];
+    const edges = [
+      { id: `e_${triggerId}_${llmId}`, fromNodeId: triggerId, toNodeId: llmId },
+      { id: `e_${llmId}_${notifyId}`, fromNodeId: llmId, toNodeId: notifyId },
+    ];
+    insertWorkflow.run(workflowId, `${agent.name} Agent Workflow`, `Workflow backing the ${agent.name} agent`, JSON.stringify(nodes), JSON.stringify(edges));
+    upsertAgent.run(agent.id, agent.name, agent.subtitle, JSON.stringify(agent.capabilities), agent.color, agent.icon, agent.glow, agent.description, agent.systemPrompt, workflowId);
+  }
 }
 
 interface AgentSeed {

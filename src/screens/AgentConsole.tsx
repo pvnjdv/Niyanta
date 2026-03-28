@@ -44,15 +44,16 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
   const [autoProcess, setAutoProcess] = useState(true);
   const [availableWorkflows, setAvailableWorkflows] = useState<Array<{id: string; name: string; description: string; category: string; status?: string}>>([]);
   const [canvasNodes, setCanvasNodes] = useState<Array<{
-    id: string; workflowId: string; name: string; category: string;
-    x: number; y: number; role: 'input' | 'process' | 'output';
+    id: string; blockType: 'workflow' | 'node'; refId: string;
+    name: string; category: string; color: string;
+    x: number; y: number;
   }>>([]);
-  const [edges, setEdges] = useState<Array<{id: string; source: string; target: string}>>([]);
   const [canvasPan, setCanvasPan] = useState({ x: 0, y: 0 });
   const [canvasZoom, setCanvasZoom] = useState(100);
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
-  const [connectingFrom, setConnectingFrom] = useState<string | null>(null);
-  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const [leftTab, setLeftTab] = useState<'workflows' | 'nodes'>('workflows');
+  const [expandedNodeCats, setExpandedNodeCats] = useState<Set<string>>(new Set(['AI & LLM', 'Actions']));
+  const [nodeSearch, setNodeSearch] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
 
@@ -69,7 +70,7 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
   useEffect(() => {
     const fetchWorkflows = async () => {
       try {
-        const res = await fetch('http://localhost:3001/api/workflow');
+        const res = await fetch('/api/workflow');
         if (res.ok) {
           const data = await res.json();
           setAvailableWorkflows(data.workflows || []);
@@ -85,7 +86,7 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
     const fetchLinkedWorkflows = async () => {
       if (!agentId || agentId === 'new') { setLinkedWorkflows([]); return; }
       try {
-        const res = await fetch(`http://localhost:3001/api/agent/${agentId}/workflows`);
+        const res = await fetch(`/api/agent/${agentId}/workflows`);
         if (res.ok) {
           const data = await res.json();
           setLinkedWorkflows(data.workflows || []);
@@ -99,7 +100,7 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
 
   useEffect(() => {
     if (!detailAgentId) { setDetailLinkedWorkflows([]); return; }
-    fetch(`http://localhost:3001/api/agent/${detailAgentId}/workflows`)
+    fetch(`/api/agent/${detailAgentId}/workflows`)
       .then(r => r.ok ? r.json() : { workflows: [] })
       .then(d => setDetailLinkedWorkflows(d.workflows || []))
       .catch(() => setDetailLinkedWorkflows([]));
@@ -128,23 +129,45 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
     return role === 'input' ? '#3B82F6' : role === 'process' ? '#F59E0B' : '#059669';
   };
 
+  const NODE_PALETTE = [
+    { category: 'AI & LLM', color: '#7C3AED', nodes: ['LLM Analysis', 'Summarization', 'Classification', 'Translation', 'Risk Analysis', 'Sentiment Analysis'] },
+    { category: 'Data', color: '#059669', nodes: ['Read Data', 'Write Data', 'Transform', 'Filter', 'Aggregate', 'Validation'] },
+    { category: 'Actions', color: '#F59E0B', nodes: ['Send Email', 'Notification', 'Approval Request', 'Task Assignment', 'HTTP Request'] },
+    { category: 'Logic', color: '#6B7280', nodes: ['Decision', 'Switch', 'Condition', 'Delay', 'Retry', 'Merge'] },
+    { category: 'Output', color: '#06B6D4', nodes: ['JSON Export', 'CSV Export', 'PDF Report', 'Dashboard Update', 'Alert'] },
+  ];
+
   const addWorkflowToCanvas = (workflow: {id: string; name: string; category: string}) => {
-    if (canvasNodes.find(n => n.workflowId === workflow.id)) return;
-    const baseX = 200 + (canvasNodes.length % 3) * 280;
-    const baseY = 150 + Math.floor(canvasNodes.length / 3) * 180;
+    if (canvasNodes.some(n => n.blockType === 'workflow' && n.refId === workflow.id)) return;
+    const idx = canvasNodes.length;
     setCanvasNodes(prev => [...prev, {
       id: `wn-${Date.now()}`,
-      workflowId: workflow.id,
+      blockType: 'workflow' as const,
+      refId: workflow.id,
       name: workflow.name,
       category: workflow.category,
-      x: baseX, y: baseY,
-      role: canvasNodes.length === 0 ? 'input' : 'process',
+      color: getCategoryColor(workflow.category),
+      x: 340 + (idx % 3) * 290,
+      y: 80 + Math.floor(idx / 3) * 180,
+    }]);
+  };
+
+  const addNodeToCanvas = (nodeName: string, category: string, color: string) => {
+    const idx = canvasNodes.length;
+    setCanvasNodes(prev => [...prev, {
+      id: `nn-${Date.now()}`,
+      blockType: 'node' as const,
+      refId: nodeName,
+      name: nodeName,
+      category,
+      color,
+      x: 340 + (idx % 3) * 290,
+      y: 80 + Math.floor(idx / 3) * 180,
     }]);
   };
 
   const removeNodeFromCanvas = (nodeId: string) => {
     setCanvasNodes(prev => prev.filter(n => n.id !== nodeId));
-    setEdges(prev => prev.filter(e => e.source !== nodeId && e.target !== nodeId));
     setSelectedNode(null);
   };
 
@@ -152,28 +175,33 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
     if (!agentName.trim()) return;
     setIsSaving(true);
     try {
-      const res = await fetch('http://localhost:3001/api/agent', {
+      const res = await fetch('/api/agent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: agentName.trim(),
           description: agentDescription.trim(),
           capabilities: agentCapabilities.trim(),
-          workflows: canvasNodes.map(n => n.workflowId),
+          workflows: canvasNodes.filter(n => n.blockType === 'workflow').map(n => n.refId),
           config: {
             reportToNiyanta,
             autoProcess,
-            canvasLayout: canvasNodes.map(n => ({ workflowId: n.workflowId, x: n.x, y: n.y, role: n.role })),
-            edges: edges.map(e => ({ source: e.source, target: e.target })),
+            canvasLayout: canvasNodes.map(n => ({
+              id: n.id, blockType: n.blockType, refId: n.refId,
+              name: n.name, category: n.category, x: n.x, y: n.y,
+            })),
           },
         }),
       });
       if (res.ok) {
         setLastSaved(new Date());
         setTimeout(() => navigate('/agents'), 500);
+      } else {
+        const d = await res.json().catch(() => ({}));
+        alert(`Failed to save agent: ${d.message || res.status}`);
       }
     } catch (err) {
-      console.error('Failed to save agent:', err);
+      alert(`Failed to save agent: ${err instanceof Error ? err.message : 'Network error'}`);
     } finally {
       setIsSaving(false);
     }
@@ -185,29 +213,20 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
     setAgentCapabilities(template.capabilities.join(', '));
     setAgentColor(template.color);
 
-    // Auto-add matching workflows to canvas
     const matching = availableWorkflows.filter(wf =>
       wf.category === template.category ||
       template.defaultWorkflows.some(dw => wf.name.toLowerCase().includes(dw.toLowerCase()))
     );
-    const nodes = matching.map((wf, i) => ({
+    setCanvasNodes(matching.map((wf, i) => ({
       id: `wn-${Date.now()}-${i}`,
-      workflowId: wf.id,
+      blockType: 'workflow' as const,
+      refId: wf.id,
       name: wf.name,
       category: wf.category,
-      x: 200 + (i % 3) * 280,
-      y: 150 + Math.floor(i / 3) * 180,
-      role: (i === 0 ? 'input' : i === matching.length - 1 ? 'output' : 'process') as 'input' | 'process' | 'output',
-    }));
-    setCanvasNodes(nodes);
-
-    // Auto-create edges sequentially
-    const newEdges = nodes.slice(0, -1).map((n, i) => ({
-      id: `edge-${Date.now()}-${i}`,
-      source: n.id,
-      target: nodes[i + 1].id,
-    }));
-    setEdges(newEdges);
+      color: getCategoryColor(wf.category),
+      x: 340 + (i % 3) * 290,
+      y: 80 + Math.floor(i / 3) * 180,
+    })));
 
     setShowTemplates(false);
     navigate('/agents/new');
@@ -216,14 +235,15 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
   const handleRename = async () => {
     if (!renamingAgent || !renameValue.trim()) return;
     try {
-      await fetch(`http://localhost:3001/api/agent/${renamingAgent.id}`, {
+      const res = await fetch(`/api/agent/${renamingAgent.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: renameValue.trim() }),
       });
+      if (!res.ok) { const d = await res.json().catch(() => ({})); alert(`Rename failed: ${d.message || res.status}`); return; }
       window.location.reload();
     } catch (err) {
-      console.error('Failed to rename agent:', err);
+      alert(`Rename failed: ${err instanceof Error ? err.message : 'Network error'}`);
     }
     setRenamingAgent(null);
   };
@@ -231,14 +251,30 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
   const handleSetMaintenance = async (agentId: string, agentName: string) => {
     if (!confirm(`Put "${agentName}" into maintenance mode? It will be paused and unavailable for execution.`)) return;
     try {
-      await fetch(`http://localhost:3001/api/agent/${agentId}`, {
+      const res = await fetch(`/api/agent/${agentId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'maintenance' }),
       });
+      if (!res.ok) { const d = await res.json().catch(() => ({})); alert(`Failed: ${d.message || res.status}`); return; }
       window.location.reload();
     } catch (err) {
-      console.error('Failed to set maintenance:', err);
+      alert(`Failed: ${err instanceof Error ? err.message : 'Network error'}`);
+    }
+  };
+
+  const handleDeleteAgent = async (id: string, name: string) => {
+    if (!confirm(`Delete agent "${name}"? This cannot be undone.`)) return;
+    try {
+      const res = await fetch(`/api/agent/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        window.location.reload();
+      } else {
+        const d = await res.json().catch(() => ({}));
+        alert(`Delete failed: ${d.message || `Server returned ${res.status}`}`);
+      }
+    } catch (err) {
+      alert(`Delete failed: ${err instanceof Error ? err.message : 'Network error'}`);
     }
   };
 
@@ -276,29 +312,11 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
         y: panningCanvas.current.originPanY + (e.clientY - panningCanvas.current.startY),
       });
     }
-    if (connectingFrom) {
-      const rect = canvasRef.current?.getBoundingClientRect();
-      if (rect) {
-        setMousePos({ x: (e.clientX - rect.left - canvasPan.x) / (canvasZoom / 100), y: (e.clientY - rect.top - canvasPan.y) / (canvasZoom / 100) });
-      }
-    }
-  }, [canvasZoom, canvasPan, connectingFrom]);
+  }, [canvasZoom, canvasPan]);
 
   const handleCanvasMouseUp = () => {
     draggingNode.current = null;
     panningCanvas.current = null;
-    setConnectingFrom(null);
-  };
-
-  const handleOutputClick = (nodeId: string) => {
-    if (connectingFrom && connectingFrom !== nodeId) {
-      if (!edges.find(e => e.source === connectingFrom && e.target === nodeId)) {
-        setEdges(prev => [...prev, { id: `edge-${Date.now()}`, source: connectingFrom, target: nodeId }]);
-      }
-      setConnectingFrom(null);
-    } else {
-      setConnectingFrom(nodeId);
-    }
   };
 
   const handleRun = async () => {
@@ -371,73 +389,125 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
         {/* ── Main Area ──────────────────────────────────────────────────── */}
         <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
 
-          {/* ── Left: Workflow Palette ────────────────────────────────────── */}
+          {/* ── Left: Block Palette ───────────────────────────────────────── */}
           <div style={{
             width: 280, borderRight: '1px solid var(--border)', background: 'var(--bg-panel)',
             display: 'flex', flexDirection: 'column', flexShrink: 0,
           }}>
-            <div style={{ padding: '16px', borderBottom: '1px solid var(--border)' }}>
-              <div style={{
-                fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)',
-                textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10,
-              }}>WORKFLOW NODES</div>
-              <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: 12 }}>
-                Click workflows to add them as operational nodes on the canvas
-              </div>
+            {/* Tabs */}
+            <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+              {(['workflows', 'nodes'] as const).map(tab => (
+                <button key={tab} onClick={() => setLeftTab(tab)} style={{
+                  flex: 1, height: 40, border: 'none', cursor: 'pointer',
+                  fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 600,
+                  textTransform: 'uppercase', letterSpacing: '0.05em',
+                  background: leftTab === tab ? 'var(--bg-base)' : 'var(--bg-panel)',
+                  color: leftTab === tab ? 'var(--accent)' : 'var(--text-muted)',
+                  borderBottom: leftTab === tab ? '2px solid var(--accent)' : '2px solid transparent',
+                }}>{tab}</button>
+              ))}
             </div>
 
-            <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
-              {availableWorkflows.length === 0 ? (
-                <div style={{ padding: '24px 16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>
-                  No workflows available.<br />Create workflows first in Workflow Studio.
-                </div>
+            {/* Search */}
+            <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+              <input
+                value={nodeSearch} onChange={e => setNodeSearch(e.target.value)}
+                placeholder={leftTab === 'workflows' ? 'Search workflows...' : 'Search nodes...'}
+                style={{
+                  width: '100%', height: 30, padding: '0 10px', fontSize: 11,
+                  background: 'var(--bg-input)', border: '1px solid var(--border)',
+                  borderRadius: 4, color: 'var(--text-primary)', outline: 'none',
+                }}
+              />
+            </div>
+
+            {/* Content */}
+            <div style={{ flex: 1, overflowY: 'auto' }}>
+              {leftTab === 'workflows' ? (
+                availableWorkflows.length === 0 ? (
+                  <div style={{ padding: '24px 16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>
+                    No workflows available.<br />Create workflows first in Workflow Studio.
+                  </div>
+                ) : (
+                  availableWorkflows
+                    .filter(wf => !nodeSearch || wf.name.toLowerCase().includes(nodeSearch.toLowerCase()))
+                    .map(wf => {
+                      const isOnCanvas = canvasNodes.some(n => n.blockType === 'workflow' && n.refId === wf.id);
+                      return (
+                        <div
+                          key={wf.id}
+                          onClick={() => !isOnCanvas && addWorkflowToCanvas(wf)}
+                          style={{
+                            padding: '11px 14px', cursor: isOnCanvas ? 'default' : 'pointer',
+                            borderBottom: '1px solid var(--border)', opacity: isOnCanvas ? 0.4 : 1,
+                          }}
+                          onMouseEnter={e => { if (!isOnCanvas) e.currentTarget.style.background = 'var(--bg-tile-hover)'; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
+                            <div style={{ width: 8, height: 8, borderRadius: '50%', background: getCategoryColor(wf.category), flexShrink: 0 }} />
+                            <span style={{ fontSize: 12, fontWeight: 500, flex: 1 }}>{wf.name}</span>
+                            {isOnCanvas && <span style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>ADDED</span>}
+                          </div>
+                          <div style={{ fontSize: 10, color: 'var(--text-muted)', paddingLeft: 16 }}>{wf.category}</div>
+                        </div>
+                      );
+                    })
+                )
               ) : (
-                availableWorkflows.map(wf => {
-                  const isOnCanvas = canvasNodes.some(n => n.workflowId === wf.id);
-                  return (
-                    <div
-                      key={wf.id}
-                      onClick={() => !isOnCanvas && addWorkflowToCanvas(wf)}
-                      style={{
-                        padding: '12px 16px', cursor: isOnCanvas ? 'default' : 'pointer',
-                        borderBottom: '1px solid var(--border)',
-                        opacity: isOnCanvas ? 0.4 : 1,
-                        transition: 'background 0.15s',
-                      }}
-                      onMouseEnter={e => { if (!isOnCanvas) e.currentTarget.style.background = 'var(--bg-tile-hover)'; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-                        <div style={{
-                          width: 8, height: 8, borderRadius: '50%',
-                          background: getCategoryColor(wf.category),
-                        }} />
-                        <span style={{ fontSize: 13, fontWeight: 500, flex: 1 }}>{wf.name}</span>
-                        {isOnCanvas && <span style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>ADDED</span>}
+                NODE_PALETTE
+                  .filter(cat => !nodeSearch || cat.nodes.some(n => n.toLowerCase().includes(nodeSearch.toLowerCase())) || cat.category.toLowerCase().includes(nodeSearch.toLowerCase()))
+                  .map(cat => (
+                    <div key={cat.category}>
+                      <div
+                        onClick={() => setExpandedNodeCats(prev => {
+                          const next = new Set(prev);
+                          next.has(cat.category) ? next.delete(cat.category) : next.add(cat.category);
+                          return next;
+                        })}
+                        style={{
+                          padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 8,
+                          cursor: 'pointer', background: 'var(--bg-panel)',
+                          borderBottom: '1px solid var(--border)', position: 'sticky', top: 0, zIndex: 1,
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-tile-hover)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-panel)'; }}
+                      >
+                        <div style={{ width: 10, height: 10, borderRadius: 2, background: cat.color, flexShrink: 0 }} />
+                        <span style={{ fontSize: 11, fontWeight: 600, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.04em', flex: 1, color: 'var(--text-primary)' }}>{cat.category}</span>
+                        <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{expandedNodeCats.has(cat.category) ? '▲' : '▼'}</span>
                       </div>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)', paddingLeft: 18 }}>
-                        {wf.category}{wf.description ? ` · ${wf.description}` : ''}
-                      </div>
+                      {expandedNodeCats.has(cat.category) && cat.nodes
+                        .filter(n => !nodeSearch || n.toLowerCase().includes(nodeSearch.toLowerCase()))
+                        .map(nodeName => (
+                          <div
+                            key={nodeName}
+                            onClick={() => addNodeToCanvas(nodeName, cat.category, cat.color)}
+                            style={{
+                              padding: '9px 14px 9px 30px', cursor: 'pointer',
+                              borderBottom: '1px solid var(--border)', fontSize: 12,
+                              color: 'var(--text-secondary)',
+                            }}
+                            onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-tile-hover)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
+                            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
+                          >
+                            <span style={{ marginRight: 8, fontSize: 10, color: cat.color }}>⊕</span>{nodeName}
+                          </div>
+                        ))
+                      }
                     </div>
-                  );
-                })
+                  ))
               )}
             </div>
 
-            {/* Niyanta reporting node (always present) */}
-            <div style={{
-              padding: '14px 16px', borderTop: '1px solid var(--border)',
-              background: 'rgba(124, 58, 237, 0.08)',
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                <div style={{
-                  width: 24, height: 24, borderRadius: 6, background: '#7C3AED',
-                  display: 'grid', placeItems: 'center', fontSize: 12, color: '#fff', fontWeight: 700,
-                }}>N</div>
-                <span style={{ fontSize: 12, fontWeight: 600, color: '#A78BFA' }}>Niyanta Orchestrator</span>
+            {/* Niyanta output footer */}
+            <div style={{ padding: '12px 14px', borderTop: '1px solid var(--border)', background: 'rgba(124,58,237,0.08)', flexShrink: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                <div style={{ width: 22, height: 22, borderRadius: 5, background: '#7C3AED', display: 'grid', placeItems: 'center', fontSize: 11, color: '#fff', fontWeight: 700 }}>N</div>
+                <span style={{ fontSize: 11, fontWeight: 600, color: '#A78BFA' }}>Always ends with Niyanta</span>
               </div>
               <div style={{ fontSize: 10, color: 'var(--text-muted)', lineHeight: 1.5 }}>
-                All data processed by this agent is automatically reported to Niyanta for oversight, analytics, and cross-agent intelligence.
+                Every agent reports output to Niyanta for oversight and cross-agent intelligence.
               </div>
             </div>
           </div>
@@ -482,32 +552,29 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
                 pointerEvents: 'none', zIndex: 1,
               }}>
                 <g transform={`translate(${canvasPan.x}, ${canvasPan.y}) scale(${canvasZoom / 100})`}>
-                  {/* Edges */}
-                  {edges.map(edge => {
-                    const src = canvasNodes.find(n => n.id === edge.source);
-                    const tgt = canvasNodes.find(n => n.id === edge.target);
-                    if (!src || !tgt) return null;
-                    const sx = src.x + 240, sy = src.y + 50;
-                    const tx = tgt.x, ty = tgt.y + 50;
-                    const mx = (sx + tx) / 2;
-                    return (
-                      <g key={edge.id}>
-                        <path d={`M${sx},${sy} C${mx},${sy} ${mx},${ty} ${tx},${ty}`}
-                          fill="none" stroke="var(--accent)" strokeWidth={2} opacity={0.6} />
-                        <circle cx={tx} cy={ty} r={4} fill="var(--accent)" opacity={0.8} />
-                      </g>
-                    );
-                  })}
-
-                  {/* Connecting line */}
-                  {connectingFrom && (() => {
-                    const src = canvasNodes.find(n => n.id === connectingFrom);
-                    if (!src) return null;
-                    const sx = src.x + 240, sy = src.y + 50;
-                    return (
-                      <path d={`M${sx},${sy} L${mousePos.x},${mousePos.y}`}
-                        fill="none" stroke="var(--accent)" strokeWidth={2} strokeDasharray="6,4" opacity={0.5} />
-                    );
+                  {/* Auto-computed edges: INPUT → blocks → OUTPUT */}
+                  {(() => {
+                    const INPUT_X = 60, INPUT_Y = 80, INPUT_H = 80;
+                    const outputX = canvasNodes.length > 0 ? Math.max(...canvasNodes.map(n => n.x)) + 300 : 500;
+                    const OUTPUT_Y = 80, OUTPUT_H = 80;
+                    const conns: Array<{x1:number;y1:number;x2:number;y2:number}> = [];
+                    const iy = INPUT_Y + INPUT_H / 2;
+                    const oy = OUTPUT_Y + OUTPUT_H / 2;
+                    if (canvasNodes.length === 0) {
+                      conns.push({ x1: INPUT_X + 200, y1: iy, x2: outputX, y2: oy });
+                    } else {
+                      conns.push({ x1: INPUT_X + 200, y1: iy, x2: canvasNodes[0].x, y2: canvasNodes[0].y + 40 });
+                      canvasNodes.forEach((n, i) => {
+                        if (i < canvasNodes.length - 1) {
+                          conns.push({ x1: n.x + 240, y1: n.y + 40, x2: canvasNodes[i+1].x, y2: canvasNodes[i+1].y + 40 });
+                        }
+                      });
+                      conns.push({ x1: canvasNodes[canvasNodes.length-1].x + 240, y1: canvasNodes[canvasNodes.length-1].y + 40, x2: outputX, y2: oy });
+                    }
+                    return conns.map((c, i) => {
+                      const mx = (c.x1 + c.x2) / 2;
+                      return <path key={i} d={`M${c.x1},${c.y1} C${mx},${c.y1} ${mx},${c.y2} ${c.x2},${c.y2}`} fill="none" stroke="var(--accent)" strokeWidth={2} opacity={0.5} />;
+                    });
                   })()}
                 </g>
               </svg>
@@ -518,171 +585,86 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
                 transform: `translate(${canvasPan.x}px, ${canvasPan.y}px) scale(${canvasZoom / 100})`,
                 transformOrigin: '0 0', zIndex: 2,
               }}>
-                {/* Agent Core Node (always visible) */}
+                {/* ── Fixed INPUT node (Chat / Data) ── */}
                 <div style={{
                   position: 'absolute', left: 60, top: 80,
-                  width: 220, padding: '16px',
-                  background: 'linear-gradient(135deg, rgba(0,212,255,0.15), rgba(124,58,237,0.15))',
-                  border: `2px solid ${agentColor}`,
-                  borderRadius: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
-                  userSelect: 'none',
+                  width: 200, padding: '14px 16px',
+                  background: 'linear-gradient(135deg, rgba(59,130,246,0.15), rgba(0,212,255,0.1))',
+                  border: '2px solid #3B82F6',
+                  borderRadius: 10, boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
+                  userSelect: 'none', zIndex: 3,
                 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                    <div style={{
-                      width: 36, height: 36, borderRadius: 8, background: agentColor,
-                      display: 'grid', placeItems: 'center', color: '#fff', fontWeight: 700, fontSize: 14,
-                    }}>AI</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+                    <div style={{ width: 32, height: 32, borderRadius: 7, background: '#3B82F6', display: 'grid', placeItems: 'center', color: '#fff', fontWeight: 700, fontSize: 14 }}>▶</div>
                     <div>
-                      <div style={{ fontSize: 13, fontWeight: 600 }}>{agentName || 'New AI Agent'}</div>
-                      <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>ORCHESTRATOR</div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: '#93C5FD' }}>INPUT</div>
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>CHAT / DATA</div>
                     </div>
                   </div>
-                  <div style={{ fontSize: 10, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                    {canvasNodes.length} workflow{canvasNodes.length !== 1 ? 's' : ''} assigned · {reportToNiyanta ? 'Reports to Niyanta' : 'Standalone'}
-                  </div>
-                  {/* Output handle */}
-                  <div style={{
-                    position: 'absolute', right: -8, top: '50%', transform: 'translateY(-50%)',
-                    width: 16, height: 16, borderRadius: '50%', background: '#00D4FF',
-                    border: '2px solid var(--bg-base)', cursor: 'crosshair',
-                  }} />
+                  <div style={{ fontSize: 10, color: 'var(--text-secondary)', lineHeight: 1.5 }}>User message or file upload triggers this agent</div>
+                  {/* Right handle */}
+                  <div style={{ position: 'absolute', right: -8, top: '50%', transform: 'translateY(-50%)', width: 16, height: 16, borderRadius: '50%', background: '#3B82F6', border: '2px solid var(--bg-base)' }} />
                 </div>
 
-                {/* Niyanta Report Node (bottom) */}
-                {reportToNiyanta && (
-                  <div style={{
-                    position: 'absolute', left: 60, top: 400,
-                    width: 220, padding: '14px',
-                    background: 'rgba(124, 58, 237, 0.15)',
-                    border: '2px solid #7C3AED',
-                    borderRadius: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
-                    userSelect: 'none',
-                  }}>
-                    {/* Input handle */}
+                {/* ── Fixed OUTPUT node (Niyanta) ── */}
+                {(() => {
+                  const outputX = canvasNodes.length > 0 ? Math.max(...canvasNodes.map(n => n.x)) + 300 : 500;
+                  return (
                     <div style={{
-                      position: 'absolute', left: -8, top: '50%', transform: 'translateY(-50%)',
-                      width: 16, height: 16, borderRadius: '50%', background: '#7C3AED',
-                      border: '2px solid var(--bg-base)',
-                    }} />
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <div style={{
-                        width: 36, height: 36, borderRadius: 8, background: '#7C3AED',
-                        display: 'grid', placeItems: 'center', color: '#fff', fontWeight: 700, fontSize: 13,
-                      }}>N</div>
-                      <div>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: '#A78BFA' }}>Niyanta Report</div>
-                        <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>DATA SINK</div>
+                      position: 'absolute', left: outputX, top: 80,
+                      width: 200, padding: '14px 16px',
+                      background: 'rgba(124,58,237,0.15)',
+                      border: '2px solid #7C3AED',
+                      borderRadius: 10, boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
+                      userSelect: 'none', zIndex: 3,
+                    }}>
+                      {/* Left handle */}
+                      <div style={{ position: 'absolute', left: -8, top: '50%', transform: 'translateY(-50%)', width: 16, height: 16, borderRadius: '50%', background: '#7C3AED', border: '2px solid var(--bg-base)' }} />
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+                        <div style={{ width: 32, height: 32, borderRadius: 7, background: '#7C3AED', display: 'grid', placeItems: 'center', color: '#fff', fontWeight: 700, fontSize: 14 }}>N</div>
+                        <div>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: '#A78BFA' }}>OUTPUT</div>
+                          <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>NIYANTA REPORT</div>
+                        </div>
                       </div>
+                      <div style={{ fontSize: 10, color: 'var(--text-secondary)', lineHeight: 1.5 }}>Results and insights reported to Niyanta</div>
                     </div>
-                    <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginTop: 8, lineHeight: 1.5 }}>
-                      Receives processed data, anomalies & insights for cross-agent intelligence
-                    </div>
-                  </div>
-                )}
+                  );
+                })()}
 
-                {/* Workflow Nodes */}
+                {/* Pipeline Blocks (workflows + nodes) */}
                 {canvasNodes.map(node => (
                   <div
                     key={node.id}
                     style={{
                       position: 'absolute', left: node.x, top: node.y,
-                      width: 240, padding: '14px',
-                      background: selectedNode === node.id
-                        ? 'rgba(0, 212, 255, 0.12)'
-                        : 'var(--bg-panel)',
-                      border: `2px solid ${selectedNode === node.id ? 'var(--accent)' : getCategoryColor(node.category)}`,
+                      width: 240, padding: '12px',
+                      background: selectedNode === node.id ? `${node.color}18` : 'var(--bg-panel)',
+                      border: `2px solid ${selectedNode === node.id ? node.color : node.color + '88'}`,
                       borderRadius: 10,
-                      boxShadow: selectedNode === node.id
-                        ? '0 0 20px rgba(0, 212, 255, 0.2)'
-                        : '0 4px 16px rgba(0,0,0,0.3)',
-                      cursor: 'grab',
-                      userSelect: 'none',
+                      boxShadow: selectedNode === node.id ? `0 0 18px ${node.color}40` : '0 4px 14px rgba(0,0,0,0.25)',
+                      cursor: 'grab', userSelect: 'none',
                       zIndex: selectedNode === node.id ? 10 : 3,
                     }}
                     onMouseDown={e => handleNodeMouseDown(e, node.id)}
                   >
-                    {/* Input handle */}
-                    <div
-                      onClick={e => { e.stopPropagation(); handleOutputClick(node.id); }}
-                      style={{
-                        position: 'absolute', left: -8, top: '50%', transform: 'translateY(-50%)',
-                        width: 16, height: 16, borderRadius: '50%',
-                        background: connectingFrom ? '#00D4FF' : getCategoryColor(node.category),
-                        border: '2px solid var(--bg-base)', cursor: 'crosshair',
-                        transition: 'transform 0.15s',
-                      }}
-                      onMouseEnter={e => (e.currentTarget.style.transform = 'translateY(-50%) scale(1.3)')}
-                      onMouseLeave={e => (e.currentTarget.style.transform = 'translateY(-50%)')}
-                    />
+                    {/* Left handle */}
+                    <div style={{ position: 'absolute', left: -8, top: '50%', transform: 'translateY(-50%)', width: 16, height: 16, borderRadius: '50%', background: node.color, border: '2px solid var(--bg-base)' }} />
+                    {/* Right handle */}
+                    <div style={{ position: 'absolute', right: -8, top: '50%', transform: 'translateY(-50%)', width: 16, height: 16, borderRadius: '50%', background: node.color, border: '2px solid var(--bg-base)' }} />
 
-                    {/* Output handle */}
-                    <div
-                      onClick={e => { e.stopPropagation(); handleOutputClick(node.id); }}
-                      style={{
-                        position: 'absolute', right: -8, top: '50%', transform: 'translateY(-50%)',
-                        width: 16, height: 16, borderRadius: '50%',
-                        background: getCategoryColor(node.category),
-                        border: '2px solid var(--bg-base)', cursor: 'crosshair',
-                        transition: 'transform 0.15s',
-                      }}
-                      onMouseEnter={e => (e.currentTarget.style.transform = 'translateY(-50%) scale(1.3)')}
-                      onMouseLeave={e => (e.currentTarget.style.transform = 'translateY(-50%)')}
-                    />
-
-                    {/* Node content */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                      <div style={{
-                        width: 32, height: 32, borderRadius: 6,
-                        background: getCategoryColor(node.category),
-                        display: 'grid', placeItems: 'center', color: '#fff',
-                        fontSize: 12, fontWeight: 700, flexShrink: 0,
-                      }}>⚡</div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {node.name}
-                        </div>
-                        <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-                          {node.category.toUpperCase()}
-                        </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+                      <div style={{ width: 30, height: 30, borderRadius: 6, background: node.color, display: 'grid', placeItems: 'center', color: '#fff', fontSize: 12, fontWeight: 700, flexShrink: 0 }}>
+                        {node.blockType === 'workflow' ? '⚡' : '◆'}
                       </div>
-                      <button
-                        onClick={e => { e.stopPropagation(); removeNodeFromCanvas(node.id); }}
-                        style={{
-                          width: 20, height: 20, borderRadius: 4, border: 'none',
-                          background: 'rgba(255,68,68,0.2)', color: '#ff6666', fontSize: 12,
-                          cursor: 'pointer', display: 'grid', placeItems: 'center', flexShrink: 0,
-                        }}
-                      >×</button>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{node.name}</div>
+                        <div style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>{node.blockType} · {node.category}</div>
+                      </div>
+                      <button onClick={e => { e.stopPropagation(); removeNodeFromCanvas(node.id); }} style={{ width: 18, height: 18, borderRadius: 3, border: 'none', background: 'rgba(220,38,38,0.2)', color: '#ff6666', fontSize: 11, cursor: 'pointer', flexShrink: 0, lineHeight: 1 }}>×</button>
                     </div>
-
-                    {/* Role selector */}
-                    <div style={{ display: 'flex', gap: 4 }}>
-                      {(['input', 'process', 'output'] as const).map(role => (
-                        <button
-                          key={role}
-                          onClick={e => {
-                            e.stopPropagation();
-                            setCanvasNodes(prev => prev.map(n => n.id === node.id ? { ...n, role } : n));
-                          }}
-                          style={{
-                            flex: 1, padding: '3px 0', borderRadius: 3, fontSize: 9,
-                            fontFamily: 'var(--font-mono)', textTransform: 'uppercase', fontWeight: 600,
-                            cursor: 'pointer',
-                            background: node.role === role ? getRoleColor(role) : 'var(--bg-tile)',
-                            color: node.role === role ? '#fff' : 'var(--text-muted)',
-                            border: node.role === role ? 'none' : '1px solid var(--border)',
-                          }}
-                        >{role}</button>
-                      ))}
-                    </div>
-
-                    {/* Data flow indicator */}
-                    <div style={{
-                      marginTop: 8, padding: '4px 8px', borderRadius: 3,
-                      background: 'rgba(0, 212, 255, 0.08)', fontSize: 9,
-                      fontFamily: 'var(--font-mono)', color: 'var(--text-muted)',
-                    }}>
-                      DATA → AGENT PROCESS → NIYANTA
+                    <div style={{ padding: '3px 8px', borderRadius: 3, background: `${node.color}18`, fontSize: 9, fontFamily: 'var(--font-mono)', color: node.color, textAlign: 'center' }}>
+                      {node.blockType === 'workflow' ? 'WORKFLOW BLOCK' : 'NODE BLOCK'}
                     </div>
                   </div>
                 ))}
@@ -797,11 +779,11 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
               <div style={{
                 fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)',
                 textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 12,
-              }}>ASSIGNED WORKFLOWS ({canvasNodes.length})</div>
+              }}>PIPELINE BLOCKS ({canvasNodes.length})</div>
 
               {canvasNodes.length === 0 ? (
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', padding: '16px 0' }}>
-                  No workflows assigned yet
+                  No blocks added yet
                 </div>
               ) : (
                 canvasNodes.map(node => (
@@ -810,13 +792,14 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
                     background: 'var(--bg-tile)', border: '1px solid var(--border)',
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <div style={{ width: 6, height: 6, borderRadius: '50%', background: getCategoryColor(node.category) }} />
-                      <span style={{ fontSize: 11, fontWeight: 500, flex: 1 }}>{node.name}</span>
+                      <div style={{ width: 6, height: 6, borderRadius: '50%', background: node.color, flexShrink: 0 }} />
+                      <span style={{ fontSize: 11, fontWeight: 500, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{node.name}</span>
                       <span style={{
-                        fontSize: 9, padding: '2px 6px', borderRadius: 3,
-                        background: getRoleColor(node.role), color: '#fff',
-                        fontFamily: 'var(--font-mono)', fontWeight: 600, textTransform: 'uppercase',
-                      }}>{node.role}</span>
+                        fontSize: 9, padding: '2px 5px', borderRadius: 3,
+                        background: node.blockType === 'workflow' ? 'rgba(59,130,246,0.2)' : 'rgba(124,58,237,0.2)',
+                        color: node.blockType === 'workflow' ? '#93C5FD' : '#A78BFA',
+                        fontFamily: 'var(--font-mono)', fontWeight: 600, textTransform: 'uppercase', flexShrink: 0,
+                      }}>{node.blockType}</span>
                     </div>
                   </div>
                 ))
@@ -832,12 +815,10 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
                     DATA FLOW
                   </div>
                   <div style={{ fontSize: 10, color: 'var(--text-secondary)', lineHeight: 1.8, fontFamily: 'var(--font-mono)' }}>
-                    {canvasNodes.filter(n => n.role === 'input').map(n => n.name).join(', ') || 'Input'}<br />
-                    &nbsp;&nbsp;↓ Data ingestion<br />
-                    {agentName || 'Agent'} (AI Processing)<br />
-                    &nbsp;&nbsp;↓ Workflows execute<br />
-                    {canvasNodes.filter(n => n.role === 'output').map(n => n.name).join(', ') || 'Output'}<br />
-                    {reportToNiyanta && <>&nbsp;&nbsp;↓ Report results<br />Niyanta Intelligence</>}
+                    INPUT (Chat / Data)<br />
+                    {canvasNodes.map((n, i) => <React.Fragment key={n.id}>&nbsp;&nbsp;↓<br />{n.name}<br /></React.Fragment>)}
+                    &nbsp;&nbsp;↓<br />
+                    OUTPUT (Niyanta Report)
                   </div>
                 </div>
               )}
@@ -1059,8 +1040,7 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
           }}>
             {filtered.map(agent => {
               const state = agentStates[agent.id];
-              const PROTECTED = ['meeting', 'invoice', 'document'];
-              const canDelete = !PROTECTED.includes(agent.id);
+              const canDelete = !agent.isTemplate;
               const showMenu = openMenuId === agent.id;
               const statusColor = state?.status === 'complete' ? '#10B981'
                 : state?.status === 'error' ? '#DC2626' : '#D97706';
@@ -1099,12 +1079,12 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
                     <span style={{
                       fontFamily: 'var(--font-mono)', fontSize: 8, fontWeight: 600,
                       padding: '2px 5px', borderRadius: 3, letterSpacing: '0.04em',
-                      background: PROTECTED.includes(agent.id) ? 'rgba(124,58,237,0.15)' : 'rgba(5,150,105,0.15)',
-                      color: PROTECTED.includes(agent.id) ? '#7C3AED' : '#059669',
-                      border: `1px solid ${PROTECTED.includes(agent.id) ? 'rgba(124,58,237,0.4)' : 'rgba(5,150,105,0.4)'}`,
+                      background: agent.isTemplate ? 'rgba(124,58,237,0.15)' : 'rgba(5,150,105,0.15)',
+                      color: agent.isTemplate ? '#7C3AED' : '#059669',
+                      border: `1px solid ${agent.isTemplate ? 'rgba(124,58,237,0.4)' : 'rgba(5,150,105,0.4)'}`,
                       flexShrink: 0,
                     }}>
-                      {PROTECTED.includes(agent.id) ? 'DEFAULT' : 'CUSTOM'}
+                      {agent.isTemplate ? 'TEMPLATE' : 'CUSTOM'}
                     </span>
 
                     {/* Three-dot menu */}
@@ -1164,13 +1144,9 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
                           {/* Delete */}
                           {canDelete && (
                             <button
-                              onClick={async (e) => {
+                              onClick={(e) => {
                                 e.stopPropagation(); setOpenMenuId(null);
-                                if (!confirm(`Delete agent "${agent.name}"? This cannot be undone.`)) return;
-                                try {
-                                  const res = await fetch(`http://localhost:3001/api/agent/${agent.id}`, { method: 'DELETE' });
-                                  if (res.ok) window.location.reload();
-                                } catch (err) { console.error('Delete failed:', err); }
+                                handleDeleteAgent(agent.id, agent.name);
                               }}
                               style={{ width: '100%', padding: '8px 12px', textAlign: 'left', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-body)', borderTop: '1px solid var(--border)' }}
                               onMouseEnter={e => { e.currentTarget.style.background = 'rgba(220,38,38,0.08)'; e.currentTarget.style.color = '#DC2626'; }}
@@ -1238,8 +1214,9 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
         const da = agents.find(a => a.id === detailAgentId);
         if (!da) return null;
         const ds = agentStates[da.id];
-        const PROTECTED = ['meeting', 'invoice', 'document'];
+        const PROTECTED_IDS = ['meeting', 'invoice', 'document', 'finance_ops', 'hr_ops'];
         const statusColor = ds?.status === 'complete' ? '#10B981' : ds?.status === 'error' ? '#DC2626' : ds?.status === 'processing' ? '#D97706' : 'var(--text-muted)';
+        const canDeleteDetail = !da.isTemplate;
 
         return (
           <>
@@ -1279,10 +1256,10 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
                   <span style={{
                     fontFamily: 'var(--font-mono)', fontSize: 8, fontWeight: 600, padding: '2px 6px',
                     borderRadius: 3, letterSpacing: '0.05em',
-                    background: PROTECTED.includes(da.id) ? 'rgba(124,58,237,0.15)' : 'rgba(5,150,105,0.15)',
-                    color: PROTECTED.includes(da.id) ? '#7C3AED' : '#059669',
-                    border: `1px solid ${PROTECTED.includes(da.id) ? 'rgba(124,58,237,0.4)' : 'rgba(5,150,105,0.4)'}`,
-                  }}>{PROTECTED.includes(da.id) ? 'DEFAULT' : 'CUSTOM'}</span>
+                    background: da.isTemplate ? 'rgba(124,58,237,0.15)' : 'rgba(5,150,105,0.15)',
+                    color: da.isTemplate ? '#7C3AED' : '#059669',
+                    border: `1px solid ${da.isTemplate ? 'rgba(124,58,237,0.4)' : 'rgba(5,150,105,0.4)'}`,
+                  }}>{da.isTemplate ? 'TEMPLATE' : 'CUSTOM'}</span>
                   {ds && (
                     <span style={{
                       fontFamily: 'var(--font-mono)', fontSize: 8, fontWeight: 600, padding: '2px 6px',
@@ -1406,6 +1383,19 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
                   onMouseEnter={e => { e.currentTarget.style.borderColor = da.color; e.currentTarget.style.color = da.color; }}
                   onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
                 >EDIT</button>
+                {canDeleteDetail && (
+                  <button
+                    onClick={() => { setDetailAgentId(null); handleDeleteAgent(da.id, da.name); }}
+                    style={{
+                      height: 38, padding: '0 16px', borderRadius: 4,
+                      background: 'transparent', border: '1px solid #DC2626',
+                      color: '#DC2626', cursor: 'pointer', fontSize: 12,
+                      fontFamily: 'var(--font-mono)',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(220,38,38,0.1)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                  >DELETE</button>
+                )}
               </div>
             </div>
           </>
