@@ -18,8 +18,8 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { id: 'command',     label: 'Command Centre',    path: '/',            icon: '▦' },
-  { id: 'workflows',   label: 'Workflows',          path: '/workflows',   icon: '⇢' },
   { id: 'studio',      label: 'Agent Studio',       path: '/agents',      icon: '◈' },
+  { id: 'workflows',   label: 'Workflows',          path: '/workflows',   icon: '⇢' },
   { id: 'operations',  label: 'Operations',         path: '/monitor',     icon: '◎' },
   { id: 'audit',       label: 'Audit & Compliance', path: '/audit',       icon: '⊘' },
 ];
