@@ -59,6 +59,7 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
   const [showTemplates, setShowTemplates] = useState(false);
   const [inputText, setInputText] = useState('');
   const [linkedWorkflows, setLinkedWorkflows] = useState<Array<{workflow_id: string; name: string; description: string; category: string; can_trigger: number}>>([]);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
   // Canvas state (for /agents/new or editing)
   const [agentName, setAgentName] = useState('');
@@ -121,6 +122,15 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
     };
     fetchLinkedWorkflows();
   }, [agentId]);
+
+  // Close dropdown menu on outside click
+  useEffect(() => {
+    const handleClickOutside = () => setOpenMenuId(null);
+    if (openMenuId) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [openMenuId]);
 
   // ── Canvas helpers ─────────────────────────────────────────────────────────
   const getCategoryColor = (category: string) => {
@@ -1037,79 +1047,153 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
           }}>
             {filtered.map(agent => {
               const state = agentStates[agent.id];
+              const PROTECTED = ['meeting', 'invoice', 'document'];
+              const canDelete = !PROTECTED.includes(agent.id);
+              const showMenu = openMenuId === agent.id;
+              
               return (
                 <div
                   key={agent.id}
-                  onClick={() => navigate(`/agents/${agent.id}`)}
                   style={{
                     background: 'var(--bg-panel)',
                     border: '1px solid var(--border)',
                     borderLeft: `3px solid ${agent.color}`,
-                    borderRadius: 8,
-                    padding: 20,
+                    borderRadius: 6,
+                    padding: '16px 18px',
                     cursor: 'pointer',
-                    transition: 'all 0.2s ease',
+                    transition: 'border-color 0.15s',
+                    position: 'relative',
                   }}
-                  onMouseEnter={e => {
-                    e.currentTarget.style.borderColor = agent.color;
-                    e.currentTarget.style.transform = 'translateY(-2px)';
-                    e.currentTarget.style.boxShadow = `0 8px 24px ${agent.glow}`;
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = agent.color; }}
+                  onMouseLeave={e => { 
+                    (e.currentTarget.style as any).border = '1px solid var(--border)'; 
+                    e.currentTarget.style.borderLeft = `3px solid ${agent.color}`; 
                   }}
-                  onMouseLeave={e => {
-                    e.currentTarget.style.borderColor = 'var(--border)';
-                    e.currentTarget.style.borderLeftColor = agent.color;
-                    e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = 'none';
+                  onClick={(e) => {
+                    if (!(e.target as HTMLElement).closest('.action-btn')) {
+                      navigate(`/agents/${agent.id}`);
+                    }
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-                    <div style={{
-                      width: 48, height: 48, borderRadius: 8, background: agent.color,
-                      display: 'grid', placeItems: 'center', color: '#fff',
-                      fontFamily: 'var(--font-mono)', fontSize: 16, fontWeight: 700,
-                      boxShadow: `0 4px 12px ${agent.glow}`,
-                    }}>{agent.icon}</div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 2 }}>{agent.name}</div>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{agent.subtitle}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {agent.name}
+                      </div>
+                    </div>
+                    <span style={{
+                      fontFamily: 'var(--font-mono)', fontSize: 8, fontWeight: 600,
+                      padding: '2px 5px', borderRadius: 3, letterSpacing: '0.04em',
+                      background: PROTECTED.includes(agent.id) ? 'rgba(139,92,246,0.1)' : 'rgba(16,185,129,0.08)',
+                      color: PROTECTED.includes(agent.id) ? '#8B5CF6' : '#10B981',
+                      border: `1px solid ${PROTECTED.includes(agent.id) ? 'rgba(139,92,246,0.35)' : 'rgba(16,185,129,0.3)'}`,
+                      flexShrink: 0,
+                    }}>
+                      {PROTECTED.includes(agent.id) ? 'DEFAULT' : 'CUSTOM'}
+                    </span>
+                    <div style={{ position: 'relative' }}>
+                      <button
+                        className="action-btn"
+                        onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === agent.id ? null : agent.id); }}
+                        style={{
+                          width: 24, height: 24, borderRadius: 3,
+                          background: 'transparent', border: '1px solid var(--border)',
+                          color: 'var(--text-muted)', cursor: 'pointer', fontSize: 12,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent-border)'; e.currentTarget.style.color = 'var(--accent)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-muted)'; }}
+                        title="Options"
+                      >
+                        ⋮
+                      </button>
+                      {showMenu && (
+                        <div 
+                          style={{
+                            position: 'absolute', top: '100%', right: 0, marginTop: 4,
+                            background: 'var(--bg-panel)', border: '1px solid var(--border)',
+                            borderRadius: 4, boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+                            zIndex: 100, minWidth: 140,
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenMenuId(null);
+                              navigate(`/agents/${agent.id}/run`);
+                            }}
+                            style={{
+                              width: '100%', padding: '8px 12px', textAlign: 'left',
+                              background: 'transparent', border: 'none', cursor: 'pointer',
+                              fontSize: 12, color: 'var(--text-primary)', display: 'flex',
+                              alignItems: 'center', gap: 8, fontFamily: 'var(--font-body)',
+                            }}
+                            onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-tile-hover)'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                          >
+                            <span style={{ color: agent.color }}>▶</span> Run Agent
+                          </button>
+                          {canDelete && (
+                            <button
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                setOpenMenuId(null);
+                                if (!confirm(`Delete agent "${agent.name}"? This cannot be undone.`)) return;
+                                try {
+                                  const res = await fetch(`http://localhost:3001/api/agent/${agent.id}`, { method: 'DELETE' });
+                                  if (res.ok) window.location.reload();
+                                } catch (err) {
+                                  console.error('Failed to delete agent:', err);
+                                }
+                              }}
+                              style={{
+                                width: '100%', padding: '8px 12px', textAlign: 'left',
+                                background: 'transparent', border: 'none', cursor: 'pointer',
+                                fontSize: 12, color: 'var(--text-primary)', display: 'flex',
+                                alignItems: 'center', gap: 8, fontFamily: 'var(--font-body)',
+                                borderTop: '1px solid var(--border)',
+                              }}
+                              onMouseEnter={e => { 
+                                e.currentTarget.style.background = 'rgba(255, 68, 68, 0.1)'; 
+                                e.currentTarget.style.color = 'var(--status-danger)';
+                              }}
+                              onMouseLeave={e => { 
+                                e.currentTarget.style.background = 'transparent';
+                                e.currentTarget.style.color = 'var(--text-primary)';
+                              }}
+                            >
+                              <span>✕</span> Delete
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
 
-                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12, lineHeight: 1.5 }}>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12, lineHeight: 1.5 }}>
                     {agent.description || 'No description'}
                   </div>
 
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
-                    {agent.capabilities.slice(0, 3).map((cap, i) => (
-                      <span key={i} style={{
-                        padding: '4px 8px', borderRadius: 4, fontSize: 10,
-                        background: 'var(--bg-tile)', color: 'var(--text-muted)',
-                        fontFamily: 'var(--font-mono)', textTransform: 'uppercase',
-                      }}>{cap}</span>
-                    ))}
-                    {agent.capabilities.length > 3 && (
-                      <span style={{
-                        padding: '4px 8px', borderRadius: 4, fontSize: 10,
-                        background: 'var(--bg-tile)', color: 'var(--text-muted)',
-                        fontFamily: 'var(--font-mono)',
-                      }}>+{agent.capabilities.length - 3}</span>
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)',
+                    paddingTop: 10, borderTop: '1px solid var(--border)',
+                  }}>
+                    <span style={{ textTransform: 'uppercase', color: agent.color, fontWeight: 600 }}>{agent.icon} {agent.subtitle}</span>
+                    {state && (
+                      <>
+                        <span style={{ opacity: 0.3 }}>·</span>
+                        <span style={{ 
+                          textTransform: 'uppercase',
+                          color: state.status === 'complete' ? '#00ff88' :
+                                 state.status === 'error' ? '#ff4444' : '#ffa500',
+                        }}>
+                          {state.status}
+                        </span>
+                      </>
                     )}
                   </div>
-
-                  {state && (
-                    <div style={{
-                      padding: '8px 12px', borderRadius: 4, fontSize: 11,
-                      background: state.status === 'complete' ? 'rgba(0, 255, 136, 0.1)' :
-                                 state.status === 'error' ? 'rgba(255, 68, 68, 0.1)' :
-                                 'rgba(255, 165, 0, 0.1)',
-                      color: state.status === 'complete' ? '#00ff88' :
-                             state.status === 'error' ? '#ff4444' : '#ffa500',
-                      fontFamily: 'var(--font-mono)',
-                    }}>
-                      {state.status.toUpperCase()}
-                      {state.processingTime && ` · ${state.processingTime}ms`}
-                    </div>
-                  )}
                 </div>
               );
             })}

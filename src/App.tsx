@@ -15,6 +15,7 @@ import NiyantaAIPanel from './components/chat/NiyantaAIPanel';
 import CommandCenter from './screens/CommandCenter';
 import WorkflowStudio from './screens/WorkflowStudio';
 import AgentConsole from './screens/AgentConsole';
+import AgentChatScreen from './screens/AgentChatScreen';
 import OperationsMonitor from './screens/OperationsMonitor';
 import AuditCompliance from './screens/AuditCompliance';
 import ServicesStatus from './screens/ServicesStatus';
@@ -166,6 +167,16 @@ const AppContent: React.FC = () => {
                 onExecuteAgent={executeAgent}
                 onRunAll={handleRunAll}
                 runAllProgress={runAllProgress}
+              />
+            }
+          />
+          <Route
+            path="/agents/:agentId/run"
+            element={
+              <AgentChatScreen
+                agents={agents}
+                agentStates={agentStates}
+                onExecuteAgent={executeAgent}
               />
             }
           />
