@@ -3,7 +3,7 @@ import { v4 as uuid } from 'uuid';
 import { AGENTS, AGENT_LIST } from '../constants/agents';
 import { SAMPLES } from '../constants/samples';
 import { Agent, AgentState, Message } from '../types/agent';
-import { runAgent, fetchAgents } from '../services/api';
+import { runAgent, fetchAgents, RunAgentResponse } from '../services/api';
 
 type AgentStates = Record<string, AgentState>;
 
@@ -33,28 +33,6 @@ export function useAgents() {
   const [agentStates, setAgentStates] = useState<AgentStates>(initialState);
   const [runAllProgress, setRunAllProgress] = useState<string | null>(null);
 
-  // Fetch agents from API on mount
-  useEffect(() => {
-    fetchAgents()
-      .then(({ agents: apiAgents }) => {
-        const mapped = apiAgents.map(apiAgentToFrontend);
-        if (mapped.length > 0) {
-          setAgents(mapped);
-          // Ensure agentStates has entries for all fetched agents
-          setAgentStates(prev => {
-            const next = { ...prev };
-            for (const a of mapped) {
-              if (!next[a.id]) {
-                next[a.id] = { status: 'idle', messages: [], result: null, taskCount: 0, lastActivity: null, processingTime: null };
-              }
-            }
-            return next;
-          });
-        }
-      })
-      .catch(() => { /* fallback to hardcoded AGENT_LIST */ });
-  }, []);
-
   const refreshAgents = useCallback(async () => {
     try {
       const { agents: apiAgents } = await fetchAgents();
@@ -74,6 +52,15 @@ export function useAgents() {
     } catch { /* ignore */ }
   }, []);
 
+  // Fetch agents from API on mount
+  useEffect(() => {
+    refreshAgents().catch(() => {});
+    const interval = setInterval(() => {
+      refreshAgents().catch(() => {});
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [refreshAgents]);
+
   const addMessage = useCallback((agentId: string, message: Message) => {
     setAgentStates((prev) => ({
       ...prev,
@@ -81,7 +68,7 @@ export function useAgents() {
     }));
   }, []);
 
-  const executeAgent = useCallback(async (agentId: string, inputText?: string) => {
+  const executeAgent = useCallback(async (agentId: string, inputText?: string): Promise<RunAgentResponse | null> => {
     const input = inputText && inputText.trim() ? inputText : SAMPLES[agentId] || '';
 
     addMessage(agentId, { id: uuid(), type: 'user', content: input, timestamp: new Date().toISOString() });
@@ -110,6 +97,7 @@ export function useAgents() {
           processingTime: response.processingTime,
         },
       }));
+      return response;
     } catch (error) {
       addMessage(agentId, {
         id: uuid(),
@@ -118,6 +106,7 @@ export function useAgents() {
         timestamp: new Date().toISOString(),
       });
       setAgentStates((prev) => ({ ...prev, [agentId]: { ...prev[agentId], status: 'error' } }));
+      return null;
     }
   }, [addMessage]);
 

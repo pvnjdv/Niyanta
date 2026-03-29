@@ -118,6 +118,7 @@ const AppContent: React.FC = () => {
             path="/"
             element={
               <CommandCenter
+                agents={agents}
                 agentStates={agentStates}
                 metrics={metrics}
                 workflows={workflows}

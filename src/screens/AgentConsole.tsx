@@ -6,7 +6,7 @@ import { SAMPLES } from '../constants/samples';
 interface AgentConsoleProps {
   agents: Agent[];
   agentStates: Record<string, AgentState>;
-  onExecuteAgent: (id: string, input?: string) => Promise<void>;
+  onExecuteAgent: (id: string, input?: string) => Promise<unknown>;
   runAllProgress: string | null;
   onRunAll: () => Promise<void>;
   refreshAgents: () => Promise<void>;

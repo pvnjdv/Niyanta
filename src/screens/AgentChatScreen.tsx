@@ -1,11 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Agent, AgentState } from '../types/agent';
+import { RunAgentResponse } from '../services/api';
 
 interface AgentChatScreenProps {
   agents: Agent[];
   agentStates: Record<string, AgentState>;
-  onExecuteAgent: (id: string, input?: string) => Promise<void>;
+  onExecuteAgent: (id: string, input?: string) => Promise<RunAgentResponse | null>;
 }
 
 type ProcessingStep = {
@@ -22,7 +23,75 @@ type Message = {
   steps?: ProcessingStep[];
 };
 
-const STEP_DELAY = 900; // ms per step
+function buildExecutionSteps(result: Record<string, unknown>): ProcessingStep[] {
+  const plan = Array.isArray(result.workflowPlan) ? (result.workflowPlan as Array<Record<string, unknown>>) : [];
+  const executions = Array.isArray(result.workflowExecutions)
+    ? (result.workflowExecutions as Array<Record<string, unknown>>)
+    : [];
+  const whyChain = Array.isArray(result.whyChain) ? (result.whyChain as Array<unknown>) : [];
+
+  const steps: ProcessingStep[] = [];
+  steps.push({
+    id: 'route',
+    label: 'Routing & Planning',
+    detail:
+      plan.length > 0
+        ? `Selected ${plan.length} workflow step${plan.length === 1 ? '' : 's'} for execution.`
+        : 'No matching workflow plan was found for this request.',
+    status: 'done',
+  });
+
+  executions.forEach((execution, index) => {
+    const status = String(execution.status || 'completed').toUpperCase();
+    steps.push({
+      id: `wf-${index}`,
+      label: String(execution.workflowName || execution.workflowId || `Workflow ${index + 1}`),
+      detail:
+        status === 'FAILED'
+          ? String(execution.error || 'Workflow execution failed.')
+          : status === 'WAITING_APPROVAL'
+            ? 'Workflow is paused and waiting for a human decision.'
+            : `${String(execution.reason || 'Executed')} · ${status}`,
+      status: status === 'FAILED' ? 'error' : status === 'WAITING_APPROVAL' ? 'active' : 'done',
+    });
+  });
+
+  whyChain.slice(0, 3).forEach((item, index) => {
+    steps.push({
+      id: `why-${index}`,
+      label: `Why Chain ${index + 1}`,
+      detail: String(item),
+      status: 'done',
+    });
+  });
+
+  return steps;
+}
+
+function buildAgentReply(result: Record<string, unknown>): string {
+  const lines: string[] = [];
+  const summary = typeof result.summary === 'string' ? result.summary.trim() : '';
+  if (summary) {
+    lines.push(summary);
+  }
+
+  if (result.decision) {
+    lines.push(`Decision: ${String(result.decision)}`);
+  }
+  if (result.status) {
+    lines.push(`Status: ${String(result.status)}`);
+  }
+  if (result.riskLevel) {
+    lines.push(`Risk: ${String(result.riskLevel)}`);
+  }
+
+  const plan = Array.isArray(result.workflowPlan) ? (result.workflowPlan as Array<Record<string, unknown>>) : [];
+  if (plan.length > 0) {
+    lines.push(`Workflows: ${plan.map((item) => String(item.name || item.workflowId)).join(', ')}`);
+  }
+
+  return lines.join('\n') || JSON.stringify(result, null, 2);
+}
 
 const AgentChatScreen: React.FC<AgentChatScreenProps> = ({ agents, agentStates, onExecuteAgent }) => {
   const navigate = useNavigate();
@@ -55,8 +124,6 @@ const AgentChatScreen: React.FC<AgentChatScreenProps> = ({ agents, agentStates, 
     );
   }
 
-  const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
-
   const handleSend = async () => {
     const text = input.trim();
     if (!text || isSending) return;
@@ -64,80 +131,28 @@ const AgentChatScreen: React.FC<AgentChatScreenProps> = ({ agents, agentStates, 
     setMessages(prev => [...prev, { role: 'user', content: text, timestamp: new Date() }]);
     setInput('');
     setIsSending(true);
-
-    const steps: ProcessingStep[] = [
-      { id: 'relevance', label: 'Relevance Check', detail: 'Analysing input against agent capabilities…', status: 'pending' },
-      { id: 'convert',   label: 'Workflow Format Conversion', detail: 'Transforming input into workflow-compatible payload…', status: 'pending' },
-      { id: 'execute',   label: 'Workflow Execution', detail: 'Running pipeline nodes and collecting output…', status: 'pending' },
-      { id: 'niyanta',   label: 'Reporting to Niyanta', detail: 'Sending results to Niyanta for oversight & audit…', status: 'pending' },
-    ];
-
-    setProcessingSteps([...steps]);
+    setProcessingSteps([
+      {
+        id: 'route',
+        label: 'Routing to Agent',
+        detail: 'Analyzing the request and building a workflow plan...',
+        status: 'active',
+      },
+    ]);
 
     try {
-      // Step 1 — Relevance check
-      steps[0] = { ...steps[0], status: 'active' };
-      setProcessingSteps([...steps]);
-      await sleep(STEP_DELAY);
-
-      // Simulate relevance decision (98 % pass through)
-      const isRelevant = Math.random() > 0.02;
-      steps[0] = { ...steps[0], status: isRelevant ? 'done' : 'error', detail: isRelevant ? 'Input is relevant — proceeding.' : 'Input does not match agent capabilities.' };
-      setProcessingSteps([...steps]);
-
-      if (!isRelevant) {
-        setMessages(prev => [...prev, {
-          role: 'agent',
-          content: '⚠️ Input is not relevant to this agent\'s capabilities. Please provide data related to the workflows this agent manages.',
-          timestamp: new Date(),
-          steps: [...steps],
-        }]);
-        setProcessingSteps([]);
-        setIsSending(false);
-        return;
-      }
-
-      // Step 2 — Format conversion
-      await sleep(200);
-      steps[1] = { ...steps[1], status: 'active' };
-      setProcessingSteps([...steps]);
-      await sleep(STEP_DELAY);
-      steps[1] = { ...steps[1], status: 'done', detail: 'Payload structured and validated.' };
-      setProcessingSteps([...steps]);
-
-      // Step 3 — Execute
-      await sleep(200);
-      steps[2] = { ...steps[2], status: 'active' };
-      setProcessingSteps([...steps]);
-      await onExecuteAgent(agent.id, text);
-      await sleep(400);
-      steps[2] = { ...steps[2], status: 'done', detail: 'Workflow execution complete.' };
-      setProcessingSteps([...steps]);
-
-      // Step 4 — Report to Niyanta
-      await sleep(200);
-      steps[3] = { ...steps[3], status: 'active' };
-      setProcessingSteps([...steps]);
-      await sleep(STEP_DELAY);
-      steps[3] = { ...steps[3], status: 'done', detail: 'Results reported and logged to Niyanta.' };
-      setProcessingSteps([...steps]);
-      await sleep(300);
-
-      // Build final response
-      const rawResult = agentState?.result;
-      let responseText = '';
-      if (rawResult) {
-        if (typeof rawResult === 'string') responseText = rawResult;
-        else responseText = JSON.stringify(rawResult, null, 2);
-      } else {
-        responseText = `Processed successfully. All results have been reported to Niyanta and are available in the audit log.`;
-      }
+      const response = await onExecuteAgent(agent.id, text);
+      const rawResult = response?.result || agentState?.result || null;
+      const steps = rawResult ? buildExecutionSteps(rawResult) : [];
+      const responseText = rawResult
+        ? buildAgentReply(rawResult)
+        : 'The agent completed the request, but no structured execution result was returned.';
 
       setMessages(prev => [...prev, {
         role: 'agent',
         content: responseText,
         timestamp: new Date(),
-        steps: [...steps],
+        steps,
       }]);
     } catch (error) {
       setMessages(prev => [...prev, {
@@ -209,7 +224,7 @@ const AgentChatScreen: React.FC<AgentChatScreenProps> = ({ agents, agentStates, 
             )}
             <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginBottom: 6 }}>AGENT FLOW</div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 11, color: 'var(--text-muted)', flexWrap: 'wrap' }}>
-              {['Input', 'Relevance Check', 'Workflow Conversion', 'Execute', 'Niyanta Report'].map((s, i, arr) => (
+              {['Input', 'Agent Analysis', 'Workflow Plan', 'Execution', 'Audit Trail'].map((s, i, arr) => (
                 <React.Fragment key={s}>
                   <span style={{ padding: '4px 8px', borderRadius: 3, border: '1px solid var(--border)', fontFamily: 'var(--font-mono)' }}>{s}</span>
                   {i < arr.length - 1 && <span style={{ opacity: 0.4 }}>→</span>}

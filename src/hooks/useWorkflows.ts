@@ -12,6 +12,13 @@ export function useWorkflows() {
 
   useEffect(() => { refresh(); }, [refresh]);
 
+  useEffect(() => {
+    const interval = setInterval(() => {
+      refresh().catch(() => {});
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [refresh]);
+
   const saveWorkflow = useCallback(async (payload: Record<string, unknown>) => {
     await createWorkflow(payload);
     await refresh();

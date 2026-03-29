@@ -1,11 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AgentState } from '../types/agent';
-import { AGENT_LIST } from '../constants/agents';
+import { Agent, AgentState } from '../types/agent';
 import AnimatedThemeToggle from '../components/shared/AnimatedThemeToggle';
 import GradientButton from '../components/shared/GradientButton';
 
 interface CommandCenterProps {
+  agents: Agent[];
   agentStates: Record<string, AgentState>;
   metrics: Record<string, unknown>;
   workflows: Array<{
@@ -26,6 +26,7 @@ interface CommandCenterProps {
 }
 
 const CommandCenter: React.FC<CommandCenterProps> = ({
+  agents,
   agentStates,
   metrics,
   workflows,
@@ -36,7 +37,6 @@ const CommandCenter: React.FC<CommandCenterProps> = ({
   onToggleTheme,
 }) => {
   const navigate = useNavigate();
-  const agents = AGENT_LIST;
   const [viewportWidth, setViewportWidth] = useState<number>(typeof window !== 'undefined' ? window.innerWidth : 1400);
 
   useEffect(() => {
@@ -56,6 +56,8 @@ const CommandCenter: React.FC<CommandCenterProps> = ({
   const failedToday = toNum(m.failedToday, 0);
   const pendingApprovals = toNum(m.pendingApprovals, 0);
   const criticalAlerts = toNum(m.criticalAlerts, 0);
+  const recentRuns = Array.isArray(m.recentRuns) ? (m.recentRuns as Array<Record<string, unknown>>) : [];
+  const liveAlerts = Array.isArray(m.alerts) ? (m.alerts as Array<Record<string, unknown>>) : [];
 
   const activeAgents = useMemo(
     () => Object.values(agentStates).filter(s => s.status === 'processing' || s.status === 'complete').length,
@@ -136,6 +138,16 @@ const CommandCenter: React.FC<CommandCenterProps> = ({
   }, [executionStages]);
 
   const activeRunRows = useMemo(() => {
+    if (recentRuns.length > 0) {
+      return recentRuns.slice(0, 8).map((run) => ({
+        id: `#${String(run.id || 'run').slice(0, 10).toUpperCase()}`,
+        workflow: String(run.workflowName || run.workflowId || 'Untitled Workflow'),
+        owner: agents.find((agent) => agent.id === String((run as Record<string, unknown>).agentId || ''))?.name || 'Workflow Engine',
+        status: String(run.status || 'PENDING').toLowerCase(),
+        elapsedSec: Math.max(1, Math.round(Number(run.elapsedMs || 0) / 1000)),
+      }));
+    }
+
     return workflows.slice(0, 8).map((wf, idx) => {
       const updated = wf.updated_at ? new Date(wf.updated_at).getTime() : Date.now() - idx * 90000;
       const elapsedSec = Math.max(1, Math.round((Date.now() - updated) / 1000));
@@ -149,9 +161,17 @@ const CommandCenter: React.FC<CommandCenterProps> = ({
         elapsedSec,
       };
     });
-  }, [workflows, agents]);
+  }, [workflows, agents, recentRuns]);
 
   const alerts = useMemo(() => {
+    if (liveAlerts.length > 0) {
+      return liveAlerts.map((alert) => ({
+        level: String(alert.level || 'info') as 'critical' | 'warning' | 'info',
+        title: String(alert.title || 'Platform alert'),
+        detail: String(alert.detail || ''),
+      }));
+    }
+
     const list: Array<{ level: 'critical' | 'warning' | 'info'; title: string; detail: string }> = [];
     if (criticalAlerts > 0) {
       list.push({
@@ -175,7 +195,7 @@ const CommandCenter: React.FC<CommandCenterProps> = ({
       });
     }
     return list;
-  }, [criticalAlerts, failedToday]);
+  }, [criticalAlerts, failedToday, liveAlerts]);
 
   const headerBadge = (label: string, tone: 'ok' | 'warn' | 'danger' | 'info') => {
     const toneStyles: Record<string, React.CSSProperties> = {

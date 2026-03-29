@@ -48,6 +48,175 @@ const writeAgentCanvasLayout = (db: any, agentId: string, canvasLayout: unknown[
   }
 };
 
+const normalizeCanvasLayout = (canvasLayout: unknown): Array<Record<string, unknown>> => {
+  if (!Array.isArray(canvasLayout)) {
+    return [];
+  }
+
+  return canvasLayout
+    .filter((item) => item && typeof item === 'object')
+    .map((item) => ({ ...(item as Record<string, unknown>) }));
+};
+
+const parseCanvasEdges = (layout: Array<Record<string, unknown>>) => {
+  const edgeMeta = layout.find((item) => item.refId === '__edges__');
+  if (!edgeMeta?.inputInfo || typeof edgeMeta.inputInfo !== 'string') {
+    return [] as Array<{ from: string; to: string }>;
+  }
+
+  try {
+    const rawEdges = JSON.parse(edgeMeta.inputInfo);
+    if (!Array.isArray(rawEdges)) {
+      return [];
+    }
+
+    return rawEdges
+      .map((edge) => ({
+        from: String((edge as Record<string, unknown>).from || (edge as Record<string, unknown>).fromNodeId || ''),
+        to: String((edge as Record<string, unknown>).to || (edge as Record<string, unknown>).toNodeId || ''),
+      }))
+      .filter((edge) => edge.from && edge.to && edge.from !== edge.to);
+  } catch {
+    return [];
+  }
+};
+
+const extractWorkflowIdsFromCanvas = (layout: Array<Record<string, unknown>>): string[] => {
+  const canvasNodes = layout.filter((item) => item.refId !== '__edges__');
+  const nodesById = new Map(canvasNodes.map((item) => [String(item.id || item.refId || ''), item]));
+  const adjacency = new Map<string, string[]>();
+  parseCanvasEdges(layout).forEach((edge) => {
+    const targets = adjacency.get(edge.from) || [];
+    targets.push(edge.to);
+    adjacency.set(edge.from, targets);
+  });
+
+  const queue = ['__start__'];
+  const visited = new Set<string>();
+  const workflowIds: string[] = [];
+
+  while (queue.length > 0) {
+    const nodeId = queue.shift();
+    if (!nodeId || visited.has(nodeId)) {
+      continue;
+    }
+    visited.add(nodeId);
+    const node = nodesById.get(nodeId);
+    if (node?.blockType === 'workflow' && node.refId && !workflowIds.includes(String(node.refId))) {
+      workflowIds.push(String(node.refId));
+    }
+
+    const nextNodes = adjacency.get(nodeId) || [];
+    nextNodes.forEach((nextNodeId) => {
+      if (!visited.has(nextNodeId)) {
+        queue.push(nextNodeId);
+      }
+    });
+  }
+
+  return workflowIds;
+};
+
+const validateAgentCanvasLayout = (canvasLayout: unknown) => {
+  const normalizedLayout = normalizeCanvasLayout(canvasLayout);
+  if (normalizedLayout.length === 0) {
+    return { valid: true, normalizedLayout, workflowIds: [] as string[] };
+  }
+
+  const nodes = normalizedLayout.filter((item) => item.refId !== '__edges__');
+  const workflowBlocks = nodes.filter(
+    (item) => item.blockType === 'workflow' && item.refId !== '__start__' && item.refId !== '__end__'
+  );
+  const validNodeIds = new Set(nodes.map((item) => String(item.id || item.refId || '')));
+  validNodeIds.add('__start__');
+  validNodeIds.add('__end__');
+
+  const edges = parseCanvasEdges(normalizedLayout);
+  const hasInvalidEdge = edges.some((edge) => !validNodeIds.has(edge.from) || !validNodeIds.has(edge.to));
+  if (hasInvalidEdge) {
+    return {
+      valid: false,
+      message: 'The agent canvas contains broken connections. Remove invalid edges and try again.',
+      normalizedLayout,
+      workflowIds: [] as string[],
+    };
+  }
+
+  if (workflowBlocks.length === 0) {
+    return {
+      valid: false,
+      message: 'Add at least one workflow block to the agent canvas before saving.',
+      normalizedLayout,
+      workflowIds: [] as string[],
+    };
+  }
+
+  if (!edges.some((edge) => edge.from === '__start__')) {
+    return {
+      valid: false,
+      message: 'Connect the Input node to your workflow path before saving the agent.',
+      normalizedLayout,
+      workflowIds: [] as string[],
+    };
+  }
+
+  if (!edges.some((edge) => edge.to === '__end__')) {
+    return {
+      valid: false,
+      message: 'Connect at least one block to the Niyanta output node before saving the agent.',
+      normalizedLayout,
+      workflowIds: [] as string[],
+    };
+  }
+
+  const adjacency = new Map<string, string[]>();
+  edges.forEach((edge) => {
+    const targets = adjacency.get(edge.from) || [];
+    targets.push(edge.to);
+    adjacency.set(edge.from, targets);
+  });
+
+  const reachable = new Set<string>();
+  const queue = ['__start__'];
+  while (queue.length > 0) {
+    const nodeId = queue.shift();
+    if (!nodeId || reachable.has(nodeId)) {
+      continue;
+    }
+    reachable.add(nodeId);
+    (adjacency.get(nodeId) || []).forEach((nextNodeId) => {
+      if (!reachable.has(nextNodeId)) {
+        queue.push(nextNodeId);
+      }
+    });
+  }
+
+  if (!reachable.has('__end__')) {
+    return {
+      valid: false,
+      message: 'The canvas must form a complete path from Input to Niyanta output.',
+      normalizedLayout,
+      workflowIds: [] as string[],
+    };
+  }
+
+  const disconnectedWorkflow = workflowBlocks.find((block) => !reachable.has(String(block.id || block.refId || '')));
+  if (disconnectedWorkflow) {
+    return {
+      valid: false,
+      message: `Workflow block "${String(disconnectedWorkflow.name || disconnectedWorkflow.refId)}" is disconnected from the main execution path.`,
+      normalizedLayout,
+      workflowIds: [] as string[],
+    };
+  }
+
+  return {
+    valid: true,
+    normalizedLayout,
+    workflowIds: extractWorkflowIdsFromCanvas(normalizedLayout),
+  };
+};
+
 // ── Run an agent ─────────────────────────────────────────────────────
 router.post('/run', validateAgentRun, async (req: Request, res: Response) => {
   const { agentId, input, workflowContext }: RunAgentRequest = req.body;
@@ -118,6 +287,10 @@ router.post('/', (req: Request, res: Response) => {
   try {
     const orchestrator = getOrchestrator();
     const agentManager = orchestrator.getAgentManager();
+    const canvasValidation = validateAgentCanvasLayout(config?.canvasLayout);
+    if (config?.canvasLayout !== undefined && !canvasValidation.valid) {
+      return res.status(400).json({ error: 'InvalidCanvasLayout', message: canvasValidation.message });
+    }
     
     // Parse capabilities as array if it's a string (comma-separated)
     let capabilitiesArray: string[] = [];
@@ -143,6 +316,9 @@ router.post('/', (req: Request, res: Response) => {
     // Create backing workflow in DB
     const { getDB } = require('../db/database');
     const db = getDB();
+    const linkedWorkflowIds = Array.isArray(workflows) && workflows.length > 0
+      ? workflows
+      : canvasValidation.workflowIds;
     const workflowId = `wf_agent_${agentDef.agent_id}`;
     const triggerId = `${agentDef.agent_id}_trigger`;
     const llmId = `${agentDef.agent_id}_llm`;
@@ -163,7 +339,7 @@ router.post('/', (req: Request, res: Response) => {
        VALUES (?, ?, ?, ?, ?, 'active', 'agent', 1, datetime('now'), datetime('now'))`
     ).run(workflowId, `${agentDef.name} Workflow`, `Backing workflow for ${agentDef.name}`, JSON.stringify(nodes), JSON.stringify(edges));
 
-    const canvasLayout = config?.canvasLayout ? JSON.stringify(config.canvasLayout) : null;
+    const canvasLayout = config?.canvasLayout !== undefined ? JSON.stringify(canvasValidation.normalizedLayout) : null;
     db.prepare(
       `INSERT INTO agents (id, name, subtitle, capabilities, status, color, icon, glow, description, system_prompt, workflow_id, canvas_layout, created_at)
        VALUES (?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, datetime('now'))`
@@ -182,22 +358,22 @@ router.post('/', (req: Request, res: Response) => {
     );
 
     if (config?.canvasLayout !== undefined) {
-      writeAgentCanvasLayout(db, agentDef.agent_id, config.canvasLayout);
+      writeAgentCanvasLayout(db, agentDef.agent_id, canvasValidation.normalizedLayout);
     }
 
     // Link agent to selected workflows
-    if (Array.isArray(workflows) && workflows.length > 0) {
+    if (linkedWorkflowIds.length > 0) {
       const insertWorkflowLink = db.prepare(
         `INSERT OR IGNORE INTO agent_workflows (id, agent_id, workflow_id, can_trigger, can_modify, created_at)
          VALUES (?, ?, ?, 1, 0, datetime('now'))`
       );
       
-      for (const workflowId of workflows) {
-        insertWorkflowLink.run(`aw_${agentDef.agent_id}_${workflowId}`, agentDef.agent_id, workflowId);
+      for (const linkedWorkflowId of linkedWorkflowIds) {
+        insertWorkflowLink.run(`aw_${agentDef.agent_id}_${linkedWorkflowId}`, agentDef.agent_id, linkedWorkflowId);
       }
     }
 
-    return res.status(201).json({ success: true, agent: { ...agentDef, workflow_id: workflowId, linked_workflows: workflows || [] } });
+    return res.status(201).json({ success: true, agent: { ...agentDef, workflow_id: workflowId, linked_workflows: linkedWorkflowIds } });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     return res.status(500).json({ success: false, error: 'AgentCreationFailed', message });
@@ -215,6 +391,13 @@ router.put('/:id', (req: Request, res: Response) => {
     const existing = agentManager.getAgent(id);
     if (!existing) {
       return res.status(404).json({ error: 'NotFound', message: `Agent ${id} not found` });
+    }
+
+    const canvasValidation = config?.canvasLayout !== undefined
+      ? validateAgentCanvasLayout(config.canvasLayout)
+      : { valid: true, normalizedLayout: undefined, workflowIds: [] as string[] };
+    if (!canvasValidation.valid) {
+      return res.status(400).json({ error: 'InvalidCanvasLayout', message: canvasValidation.message });
     }
 
     // Parse capabilities as array if provided as comma-separated string
@@ -251,7 +434,7 @@ router.put('/:id', (req: Request, res: Response) => {
     if (systemPrompt !== undefined) { setClauses.push('system_prompt = ?'); values.push(systemPrompt); }
     if (subtitle !== undefined) { setClauses.push('subtitle = ?'); values.push(subtitle); }
     if (status !== undefined) { setClauses.push('status = ?'); values.push(status); }
-    if (config?.canvasLayout !== undefined) { setClauses.push('canvas_layout = ?'); values.push(JSON.stringify(config.canvasLayout)); }
+    if (config?.canvasLayout !== undefined) { setClauses.push('canvas_layout = ?'); values.push(JSON.stringify(canvasValidation.normalizedLayout)); }
 
     if (setClauses.length > 0) {
       values.push(id);
@@ -259,7 +442,7 @@ router.put('/:id', (req: Request, res: Response) => {
     }
 
     if (config?.canvasLayout !== undefined) {
-      writeAgentCanvasLayout(db, id, config.canvasLayout);
+      writeAgentCanvasLayout(db, id, canvasValidation.normalizedLayout);
     }
 
     // Update backing workflow LLM prompt if systemPrompt changed
@@ -283,7 +466,8 @@ router.put('/:id', (req: Request, res: Response) => {
         `INSERT OR IGNORE INTO agent_workflows (id, agent_id, workflow_id, can_trigger, can_modify, created_at)
          VALUES (?, ?, ?, 1, 0, datetime('now'))`
       );
-      for (const workflowId of workflows) {
+      const linkedWorkflowIds = workflows.length > 0 ? workflows : canvasValidation.workflowIds;
+      for (const workflowId of linkedWorkflowIds) {
         insertWorkflowLink.run(`aw_${id}_${workflowId}`, id, workflowId);
       }
     }
