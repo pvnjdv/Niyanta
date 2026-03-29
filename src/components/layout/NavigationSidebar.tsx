@@ -376,7 +376,7 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
               </span>
             )}
           </div>
-          {onToggleTheme && <AnimatedThemeToggle theme={theme} onToggle={onToggleTheme} />}
+          {onToggleTheme && !collapsed && <AnimatedThemeToggle theme={theme} onToggle={onToggleTheme} />}
         </div>
       </div>
     </nav>

@@ -26,9 +26,11 @@ const NiyantaAIPanel: React.FC<NiyantaAIPanelProps> = ({
   const [input, setInput] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [uploadedFiles, setUploadedFiles] = useState<Array<{ name: string; size: number; type: string; excerpt: string }>>([]);
   const menuRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const quickPrompts = [
     'Summarize current system health and alerts.',
     'Which agent had the most failures today?',
@@ -55,9 +57,19 @@ const NiyantaAIPanel: React.FC<NiyantaAIPanelProps> = ({
 
   const handleSend = async () => {
     const text = input.trim();
-    if (!text || isSending) return;
+    if ((!text && uploadedFiles.length === 0) || isSending) return;
+
+    let payload = text;
+    if (uploadedFiles.length > 0) {
+      const filesContext = uploadedFiles
+        .map((f, idx) => `File ${idx + 1}: ${f.name} (${Math.max(1, Math.round(f.size / 1024))} KB)\nExcerpt: ${f.excerpt || 'No text preview available.'}`)
+        .join('\n\n');
+      payload = `${text || 'Please analyze the uploaded files.'}\n\n[Uploaded Files Context]\n${filesContext}`;
+    }
+
     setInput('');
-    await onSend(text);
+    setUploadedFiles([]);
+    await onSend(payload);
   };
 
   const handleQuickPrompt = async (prompt: string) => {
@@ -77,6 +89,31 @@ const NiyantaAIPanel: React.FC<NiyantaAIPanelProps> = ({
       e.preventDefault();
       handleSend();
     }
+  };
+
+  const readFileExcerpt = async (file: File): Promise<string> => {
+    const textLike = ['text/', 'application/json', 'application/xml', 'application/javascript'];
+    if (!textLike.some((type) => file.type.startsWith(type) || file.type === type) && !/\.(txt|md|csv|json|log)$/i.test(file.name)) {
+      return '';
+    }
+    const text = await file.text();
+    const normalized = text.replace(/\s+/g, ' ').trim();
+    return normalized.slice(0, 180);
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    const parsed = await Promise.all(files.slice(0, 4).map(async (file) => ({
+      name: file.name,
+      size: file.size,
+      type: file.type,
+      excerpt: await readFileExcerpt(file),
+    })));
+
+    setUploadedFiles(parsed);
+    e.target.value = '';
   };
 
   if (!isOpen) return null;
@@ -211,6 +248,12 @@ const NiyantaAIPanel: React.FC<NiyantaAIPanelProps> = ({
         >
           ✕
         </button>
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, padding: '8px 12px', borderBottom: '1px solid var(--border-subtle)', background: 'var(--cc-surface-1)' }}>
+        <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 999, border: '1px solid var(--cc-info-border)', background: 'var(--cc-info-bg)', color: 'var(--status-info)', fontFamily: 'var(--font-mono)' }}>Model Active</span>
+        <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 999, border: '1px solid var(--border)', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>History {historySessions.length}</span>
+        <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 999, border: '1px solid var(--border)', color: uploadedFiles.length > 0 ? 'var(--status-success)' : 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>Files {uploadedFiles.length}</span>
       </div>
 
       {showHistory && (
@@ -363,6 +406,22 @@ const NiyantaAIPanel: React.FC<NiyantaAIPanelProps> = ({
           flexShrink: 0,
         }}
       >
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          onChange={handleFileChange}
+          style={{ display: 'none' }}
+        />
+        {uploadedFiles.length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+            {uploadedFiles.map((f) => (
+              <span key={f.name} style={{ fontSize: 10, padding: '4px 7px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--cc-surface-1)', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>
+                {f.name}
+              </span>
+            ))}
+          </div>
+        )}
         <div
           style={{
             display: 'flex',
@@ -370,12 +429,31 @@ const NiyantaAIPanel: React.FC<NiyantaAIPanelProps> = ({
             alignItems: 'flex-end',
           }}
         >
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: 4,
+              border: '1px solid var(--border)',
+              background: 'transparent',
+              color: uploadedFiles.length > 0 ? 'var(--status-success)' : 'var(--text-secondary)',
+              cursor: 'pointer',
+              display: 'grid',
+              placeItems: 'center',
+              fontSize: 16,
+              flexShrink: 0,
+            }}
+            title="Upload files"
+          >
+            ⤴
+          </button>
           <textarea
             ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask Niyanta AI..."
+            placeholder="Ask Niyanta AI or upload files..."
             rows={1}
             style={{
               flex: 1,
@@ -395,15 +473,15 @@ const NiyantaAIPanel: React.FC<NiyantaAIPanelProps> = ({
           />
           <button
             onClick={handleSend}
-            disabled={isSending || !input.trim()}
+            disabled={isSending || (!input.trim() && uploadedFiles.length === 0)}
             style={{
               width: 36,
               height: 36,
               borderRadius: 4,
               border: '1px solid var(--border)',
-              background: input.trim() ? 'var(--cc-info-bg)' : 'transparent',
-              color: input.trim() ? 'var(--accent)' : 'var(--text-muted)',
-              cursor: input.trim() ? 'pointer' : 'default',
+              background: input.trim() || uploadedFiles.length > 0 ? 'var(--cc-info-bg)' : 'transparent',
+              color: input.trim() || uploadedFiles.length > 0 ? 'var(--accent)' : 'var(--text-muted)',
+              cursor: input.trim() || uploadedFiles.length > 0 ? 'pointer' : 'default',
               display: 'grid',
               placeItems: 'center',
               fontSize: 16,
