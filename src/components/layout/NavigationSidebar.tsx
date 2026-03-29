@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import AnimatedThemeToggle from '../shared/AnimatedThemeToggle';
 import GradientButton from '../shared/GradientButton';
+import { getStorageMode } from '../../services/storageMode';
 
 interface NavigationSidebarProps {
   onOpenNiyantaChat?: () => void;
@@ -62,6 +63,11 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
   const searchResults = sidebarSearch.trim()
     ? searchItems.filter(i => i.name.toLowerCase().includes(sidebarSearch.toLowerCase()))
     : [];
+  const storageMode = getStorageMode();
+  const storageLabel = storageMode === 'browser' ? 'Browser Store' : 'Server Store';
+  const storageTone = storageMode === 'browser' ? 'var(--status-info)' : 'var(--status-success)';
+  const storageBg = storageMode === 'browser' ? 'var(--cc-info-bg)' : 'var(--cc-ok-bg)';
+  const storageBorder = storageMode === 'browser' ? 'var(--cc-info-border)' : 'var(--cc-ok-border)';
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -119,18 +125,39 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
         }}
       >
         {!collapsed && (
-          <span
-            style={{
-              fontFamily: 'var(--font-display)',
-              fontWeight: 700,
-              fontSize: 16,
-              color: 'var(--text-primary)',
-              letterSpacing: '0.12em',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            NIYANTA
-          </span>
+          <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
+            <span
+              style={{
+                fontFamily: 'var(--font-display)',
+                fontWeight: 700,
+                fontSize: 16,
+                color: 'var(--text-primary)',
+                letterSpacing: '0.12em',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              NIYANTA
+            </span>
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                width: 'fit-content',
+                height: 18,
+                padding: '0 8px',
+                borderRadius: 999,
+                border: `1px solid ${storageBorder}`,
+                background: storageBg,
+                color: storageTone,
+                fontFamily: 'var(--font-mono)',
+                fontSize: 9,
+                letterSpacing: '0.06em',
+                textTransform: 'uppercase',
+              }}
+            >
+              {storageLabel}
+            </span>
+          </div>
         )}
         <button
           onClick={() => setCollapsed(!collapsed)}

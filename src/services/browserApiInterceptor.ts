@@ -84,12 +84,30 @@ interface BrowserRunRecord {
   error_message?: string | null;
 }
 
+interface BrowserVersionRecord {
+  id: string;
+  workflow_id: string;
+  version_number: number;
+  name: string;
+  description: string;
+  nodes: string;
+  edges: string;
+  status: string;
+  category: string;
+  tags: string;
+  triggers: string;
+  change_summary: string;
+  created_by: string;
+  created_at: string;
+}
+
 interface BrowserStoreShape {
   agents: BrowserAgentRecord[];
   workflows: BrowserWorkflowRecord[];
   approvals: BrowserApprovalRecord[];
   auditEntries: BrowserAuditEntry[];
   runs: BrowserRunRecord[];
+  versions: BrowserVersionRecord[];
   agentWorkflowLinks: Array<{ agent_id: string; workflow_id: string; can_trigger: number; can_modify: number; created_at: string }>;
   templates: typeof BROWSER_WORKFLOW_TEMPLATES;
 }
@@ -123,6 +141,7 @@ function buildDefaultStore(): BrowserStoreShape {
     approvals: [],
     auditEntries: [],
     runs: [],
+    versions: [],
     agentWorkflowLinks: [],
     templates: BROWSER_WORKFLOW_TEMPLATES,
   };
@@ -200,6 +219,237 @@ function buildHealth(store: BrowserStoreShape): JsonRecord {
   };
 }
 
+function parseJsonArray<T>(value: string): T[] {
+  try {
+    return JSON.parse(value) as T[];
+  } catch {
+    return [];
+  }
+}
+
+function normalizeNodeType(value: unknown): string {
+  return String(value || '').trim().toLowerCase().replace(/\s+/g, '_');
+}
+
+function createApprovalRecord(
+  node: Record<string, unknown>,
+  workflow: BrowserWorkflowRecord,
+  workflowRunId: string,
+  now: string
+): BrowserApprovalRecord {
+  const config = ((node.config as JsonRecord | undefined) || {}) as JsonRecord;
+  return {
+    id: uuid(),
+    workflow_run_id: workflowRunId,
+    workflow_id: workflow.id,
+    workflow_name: workflow.name,
+    node_id: String(node.instanceId || uuid()),
+    node_name: String(node.name || 'Approval Node'),
+    title: String(config.title || 'Approval Required'),
+    description: String(config.description || 'Review this approval request'),
+    context: { workflowName: workflow.name },
+    assigned_to: String(config.assignedTo || 'admin'),
+    priority: (String(config.priority || 'medium') as BrowserApprovalRecord['priority']),
+    deadline: typeof config.deadline === 'string' ? String(config.deadline) : null,
+    escalation_policy: typeof config.escalationPolicy === 'string' ? String(config.escalationPolicy) : null,
+    status: 'PENDING',
+    decision_comment: null,
+    created_at: now,
+    resolved_at: null,
+    resolved_by: null,
+  };
+}
+
+function createWorkflowVersionSnapshot(
+  store: BrowserStoreShape,
+  workflow: BrowserWorkflowRecord,
+  changeSummary: string,
+  createdBy: string
+): BrowserVersionRecord {
+  const maxVersion = store.versions
+    .filter((version) => version.workflow_id === workflow.id)
+    .reduce((max, version) => Math.max(max, version.version_number), 0);
+
+  const snapshot: BrowserVersionRecord = {
+    id: uuid(),
+    workflow_id: workflow.id,
+    version_number: maxVersion + 1,
+    name: workflow.name,
+    description: workflow.description,
+    nodes: workflow.nodes,
+    edges: workflow.edges,
+    status: workflow.status,
+    category: workflow.category,
+    tags: workflow.tags,
+    triggers: workflow.triggers,
+    change_summary: changeSummary,
+    created_by: createdBy,
+    created_at: new Date().toISOString(),
+  };
+
+  store.versions.unshift(snapshot);
+  return snapshot;
+}
+
+function buildWorkflowComparison(version1: BrowserVersionRecord, version2: BrowserVersionRecord) {
+  const nodes1 = parseJsonArray<Record<string, unknown>>(version1.nodes);
+  const nodes2 = parseJsonArray<Record<string, unknown>>(version2.nodes);
+  const edges1 = parseJsonArray<Record<string, unknown>>(version1.edges);
+  const edges2 = parseJsonArray<Record<string, unknown>>(version2.edges);
+
+  const nodeIds1 = new Set(nodes1.map((node) => String(node.instanceId)));
+  const nodeIds2 = new Set(nodes2.map((node) => String(node.instanceId)));
+  const addedNodes = nodes2.filter((node) => !nodeIds1.has(String(node.instanceId)));
+  const removedNodes = nodes1.filter((node) => !nodeIds2.has(String(node.instanceId)));
+  const modifiedNodes = nodes2.filter((node) => {
+    const previous = nodes1.find((candidate) => String(candidate.instanceId) === String(node.instanceId));
+    return previous && JSON.stringify(previous) !== JSON.stringify(node);
+  });
+
+  const edgeIds1 = new Set(edges1.map((edge) => `${String(edge.fromNodeId)}-${String(edge.toNodeId)}`));
+  const edgeIds2 = new Set(edges2.map((edge) => `${String(edge.fromNodeId)}-${String(edge.toNodeId)}`));
+  const addedEdges = edges2.filter((edge) => !edgeIds1.has(`${String(edge.fromNodeId)}-${String(edge.toNodeId)}`));
+  const removedEdges = edges1.filter((edge) => !edgeIds2.has(`${String(edge.fromNodeId)}-${String(edge.toNodeId)}`));
+
+  return {
+    version1: {
+      number: version1.version_number,
+      name: version1.name,
+      createdAt: version1.created_at,
+      nodeCount: nodes1.length,
+      edgeCount: edges1.length,
+    },
+    version2: {
+      number: version2.version_number,
+      name: version2.name,
+      createdAt: version2.created_at,
+      nodeCount: nodes2.length,
+      edgeCount: edges2.length,
+    },
+    differences: {
+      nodes: {
+        added: addedNodes.length,
+        removed: removedNodes.length,
+        modified: modifiedNodes.length,
+        details: {
+          added: addedNodes.map((node) => ({ id: node.instanceId, name: node.name, type: node.nodeType })),
+          removed: removedNodes.map((node) => ({ id: node.instanceId, name: node.name, type: node.nodeType })),
+          modified: modifiedNodes.map((node) => ({ id: node.instanceId, name: node.name, type: node.nodeType })),
+        },
+      },
+      edges: {
+        added: addedEdges.length,
+        removed: removedEdges.length,
+        details: {
+          added: addedEdges,
+          removed: removedEdges,
+        },
+      },
+      metadata: {
+        nameChanged: version1.name !== version2.name,
+        descriptionChanged: version1.description !== version2.description,
+        statusChanged: version1.status !== version2.status,
+        categoryChanged: version1.category !== version2.category,
+      },
+    },
+  };
+}
+
+function executeWorkflowLocally(
+  store: BrowserStoreShape,
+  workflow: BrowserWorkflowRecord,
+  initialContext: JsonRecord,
+  dryRun: boolean
+) {
+  const now = new Date().toISOString();
+  const runId = `run-${uuid()}`;
+  const nodes = parseJsonArray<Record<string, unknown>>(workflow.nodes);
+  const approvalNodes = nodes.filter((node) => normalizeNodeType(node.nodeType) === 'approval');
+  const status = approvalNodes.length > 0 ? 'WAITING_APPROVAL' : 'COMPLETED';
+  const resultContext = {
+    ...initialContext,
+    workflowId: workflow.id,
+    workflowName: workflow.name,
+    executedIn: dryRun ? 'browser-dry-run' : 'browser-run',
+    nodeCount: nodes.length,
+    approvalCount: approvalNodes.length,
+  };
+
+  if (!dryRun) {
+    store.runs.unshift({
+      id: runId,
+      workflow_id: workflow.id,
+      status,
+      started_at: now,
+      completed_at: status === 'COMPLETED' ? now : null,
+      trigger_source: 'browser',
+      context: JSON.stringify(resultContext),
+      error_message: null,
+    });
+
+    approvalNodes.forEach((node) => {
+      store.approvals.unshift(createApprovalRecord(node, workflow, runId, now));
+    });
+
+    addAuditEntry(store, 'workflow.execute', `Executed workflow ${workflow.name}`);
+    writeStore(store);
+  }
+
+  return {
+    success: true,
+    workflowId: workflow.id,
+    runId,
+    context: resultContext,
+    status,
+    timestamp: now,
+    dryRun,
+  };
+}
+
+function executeAgentLocally(store: BrowserStoreShape, agentId: string, input: string) {
+  const agent = store.agents.find((item) => item.id === agentId || item.agent_id === agentId);
+  if (!agent) {
+    return responseJson({ success: false, error: 'InvalidAgent', message: `Unsupported agent: ${agentId}` }, 400);
+  }
+
+  const timestamp = new Date().toISOString();
+  const taskTitle = input.trim().slice(0, 48) || `${agent.name} review`;
+  const result = {
+    summary: `${agent.name} completed a browser-mode local execution for the provided input.`,
+    details: {
+      mode: 'browser-storage',
+      inputPreview: input.trim().slice(0, 200),
+      capabilities: agent.capabilities,
+      generatedAt: timestamp,
+    },
+    tasks: [
+      {
+        title: taskTitle,
+        owner: 'Admin',
+        priority: 'medium',
+        status: 'open',
+      },
+    ],
+    whyChain: [
+      'Input received in browser storage mode.',
+      `Agent ${agent.name} resolved locally without backend persistence.`,
+      'Result was generated for demo/local-first operation.',
+    ],
+  };
+
+  addAuditEntry(store, 'agent.run', `Executed agent ${agent.name}`, agentId);
+  writeStore(store);
+  return responseJson({
+    success: true,
+    sessionId: uuid(),
+    agentId,
+    result,
+    processingTime: 120,
+    model: 'browser-local',
+    timestamp,
+  });
+}
+
 function filterTemplates(url: URL) {
   const category = url.searchParams.get('category');
   const complexity = url.searchParams.get('complexity');
@@ -259,6 +509,11 @@ function handleTemplates(url: URL, method: string, store: BrowserStoreShape, ini
 }
 
 function handleAgents(url: URL, method: string, store: BrowserStoreShape, init?: RequestInit): Response | null {
+  if (method === 'POST' && url.pathname === '/api/agent/run') {
+    const body = parseBody(init);
+    return executeAgentLocally(store, String(body.agentId || ''), String(body.input || ''));
+  }
+
   if (method === 'GET' && url.pathname === '/api/agent/list') {
     return responseJson({ agents: store.agents });
   }
@@ -500,6 +755,17 @@ function handleWorkflows(url: URL, method: string, store: BrowserStoreShape, ini
     return responseJson({ success: true, runs: store.runs.filter((run) => run.workflow_id === workflowId) });
   }
 
+  const workflowRunMatch = url.pathname.match(/^\/api\/workflow\/([^/]+)\/runs\/([^/]+)$/);
+  if (workflowRunMatch && method === 'GET') {
+    const workflowId = decodeURIComponent(workflowRunMatch[1]);
+    const runId = decodeURIComponent(workflowRunMatch[2]);
+    const run = store.runs.find((item) => item.workflow_id === workflowId && item.id === runId);
+    if (!run) {
+      return responseJson({ success: false, message: 'Workflow run not found' }, 404);
+    }
+    return responseJson({ success: true, run });
+  }
+
   const workflowMetricsMatch = url.pathname.match(/^\/api\/workflow\/([^/]+)\/metrics$/);
   if (workflowMetricsMatch && method === 'GET') {
     const workflowId = decodeURIComponent(workflowMetricsMatch[1]);
@@ -512,6 +778,34 @@ function handleWorkflows(url: URL, method: string, store: BrowserStoreShape, ini
         failedRuns: workflowRuns.filter((run) => run.status === 'FAILED').length,
       },
     });
+  }
+
+  const workflowExecuteMatch = url.pathname.match(/^\/api\/workflow\/([^/]+)\/(execute|dry-run)$/);
+  if (workflowExecuteMatch && method === 'POST') {
+    const workflowId = decodeURIComponent(workflowExecuteMatch[1]);
+    const dryRun = workflowExecuteMatch[2] === 'dry-run';
+    const workflow = store.workflows.find((item) => item.id === workflowId);
+    if (!workflow) {
+      return responseJson({ success: false, message: 'Workflow not found' }, 404);
+    }
+    const body = parseBody(init);
+    const initialContext = ((body.context as JsonRecord | undefined) || body) as JsonRecord;
+    return responseJson(executeWorkflowLocally(store, workflow, initialContext, dryRun), dryRun ? 200 : 200);
+  }
+
+  const workflowPublishMatch = url.pathname.match(/^\/api\/workflow\/([^/]+)\/(publish|unpublish)$/);
+  if (workflowPublishMatch && method === 'POST') {
+    const workflowId = decodeURIComponent(workflowPublishMatch[1]);
+    const publishAction = workflowPublishMatch[2];
+    const workflow = store.workflows.find((item) => item.id === workflowId);
+    if (!workflow) {
+      return responseJson({ success: false, message: 'Workflow not found' }, 404);
+    }
+    workflow.status = publishAction === 'publish' ? 'active' : 'draft';
+    workflow.updated_at = new Date().toISOString();
+    addAuditEntry(store, `workflow.${publishAction}`, `${publishAction}ed workflow ${workflow.name}`);
+    writeStore(store);
+    return responseJson({ success: true, workflow, message: `Workflow ${publishAction}ed successfully` });
   }
 
   const workflowItemMatch = url.pathname.match(/^\/api\/workflow\/([^/]+)$/);
@@ -558,6 +852,125 @@ function handleWorkflows(url: URL, method: string, store: BrowserStoreShape, ini
       writeStore(store);
       return responseJson({ success: true, message: 'Workflow deleted' });
     }
+  }
+
+  return null;
+}
+
+function handleVersions(url: URL, method: string, store: BrowserStoreShape, init?: RequestInit): Response | null {
+  const createMatch = url.pathname.match(/^\/api\/versions\/([^/]+)\/create$/);
+  if (createMatch && method === 'POST') {
+    const workflowId = decodeURIComponent(createMatch[1]);
+    const workflow = store.workflows.find((item) => item.id === workflowId);
+    if (!workflow) {
+      return responseJson({ error: 'Workflow not found' }, 404);
+    }
+
+    const body = parseBody(init);
+    const snapshot = createWorkflowVersionSnapshot(
+      store,
+      workflow,
+      String(body.changeSummary || body.description || 'Version created'),
+      String(body.createdBy || 'browser-user')
+    );
+    addAuditEntry(store, 'workflow.version.create', `Created version ${snapshot.version_number} for ${workflow.name}`);
+    writeStore(store);
+    return responseJson({
+      success: true,
+      versionId: snapshot.id,
+      versionNumber: snapshot.version_number,
+      message: `Version ${snapshot.version_number} created successfully`,
+    });
+  }
+
+  const listMatch = url.pathname.match(/^\/api\/versions\/([^/]+)\/list$/);
+  if (listMatch && method === 'GET') {
+    const workflowId = decodeURIComponent(listMatch[1]);
+    const versions = store.versions
+      .filter((version) => version.workflow_id === workflowId)
+      .sort((a, b) => b.version_number - a.version_number)
+      .map((version) => ({
+        id: version.id,
+        versionNumber: version.version_number,
+        name: version.name,
+        changeSummary: version.change_summary,
+        createdBy: version.created_by,
+        createdAt: version.created_at,
+        size: {
+          nodes: version.nodes.length,
+          edges: version.edges.length,
+        },
+      }));
+    return responseJson({ success: true, workflowId, versions });
+  }
+
+  const detailMatch = url.pathname.match(/^\/api\/versions\/([^/]+)\/versions\/([^/]+)$/);
+  if (detailMatch && method === 'GET') {
+    const workflowId = decodeURIComponent(detailMatch[1]);
+    const versionNumber = parseInt(detailMatch[2], 10);
+    const version = store.versions.find((item) => item.workflow_id === workflowId && item.version_number === versionNumber);
+    if (!version) {
+      return responseJson({ error: 'Version not found' }, 404);
+    }
+    return responseJson({
+      success: true,
+      version: {
+        id: version.id,
+        workflowId: version.workflow_id,
+        versionNumber: version.version_number,
+        name: version.name,
+        description: version.description,
+        nodes: parseJsonArray(version.nodes),
+        edges: parseJsonArray(version.edges),
+        status: version.status,
+        category: version.category,
+        tags: parseJsonArray<string>(version.tags),
+        triggers: parseJsonArray<string>(version.triggers),
+        changeSummary: version.change_summary,
+        createdBy: version.created_by,
+        createdAt: version.created_at,
+      },
+    });
+  }
+
+  const restoreMatch = url.pathname.match(/^\/api\/versions\/([^/]+)\/restore\/([^/]+)$/);
+  if (restoreMatch && method === 'POST') {
+    const workflowId = decodeURIComponent(restoreMatch[1]);
+    const versionNumber = parseInt(restoreMatch[2], 10);
+    const workflow = store.workflows.find((item) => item.id === workflowId);
+    const version = store.versions.find((item) => item.workflow_id === workflowId && item.version_number === versionNumber);
+    if (!workflow || !version) {
+      return responseJson({ error: 'Version not found' }, 404);
+    }
+    const body = parseBody(init);
+    if (body.createBackup !== false) {
+      createWorkflowVersionSnapshot(store, workflow, `Auto-backup before restoring to v${versionNumber}`, String(body.createdBy || 'browser-user'));
+    }
+    workflow.name = version.name;
+    workflow.description = version.description;
+    workflow.nodes = version.nodes;
+    workflow.edges = version.edges;
+    workflow.status = version.status as BrowserWorkflowRecord['status'];
+    workflow.category = version.category;
+    workflow.tags = version.tags;
+    workflow.triggers = version.triggers;
+    workflow.updated_at = new Date().toISOString();
+    addAuditEntry(store, 'workflow.version.restore', `Restored ${workflow.name} to version ${versionNumber}`);
+    writeStore(store);
+    return responseJson({ success: true, message: `Workflow restored to version ${versionNumber}`, restoredVersion: versionNumber });
+  }
+
+  const compareMatch = url.pathname.match(/^\/api\/versions\/([^/]+)\/compare\/([^/]+)\/([^/]+)$/);
+  if (compareMatch && method === 'GET') {
+    const workflowId = decodeURIComponent(compareMatch[1]);
+    const version1 = parseInt(compareMatch[2], 10);
+    const version2 = parseInt(compareMatch[3], 10);
+    const v1 = store.versions.find((item) => item.workflow_id === workflowId && item.version_number === version1);
+    const v2 = store.versions.find((item) => item.workflow_id === workflowId && item.version_number === version2);
+    if (!v1 || !v2) {
+      return responseJson({ error: 'One or both versions not found' }, 404);
+    }
+    return responseJson({ success: true, comparison: buildWorkflowComparison(v1, v2) });
   }
 
   return null;
@@ -634,7 +1047,7 @@ function shouldBypass(url: URL): boolean {
     return true;
   }
 
-  return url.pathname.startsWith('/api/niyanta') || url.pathname.startsWith('/api/port') || url.pathname === '/api/agent/run' || url.pathname === '/api/agent/message';
+  return url.pathname.startsWith('/api/niyanta') || url.pathname.startsWith('/api/port') || url.pathname === '/api/agent/message';
 }
 
 async function handleBrowserApi(input: RequestInfo | URL, init?: RequestInit): Promise<Response | null> {
@@ -656,6 +1069,7 @@ async function handleBrowserApi(input: RequestInfo | URL, init?: RequestInit): P
     handleTemplates,
     handleAgents,
     handleWorkflows,
+    handleVersions,
     handleApprovals,
     handleObservability,
   ];
