@@ -37,12 +37,6 @@ const OperationsMonitor: React.FC = () => {
   ];
   const maxMs = Math.max(...bottlenecks.map(b => b.avgMs));
 
-  const agents = [
-    { name: 'Meeting Intel', color: 'var(--status-info)', blocks: [{ left: 8, width: 12 }, { left: 34, width: 17 }, { left: 61, width: 10 }] },
-    { name: 'Invoice Proc', color: 'var(--status-success)', blocks: [{ left: 12, width: 16 }, { left: 43, width: 11 }, { left: 74, width: 9 }] },
-    { name: 'Document Intel', color: 'var(--status-warning)', blocks: [{ left: 6, width: 9 }, { left: 29, width: 14 }, { left: 58, width: 15 }] },
-  ];
-
   const slaTrackers = [
     { name: 'Invoice Processing', consumed: 58, target: '4hr' },
     { name: 'Employee Onboarding', consumed: 37, target: '3hr' },
@@ -52,6 +46,9 @@ const OperationsMonitor: React.FC = () => {
   ];
 
   const getSlaColor = (v: number) => v >= 90 ? 'var(--status-danger)' : v >= 70 ? 'var(--status-warning)' : 'var(--status-success)';
+  const criticalBottlenecks = bottlenecks.filter(b => b.severity === 'critical').length;
+  const warningBottlenecks = bottlenecks.filter(b => b.severity === 'warning').length;
+  const runningCount = liveWorkflows.filter(wf => wf.status === 'RUNNING').length;
 
   const panelStyle: React.CSSProperties = {
     background: 'linear-gradient(160deg, var(--cc-panel-top), var(--cc-panel-bottom))',
@@ -77,6 +74,14 @@ const OperationsMonitor: React.FC = () => {
     color: 'var(--text-secondary)',
   };
 
+  const panelHeader = (title: string, tone?: React.CSSProperties) => (
+    <div style={{ height: 40, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', padding: '0 14px', flexShrink: 0 }}>
+      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-secondary)', ...tone }}>
+        {title}
+      </span>
+    </div>
+  );
+
   return (
     <div style={{
       height: '100%',
@@ -99,9 +104,9 @@ const OperationsMonitor: React.FC = () => {
       }}>
         <div>
           <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 22 }}>Operations Monitor</div>
-          <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Runtime throughput, bottlenecks, and SLA burn in one view</div>
+          <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Runtime throughput, bottlenecks, and SLA burn in one focused workspace</div>
         </div>
-        <div style={{ display: 'flex', gap: 4 }}>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
           {ranges.map(r => (
             <button key={r} onClick={() => setTimeRange(r)} style={{
               padding: '4px 12px',
@@ -113,8 +118,8 @@ const OperationsMonitor: React.FC = () => {
               color: timeRange === r ? 'var(--text-primary)' : 'var(--text-secondary)',
             }}>{r}</button>
           ))}
+          <span style={tagStyle}>Refresh 10s</span>
         </div>
-        <span style={tagStyle}>Refresh: 10s</span>
       </div>
 
       {/* Metric Row */}
@@ -122,14 +127,17 @@ const OperationsMonitor: React.FC = () => {
         {metricTiles.map((m, i) => (
           <div key={i} style={{
             ...panelStyle,
-            height: 86,
-            padding: '12px 18px',
+            height: 92,
+            padding: '12px 14px',
             display: 'flex',
             flexDirection: 'column',
-            justifyContent: 'center',
+            justifyContent: 'space-between',
           }}>
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, textTransform: 'uppercase', color: 'var(--text-secondary)' }}>{m.label}</span>
-            <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 32, color: m.color, lineHeight: 1.1 }}>{m.value}</span>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, textTransform: 'uppercase', color: 'var(--text-secondary)', letterSpacing: '0.08em' }}>{m.label}</span>
+            <div style={{ display: 'flex', alignItems: 'end', justifyContent: 'space-between' }}>
+              <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 30, color: m.color, lineHeight: 1.05 }}>{m.value}</span>
+              <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{timeRange}</span>
+            </div>
           </div>
         ))}
       </div>
@@ -138,119 +146,81 @@ const OperationsMonitor: React.FC = () => {
       <div style={{
         flex: 1,
         display: 'grid',
-        gridTemplateColumns: isStacked ? '1fr' : '1fr 1fr',
-        gridTemplateRows: isStacked ? undefined : '1fr 1fr',
+        gridTemplateColumns: isStacked ? '1fr' : '1.45fr 1fr',
         gap: 12,
         overflow: 'hidden',
         padding: '0 12px 12px',
       }}>
-        {/* Live Workflow Runs */}
-        <div style={{ ...panelStyle, display: 'flex', flexDirection: 'column' }}>
-          <div style={{ height: 36, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', padding: '0 16px', flexShrink: 0 }}>
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, textTransform: 'uppercase', color: 'var(--status-success)' }}>Live Workflow Runs</span>
-            <span style={{ marginLeft: 'auto', ...tagStyle, height: 20, color: 'var(--status-success)', borderColor: 'var(--cc-ok-border)', background: 'var(--cc-ok-bg)' }}>{liveWorkflows.length}</span>
-          </div>
-          <div style={{ flex: 1, overflowY: 'auto' }}>
-            {liveWorkflows.map((wf, i) => (
-              <div key={i} style={{ padding: '12px 16px', borderBottom: '1px solid var(--border-subtle)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                  <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 13 }}>{wf.name}</span>
-                  <span style={{
-                    fontFamily: 'var(--font-mono)', fontSize: 9, textTransform: 'uppercase',
-                    padding: '2px 6px',
-                    borderRadius: 999,
-                    background: wf.status === 'RUNNING' ? 'var(--cc-ok-bg)' : 'var(--cc-warn-bg)',
-                    border: `1px solid ${wf.status === 'RUNNING' ? 'var(--cc-ok-border)' : 'var(--cc-warn-border)'}`,
-                    color: wf.status === 'RUNNING' ? 'var(--status-success)' : 'var(--status-warning)',
-                  }}>{wf.status}</span>
+        {/* Left Column */}
+        <div style={{ display: 'grid', gridTemplateRows: '1fr', gap: 12, minWidth: 0 }}>
+          <section style={{ ...panelStyle, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+            {panelHeader('Live Workflow Runs', { color: 'var(--status-success)' })}
+            <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 0.7fr 0.6fr 0.7fr 0.7fr', gap: 10, padding: '8px 14px', borderBottom: '1px solid var(--border-subtle)', fontFamily: 'var(--font-mono)', fontSize: 9, textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.06em' }}>
+              <span>Workflow</span>
+              <span>Node</span>
+              <span>Status</span>
+              <span>Progress</span>
+              <span>Elapsed</span>
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto' }}>
+              {liveWorkflows.map((wf, i) => (
+                <div key={i} style={{ padding: '10px 14px', borderBottom: '1px solid var(--border-subtle)' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 0.7fr 0.6fr 0.7fr 0.7fr', gap: 10, alignItems: 'center' }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{wf.name}</span>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-secondary)' }}>{wf.node}</span>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: wf.status === 'RUNNING' ? 'var(--status-success)' : 'var(--status-warning)', textTransform: 'uppercase' }}>{wf.status}</span>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-secondary)' }}>{wf.progress}%</span>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-secondary)' }}>{wf.elapsed}</span>
+                  </div>
+                  <div style={{ marginTop: 7 }}>
+                    <ProgressBar value={wf.progress} color={wf.status === 'RUNNING' ? 'var(--status-success)' : 'var(--status-warning)'} />
+                  </div>
                 </div>
-                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-secondary)', marginBottom: 4 }}>Node {wf.node} · Agent: {wf.agent}</div>
-                <ProgressBar value={wf.progress} />
-                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', marginTop: 4 }}>{wf.elapsed} elapsed · SLA: {wf.sla}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Bottleneck Heatmap */}
-        <div style={{ ...panelStyle, display: 'flex', flexDirection: 'column' }}>
-          <div style={{ height: 36, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', padding: '0 16px', flexShrink: 0 }}>
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, textTransform: 'uppercase', color: 'var(--status-warning)' }}>Bottleneck Heatmap</span>
-          </div>
-          <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
-            {bottlenecks.map((b, i) => (
-              <div key={i} style={{ height: 36, display: 'flex', alignItems: 'center', gap: 12, padding: '0 16px', borderBottom: '1px solid var(--border-subtle)' }}>
-                <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, width: 120, flexShrink: 0 }}>{b.node}</span>
-                <div style={{ flex: 1, height: 8, background: 'var(--cc-surface-1)', position: 'relative', borderRadius: 999 }}>
-                  <div style={{
-                    borderRadius: 999,
-                    height: '100%', width: `${(b.avgMs / maxMs) * 100}%`,
-                    background: b.severity === 'critical' ? 'var(--status-danger)' : b.severity === 'warning' ? 'var(--status-warning)' : 'var(--status-success)',
-                    transition: 'width 1s ease',
-                  }} />
-                </div>
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-secondary)', width: 60, textAlign: 'right' }}>{b.avgMs}ms</span>
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', width: 50, textAlign: 'right' }}>P95: {b.p95Ms}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Agent Activity Timeline */}
-        <div style={{ ...panelStyle, display: 'flex', flexDirection: 'column' }}>
-          <div style={{ height: 36, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', padding: '0 16px', flexShrink: 0 }}>
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, textTransform: 'uppercase', color: 'var(--status-info)' }}>Agent Activity - Last 6 Hours</span>
-          </div>
-          <div style={{ flex: 1, overflowY: 'auto' }}>
-            {agents.map((a, i) => (
-              <div key={i} style={{ height: 32, display: 'flex', alignItems: 'center', borderBottom: '1px solid var(--border-subtle)' }}>
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)', width: 100, textAlign: 'right', paddingRight: 12, flexShrink: 0 }}>{a.name}</span>
-                <div style={{ flex: 1, display: 'flex', gap: 2, padding: '0 4px', position: 'relative' }}>
-                  {/* Deterministic activity blocks for stable rendering */}
-                  {a.blocks.map((block, j) => (
-                    <div key={j} style={{
-                      position: 'absolute',
-                      left: `${block.left}%`,
-                      width: `${block.width}%`,
-                      height: 12,
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                      background: a.color,
-                      opacity: 0.65,
-                      borderRadius: 2,
-                    }} />
-                  ))}
-                  {/* Current time indicator */}
-                  <div style={{ position: 'absolute', right: '10%', top: 0, bottom: 0, width: 1, background: 'var(--status-success)' }} />
-                </div>
-              </div>
-            ))}
-            {/* Time labels */}
-            <div style={{ display: 'flex', paddingLeft: 100, height: 20, alignItems: 'center' }}>
-              {['6hr ago', '4hr ago', '2hr ago', 'Now'].map((t, i) => (
-                <span key={i} style={{ flex: 1, fontFamily: 'var(--font-mono)', fontSize: 8, color: 'var(--text-muted)', textAlign: i === 3 ? 'right' : 'left', paddingRight: i === 3 ? 12 : 0 }}>{t}</span>
               ))}
             </div>
-          </div>
+          </section>
         </div>
 
-        {/* SLA Tracker */}
-        <div style={{ ...panelStyle, display: 'flex', flexDirection: 'column' }}>
-          <div style={{ height: 36, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', padding: '0 16px', flexShrink: 0 }}>
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, textTransform: 'uppercase', color: 'var(--status-warning)' }}>SLA Tracker By Workflow</span>
-          </div>
-          <div style={{ flex: 1, overflowY: 'auto' }}>
-            {slaTrackers.map((s, i) => (
-              <div key={i} style={{ height: 36, display: 'flex', alignItems: 'center', gap: 12, padding: '0 16px', borderBottom: '1px solid var(--border-subtle)' }}>
-                <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, width: 180, flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
-                <div style={{ flex: 1 }}>
-                  <ProgressBar value={s.consumed} color={getSlaColor(s.consumed)} />
+        {/* Right Column */}
+        <div style={{ display: 'grid', gridTemplateRows: '0.95fr 1.05fr', gap: 12, minWidth: 0 }}>
+          <section style={{ ...panelStyle, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+            {panelHeader('Bottleneck Heatmap', { color: 'var(--status-warning)' })}
+            <div style={{ padding: '10px 14px', display: 'flex', gap: 8, flexWrap: 'wrap', borderBottom: '1px solid var(--border-subtle)' }}>
+              <span style={{ ...tagStyle, color: 'var(--status-danger)', borderColor: 'var(--cc-danger-border)', background: 'var(--cc-danger-bg)' }}>{criticalBottlenecks} Critical</span>
+              <span style={{ ...tagStyle, color: 'var(--status-warning)', borderColor: 'var(--cc-warn-border)', background: 'var(--cc-warn-bg)' }}>{warningBottlenecks} Warning</span>
+              <span style={{ ...tagStyle, color: 'var(--status-success)', borderColor: 'var(--cc-ok-border)', background: 'var(--cc-ok-bg)' }}>{runningCount} Running</span>
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto', padding: '8px 10px', display: 'grid', gap: 8 }}>
+              {bottlenecks.map((b, i) => (
+                <div key={i} style={{ padding: '9px 12px', border: '1px solid var(--border-subtle)', borderRadius: 8, background: 'var(--cc-surface-1)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 6 }}>
+                    <span style={{ fontSize: 11, fontWeight: 600 }}>{b.node}</span>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-secondary)' }}>{b.avgMs}ms</span>
+                  </div>
+                  <div style={{ height: 8, background: 'var(--cc-surface-1)', borderRadius: 999, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${(b.avgMs / maxMs) * 100}%`, borderRadius: 999, background: b.severity === 'critical' ? 'var(--status-danger)' : b.severity === 'warning' ? 'var(--status-warning)' : 'var(--status-success)' }} />
+                  </div>
+                  <div style={{ marginTop: 5, fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)' }}>P95 {b.p95Ms}ms</div>
                 </div>
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: getSlaColor(s.consumed), width: 40, textAlign: 'right' }}>{s.consumed}%</span>
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', width: 30 }}>{s.target}</span>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          </section>
+
+          <section style={{ ...panelStyle, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+            {panelHeader('SLA Tracker', { color: 'var(--status-warning)' })}
+            <div style={{ flex: 1, overflowY: 'auto' }}>
+              {slaTrackers.map((s, i) => (
+                <div key={i} style={{ padding: '9px 14px', borderBottom: '1px solid var(--border-subtle)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                    <span style={{ fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: getSlaColor(s.consumed) }}>{s.consumed}%</span>
+                  </div>
+                  <ProgressBar value={s.consumed} color={getSlaColor(s.consumed)} />
+                  <div style={{ marginTop: 4, fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)' }}>Target {s.target}</div>
+                </div>
+              ))}
+            </div>
+          </section>
         </div>
       </div>
     </div>

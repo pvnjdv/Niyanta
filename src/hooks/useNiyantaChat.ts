@@ -53,5 +53,17 @@ export function useNiyantaChat() {
     });
   }, []);
 
-  return { messages, isSending, sendMessage, startNewChat, historySessions, restoreFromHistory };
+  const deleteHistorySession = useCallback((sessionId: string) => {
+    setHistorySessions((hist) => hist.filter((s) => s.id !== sessionId));
+  }, []);
+
+  return {
+    messages,
+    isSending,
+    sendMessage,
+    startNewChat,
+    historySessions,
+    restoreFromHistory,
+    deleteHistorySession,
+  };
 }

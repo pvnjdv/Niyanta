@@ -24,7 +24,7 @@ const AppContent: React.FC = () => {
   const { theme, toggleTheme } = useTheme();
   const { agents, agentStates, executeAgent, runAllAgents, runAllProgress, addMessage, refreshAgents } = useAgents();
   const { entries } = useAuditLog();
-  const { messages, isSending, sendMessage, startNewChat, historySessions, restoreFromHistory } = useNiyantaChat();
+  const { messages, isSending, sendMessage, startNewChat, historySessions, restoreFromHistory, deleteHistorySession } = useNiyantaChat();
   const { metrics } = useMetrics();
   const { workflows, saveWorkflow } = useWorkflows();
 
@@ -216,6 +216,7 @@ const AppContent: React.FC = () => {
         onNewChat={startNewChat}
         historySessions={historySessions}
         onRestoreHistory={restoreFromHistory}
+        onDeleteHistory={deleteHistorySession}
       />
     </div>
   );
