@@ -221,6 +221,41 @@ export class AgentManager {
         description: 'Manages HR workflows including onboarding, leave requests, and compliance.',
         systemPrompt: 'You are the HR Operations Agent. Handle employee requests including onboarding, leave management, and policy queries. Return strict JSON with: requestType, decision, reason, nextSteps, complianceStatus, whyChain.'
       },
+      {
+        agent_id: 'it_ops', name: 'IT Operations', subtitle: 'Access & incident management',
+        icon: 'IT', color: '#3B82F6', glow: 'rgba(59,130,246,0.2)',
+        capabilities: ['access requests', 'incident management', 'asset tracking', 'SLA monitoring'], status: 'active',
+        description: 'Processes access requests, incidents, and asset workflows with priority and SLA.',
+        systemPrompt: 'You are the IT Operations Agent inside Niyanta AI. Process access requests, incidents, and asset workflows with priority and SLA. Return strict JSON with request_type, priority, affected_systems, access_requests, incident, assets, escalation_required, audit.'
+      },
+      {
+        agent_id: 'compliance', name: 'Compliance', subtitle: 'Policy & regulatory intelligence',
+        icon: 'CO', color: '#F59E0B', glow: 'rgba(245,158,11,0.2)',
+        capabilities: ['policy evaluation', 'regulatory checks', 'risk scoring', 'violation detection'], status: 'active',
+        description: 'Evaluates policy violations, regulatory risks, and compliance gaps.',
+        systemPrompt: 'You are the Compliance Agent inside Niyanta AI. Evaluate policy violations, regulatory risks, and compliance gaps. Return strict JSON with compliance_status, regulations_checked, violations, risk_score, recommended_actions, audit.'
+      },
+      {
+        agent_id: 'security', name: 'Security Monitor', subtitle: 'Threat & incident response',
+        icon: 'SM', color: '#EF4444', glow: 'rgba(239,68,68,0.2)',
+        capabilities: ['incident classification', 'threat assessment', 'response planning', 'escalation'], status: 'active',
+        description: 'Classifies security incidents and defines immediate response actions.',
+        systemPrompt: 'You are the Security Monitor Agent inside Niyanta AI. Classify incidents by CRITICAL/HIGH/MEDIUM/LOW and define immediate response. Return strict JSON with severity, confidence, affected, immediate_actions, escalation, regulatory_impact, audit.'
+      },
+      {
+        agent_id: 'procurement', name: 'Procurement', subtitle: 'Purchase & vendor intelligence',
+        icon: 'PR', color: '#8B5CF6', glow: 'rgba(139,92,246,0.2)',
+        capabilities: ['purchase approval', 'vendor evaluation', 'policy checks', 'compliance flags'], status: 'active',
+        description: 'Applies thresholds and quote requirements to build approval chains.',
+        systemPrompt: 'You are the Procurement Agent inside Niyanta AI. Apply thresholds and quote requirements to build approval chain. Return strict JSON with decision, approval_chain, policy_checks, compliance_flags, timeline, next_steps, audit.'
+      },
+      {
+        agent_id: 'workflow', name: 'Workflow Intelligence', subtitle: 'Optimization & routing',
+        icon: 'WI', color: '#06B6D4', glow: 'rgba(6,182,212,0.2)',
+        capabilities: ['workflow analysis', 'optimization', 'routing recommendations', 'risk assessment'], status: 'active',
+        description: 'Analyzes workflows and suggests optimization and routing improvements.',
+        systemPrompt: 'You are the Workflow Intelligence Agent inside Niyanta AI. Analyze workflow data and suggest optimization and routing improvements. Return strict JSON with workflow_analysis, optimization_suggestions, routing_recommendations, risk_assessment, audit.'
+      },
     ];
 
     for (const agent of agentDefinitions) {

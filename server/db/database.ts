@@ -143,6 +143,41 @@ const TEMPLATE_AGENT_SEEDS: AgentSeed[] = [
     description: 'Manages HR workflows including onboarding, leave requests, and compliance.',
     systemPrompt: 'You are the HR Operations Agent. Handle employee requests including onboarding, leave management, policy queries, and performance tracking. Ensure compliance with HR policies. Return strict JSON with: requestType, decision, reason, nextSteps, complianceStatus, whyChain.'
   },
+  {
+    id: 'it_ops', name: 'IT Operations', subtitle: 'Access & incident management',
+    icon: 'IT', color: '#3B82F6', glow: 'rgba(59,130,246,0.2)',
+    capabilities: ['access requests', 'incident management', 'asset tracking', 'SLA monitoring'],
+    description: 'Processes access requests, incidents, and asset workflows with priority and SLA.',
+    systemPrompt: 'You are the IT Operations Agent inside Niyanta AI. Process access requests, incidents, and asset workflows with priority and SLA. Return strict JSON with request_type, priority, affected_systems, access_requests, incident, assets, escalation_required, audit.'
+  },
+  {
+    id: 'compliance', name: 'Compliance', subtitle: 'Policy & regulatory intelligence',
+    icon: 'CO', color: '#F59E0B', glow: 'rgba(245,158,11,0.2)',
+    capabilities: ['policy evaluation', 'regulatory checks', 'risk scoring', 'violation detection'],
+    description: 'Evaluates policy violations, regulatory risks, and compliance gaps.',
+    systemPrompt: 'You are the Compliance Agent inside Niyanta AI. Evaluate policy violations, regulatory risks, and compliance gaps. Return strict JSON with compliance_status, regulations_checked, violations, risk_score, recommended_actions, audit.'
+  },
+  {
+    id: 'security', name: 'Security Monitor', subtitle: 'Threat & incident response',
+    icon: 'SM', color: '#EF4444', glow: 'rgba(239,68,68,0.2)',
+    capabilities: ['incident classification', 'threat assessment', 'response planning', 'escalation'],
+    description: 'Classifies security incidents and defines immediate response actions.',
+    systemPrompt: 'You are the Security Monitor Agent inside Niyanta AI. Classify incidents by CRITICAL/HIGH/MEDIUM/LOW and define immediate response. Return strict JSON with severity, confidence, affected, immediate_actions, escalation, regulatory_impact, audit.'
+  },
+  {
+    id: 'procurement', name: 'Procurement', subtitle: 'Purchase & vendor intelligence',
+    icon: 'PR', color: '#8B5CF6', glow: 'rgba(139,92,246,0.2)',
+    capabilities: ['purchase approval', 'vendor evaluation', 'policy checks', 'compliance flags'],
+    description: 'Applies thresholds and quote requirements to build approval chains.',
+    systemPrompt: 'You are the Procurement Agent inside Niyanta AI. Apply thresholds and quote requirements to build approval chain. Return strict JSON with decision, approval_chain, policy_checks, compliance_flags, timeline, next_steps, audit.'
+  },
+  {
+    id: 'workflow', name: 'Workflow Intelligence', subtitle: 'Optimization & routing',
+    icon: 'WI', color: '#06B6D4', glow: 'rgba(6,182,212,0.2)',
+    capabilities: ['workflow analysis', 'optimization', 'routing recommendations', 'risk assessment'],
+    description: 'Analyzes workflows and suggests optimization and routing improvements.',
+    systemPrompt: 'You are the Workflow Intelligence Agent inside Niyanta AI. Analyze workflow data and suggest optimization and routing improvements. Return strict JSON with workflow_analysis, optimization_suggestions, routing_recommendations, risk_assessment, audit.'
+  },
 ];
 
 // ── Default Agents (pre-seeded copies, user can delete them) ─────────────────
@@ -177,7 +212,7 @@ function syncTemplateAgents(): void {
   );
   // Mark existing template agents as is_template
   conn.prepare(
-    `UPDATE agents SET is_template=1 WHERE id IN ('meeting','invoice','document','finance_ops','hr_ops')`
+    `UPDATE agents SET is_template=1 WHERE id IN ('meeting','invoice','document','finance_ops','hr_ops','it_ops','compliance','security','procurement','workflow')`
   ).run();
 
   for (const agent of TEMPLATE_AGENT_SEEDS) {
@@ -186,9 +221,9 @@ function syncTemplateAgents(): void {
     const llmId = `${agent.id}_llm`;
     const notifyId = `${agent.id}_notify`;
     const nodes = [
-      { instanceId: triggerId, nodeType: 'chat_input', name: 'Chat / Data Input', config: {}, position: { x: 100, y: 200 } },
+      { instanceId: triggerId, nodeType: 'manual_trigger', name: 'Input Trigger', config: {}, position: { x: 100, y: 200 } },
       { instanceId: llmId, nodeType: 'llm_analysis', name: `${agent.name} Analysis`, config: { prompt: agent.systemPrompt }, position: { x: 400, y: 200 } },
-      { instanceId: notifyId, nodeType: 'niyanta_output', name: 'Output & Niyanta Report', config: { channel: 'internal' }, position: { x: 700, y: 200 } },
+      { instanceId: notifyId, nodeType: 'notification', name: 'Result Output', config: { channel: 'internal', message: 'Agent execution complete' }, position: { x: 700, y: 200 } },
     ];
     const edges = [
       { id: `e_${triggerId}_${llmId}`, fromNodeId: triggerId, toNodeId: llmId },
@@ -232,6 +267,55 @@ const AGENT_SEEDS: AgentSeed[] = [
     capabilities: ['classification', 'field extraction', 'validation'],
     description: 'Classifies and extracts document data.',
     systemPrompt: 'You are the Document Intelligence Agent. Detect document type, extract structured fields, identify missing required fields, validate data formats, and flag discrepancies. Return strict JSON with: documentType, confidence, extractedFields, missingFields, validationStatus, flags, whyChain.'
+  },
+  {
+    id: 'finance_ops', name: 'Finance Operations', subtitle: 'Budget & expense intelligence',
+    icon: 'FO', color: '#059669', glow: 'rgba(5,150,105,0.2)',
+    capabilities: ['budget analysis', 'expense tracking', 'anomaly detection', 'forecasting'],
+    description: 'Analyzes financial data, monitors budgets, and detects expense anomalies.',
+    systemPrompt: 'You are the Finance Operations Agent. Analyze financial data including budgets, expenses, purchase orders, and invoices. Detect anomalies, track budget utilization, and generate financial insights. Return strict JSON with: summary, budgetStatus, anomalies, recommendations, riskLevel, whyChain.'
+  },
+  {
+    id: 'hr_ops', name: 'HR Operations', subtitle: 'People & workforce intelligence',
+    icon: 'HR', color: '#EC4899', glow: 'rgba(236,72,153,0.2)',
+    capabilities: ['onboarding', 'leave management', 'compliance', 'performance tracking'],
+    description: 'Manages HR workflows including onboarding, leave requests, and compliance.',
+    systemPrompt: 'You are the HR Operations Agent. Handle employee requests including onboarding, leave management, policy queries, and performance tracking. Ensure compliance with HR policies. Return strict JSON with: requestType, decision, reason, nextSteps, complianceStatus, whyChain.'
+  },
+  {
+    id: 'it_ops', name: 'IT Operations', subtitle: 'Access & incident management',
+    icon: 'IT', color: '#3B82F6', glow: 'rgba(59,130,246,0.2)',
+    capabilities: ['access requests', 'incident management', 'asset tracking', 'SLA monitoring'],
+    description: 'Processes access requests, incidents, and asset workflows with priority and SLA.',
+    systemPrompt: 'You are the IT Operations Agent inside Niyanta AI. Process access requests, incidents, and asset workflows with priority and SLA. Return strict JSON with request_type, priority, affected_systems, access_requests, incident, assets, escalation_required, audit.'
+  },
+  {
+    id: 'compliance', name: 'Compliance', subtitle: 'Policy & regulatory intelligence',
+    icon: 'CO', color: '#F59E0B', glow: 'rgba(245,158,11,0.2)',
+    capabilities: ['policy evaluation', 'regulatory checks', 'risk scoring', 'violation detection'],
+    description: 'Evaluates policy violations, regulatory risks, and compliance gaps.',
+    systemPrompt: 'You are the Compliance Agent inside Niyanta AI. Evaluate policy violations, regulatory risks, and compliance gaps. Return strict JSON with compliance_status, regulations_checked, violations, risk_score, recommended_actions, audit.'
+  },
+  {
+    id: 'security', name: 'Security Monitor', subtitle: 'Threat & incident response',
+    icon: 'SM', color: '#EF4444', glow: 'rgba(239,68,68,0.2)',
+    capabilities: ['incident classification', 'threat assessment', 'response planning', 'escalation'],
+    description: 'Classifies security incidents and defines immediate response actions.',
+    systemPrompt: 'You are the Security Monitor Agent inside Niyanta AI. Classify incidents by CRITICAL/HIGH/MEDIUM/LOW and define immediate response. Return strict JSON with severity, confidence, affected, immediate_actions, escalation, regulatory_impact, audit.'
+  },
+  {
+    id: 'procurement', name: 'Procurement', subtitle: 'Purchase & vendor intelligence',
+    icon: 'PR', color: '#8B5CF6', glow: 'rgba(139,92,246,0.2)',
+    capabilities: ['purchase approval', 'vendor evaluation', 'policy checks', 'compliance flags'],
+    description: 'Applies thresholds and quote requirements to build approval chains.',
+    systemPrompt: 'You are the Procurement Agent inside Niyanta AI. Apply thresholds and quote requirements to build approval chain. Return strict JSON with decision, approval_chain, policy_checks, compliance_flags, timeline, next_steps, audit.'
+  },
+  {
+    id: 'workflow', name: 'Workflow Intelligence', subtitle: 'Optimization & routing',
+    icon: 'WI', color: '#06B6D4', glow: 'rgba(6,182,212,0.2)',
+    capabilities: ['workflow analysis', 'optimization', 'routing recommendations', 'risk assessment'],
+    description: 'Analyzes workflows and suggests optimization and routing improvements.',
+    systemPrompt: 'You are the Workflow Intelligence Agent inside Niyanta AI. Analyze workflow data and suggest optimization and routing improvements. Return strict JSON with workflow_analysis, optimization_suggestions, routing_recommendations, risk_assessment, audit.'
   },
 ];
 
