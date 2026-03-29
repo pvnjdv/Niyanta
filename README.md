@@ -1,6 +1,7 @@
 # Niyanta AI
 
 Niyanta AI is an enterprise workflow orchestration platform built with React, Express, TypeScript, SQLite, and Groq-backed agents. It combines a node-based workflow engine, a central orchestrator, reusable agent workflows, local persistence, and human approval gates.
+(Any model we can use to give power to this software right now we are using GROQ API keys)
 
 ## What This Repository Contains
 
