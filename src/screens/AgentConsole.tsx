@@ -126,7 +126,7 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
           const edgesEntry = layout.find((n: any) => n?.refId === '__edges__');
           let parsedEdges: any[] = [];
           try { parsedEdges = edgesEntry?.inputInfo ? JSON.parse(edgesEntry.inputInfo) : []; } catch { parsedEdges = []; }
-          const validNodeIds = new Set<string>(['__start__', '__end__', ...mappedNodes.map(n => n.id)]);
+          const validNodeIds = new Set<string>(['__start__', '__end__', ...mappedNodes.map((node: { id: string }) => node.id)]);
           setAgentEdges(normalizeEdges(parsedEdges, validNodeIds));
           return;
         }
@@ -195,7 +195,7 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
         const edgesEntry2 = layout.find((n: any) => n?.refId === '__edges__');
         let parsedEdges: any[] = [];
         try { parsedEdges = edgesEntry2?.inputInfo ? JSON.parse(edgesEntry2.inputInfo) : []; } catch { parsedEdges = []; }
-        const validNodeIds = new Set<string>(['__start__', '__end__', ...mappedNodes.map(n => n.id)]);
+        const validNodeIds = new Set<string>(['__start__', '__end__', ...mappedNodes.map((node: { id: string }) => node.id)]);
         setAgentEdges(normalizeEdges(parsedEdges, validNodeIds));
       } catch {
         // best effort
@@ -448,7 +448,7 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
         const tmplEdgesEntry = layout.find((n: any) => n?.refId === '__edges__');
         let parsedEdges: any[] = [];
         try { parsedEdges = tmplEdgesEntry?.inputInfo ? JSON.parse(tmplEdgesEntry.inputInfo) : []; } catch { parsedEdges = []; }
-        const validNodeIds = new Set<string>(['__start__', '__end__', ...mappedNodes.map(n => n.id)]);
+        const validNodeIds = new Set<string>(['__start__', '__end__', ...mappedNodes.map((node: { id: string }) => node.id)]);
         setAgentEdges(normalizeEdges(parsedEdges, validNodeIds));
       } else {
         setCanvasNodes([]);
