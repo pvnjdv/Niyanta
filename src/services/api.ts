@@ -22,6 +22,15 @@ export interface NiyantaChatResponse {
   reports?: NiyantaReportCard[];
 }
 
+export interface NiyantaCommandResponse extends NiyantaChatResponse {
+  matchedAgents: Array<{ agentId: string; label: string }>;
+  workflowId?: string;
+  runId?: string;
+  status: 'COMPLETED' | 'WAITING_APPROVAL' | 'FAILED';
+  decision: string;
+  inputType: string;
+}
+
 export interface RunAgentResponse {
   success: boolean;
   sessionId: string;
@@ -86,6 +95,30 @@ export async function sendNiyantaMessage(
     } catch { /* ignore */ }
     throw new Error(detail);
   }
+  return response.json();
+}
+
+export async function executeNiyantaCommand(
+  message: string,
+  conversationHistory: Array<{ role: 'user' | 'assistant'; content: string }>,
+  agentResults: Record<string, unknown>,
+  attachments: ExtractedFileAttachment[] = []
+): Promise<NiyantaCommandResponse> {
+  const response = await fetch(`${BASE}/niyanta/command`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message, conversationHistory, agentResults, attachments }),
+  });
+
+  if (!response.ok) {
+    let detail = 'Niyanta command failed';
+    try {
+      const err = await response.json() as { message?: string };
+      if (err.message) detail = err.message;
+    } catch { /* ignore */ }
+    throw new Error(detail);
+  }
+
   return response.json();
 }
 

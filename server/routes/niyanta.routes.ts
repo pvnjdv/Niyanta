@@ -1,16 +1,20 @@
 import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import { getOrchestrator } from '../core/NiyantaOrchestrator';
+import { NiyantaCommandProcessor } from '../core/NiyantaCommandProcessor';
 import {
   NiyantaActivityItem,
   NiyantaChatRequest,
   NiyantaChatResponse,
+  NiyantaCommandRequest,
+  NiyantaCommandResponse,
   NiyantaReportCard,
   NiyantaSystemContext,
 } from '../types/api.types';
 import { extractUploadedFile } from '../utils/fileExtraction';
 
 const router = Router();
+const commandProcessor = new NiyantaCommandProcessor();
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { files: 4, fileSize: 12 * 1024 * 1024 },
@@ -161,6 +165,25 @@ router.post('/chat', async (req: Request, res: Response) => {
     return res.status(200).json(response);
   } catch (error) {
     return res.status(500).json({ error: 'ChatFailed', message: error instanceof Error ? error.message : 'Unknown error' });
+  }
+});
+
+router.post('/command', async (req: Request, res: Response) => {
+  const { message, attachments, agentResults }: NiyantaCommandRequest = req.body;
+
+  if (!message || typeof message !== 'string') {
+    return res.status(400).json({ error: 'ValidationError', message: 'message must be a non-empty string' });
+  }
+
+  try {
+    const response: NiyantaCommandResponse = await commandProcessor.execute({
+      message,
+      attachments: Array.isArray(attachments) ? attachments : [],
+      agentResults: agentResults || {},
+    });
+    return res.status(200).json(response);
+  } catch (error) {
+    return res.status(500).json({ error: 'CommandFailed', message: error instanceof Error ? error.message : 'Unknown error' });
   }
 });
 

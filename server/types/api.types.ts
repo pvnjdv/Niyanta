@@ -11,6 +11,24 @@ export interface NiyantaChatRequest {
   systemContext?: NiyantaSystemContext;
 }
 
+export interface NiyantaCommandAttachment {
+  name: string;
+  size: number;
+  type: string;
+  excerpt: string;
+  textContent?: string;
+  pageCount?: number;
+  sheetNames?: string[];
+  extractionStatus?: 'ok' | 'unsupported';
+}
+
+export interface NiyantaCommandRequest {
+  message: string;
+  attachments?: NiyantaCommandAttachment[];
+  conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>;
+  agentResults?: Record<string, unknown>;
+}
+
 export interface NiyantaSystemContext {
   generatedAt?: string;
   agents?: Array<Record<string, unknown>>;
@@ -43,6 +61,15 @@ export interface NiyantaChatResponse {
   timestamp: string;
   activity: NiyantaActivityItem[];
   reports: NiyantaReportCard[];
+}
+
+export interface NiyantaCommandResponse extends NiyantaChatResponse {
+  matchedAgents: Array<{ agentId: string; label: string }>;
+  workflowId?: string;
+  runId?: string;
+  status: 'COMPLETED' | 'WAITING_APPROVAL' | 'FAILED';
+  decision: string;
+  inputType: string;
 }
 
 export interface ApiError {

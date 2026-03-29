@@ -55,6 +55,17 @@ function initializeSchema(): void {
     'ALTER TABLE agents ADD COLUMN is_template INTEGER DEFAULT 0',
     'ALTER TABLE agents ADD COLUMN canvas_layout TEXT',
     'ALTER TABLE agents ADD COLUMN is_default INTEGER DEFAULT 0',
+    'ALTER TABLE pending_approvals ADD COLUMN workflow_id TEXT',
+    'ALTER TABLE pending_approvals ADD COLUMN workflow_name TEXT',
+    'ALTER TABLE pending_approvals ADD COLUMN node_id TEXT',
+    'ALTER TABLE pending_approvals ADD COLUMN node_name TEXT',
+    'ALTER TABLE pending_approvals ADD COLUMN priority TEXT DEFAULT "medium"',
+    'ALTER TABLE pending_approvals ADD COLUMN deadline TEXT',
+    'ALTER TABLE pending_approvals ADD COLUMN escalation_policy TEXT',
+    'ALTER TABLE pending_approvals ADD COLUMN decision_comment TEXT',
+    'ALTER TABLE pending_approvals ADD COLUMN decision_data TEXT',
+    'ALTER TABLE pending_approvals ADD COLUMN resolved_at TEXT',
+    'ALTER TABLE pending_approvals ADD COLUMN resolved_by TEXT',
   ];
   for (const m of migrations) {
     try { db.prepare(m).run(); } catch { /* column already exists */ }

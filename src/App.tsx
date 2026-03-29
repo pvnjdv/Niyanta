@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { v4 as uuid } from 'uuid';
 import { useAgents } from './hooks/useAgents';
@@ -29,10 +29,10 @@ import { ExtractedFileAttachment } from './types/message';
 const AppContent: React.FC = () => {
   const { theme, toggleTheme } = useTheme();
   const { agents, agentStates, executeAgent, runAllAgents, runAllProgress, addMessage, refreshAgents } = useAgents();
-  const { entries } = useAuditLog();
+  const { entries, refresh: refreshAudit } = useAuditLog();
   const { messages, isSending, sendMessage, startNewChat, historySessions, restoreFromHistory, deleteHistorySession, liveActivity } = useNiyantaChat();
-  const { metrics } = useMetrics();
-  const { workflows, saveWorkflow } = useWorkflows();
+  const { metrics, refresh: refreshMetrics } = useMetrics();
+  const { workflows, refresh: refreshWorkflows, saveWorkflow } = useWorkflows();
   const runtimeAgents = agents.filter((agent) => !agent.isTemplate);
 
   const [aiPanelOpen, setAiPanelOpen] = useState(false);
@@ -114,6 +114,15 @@ const AppContent: React.FC = () => {
   const handleSendNiyantaMessage = async (message: string, attachments: ExtractedFileAttachment[] = []) => {
     await sendMessage(message, agentResults as Record<string, unknown>, niyantaSystemContext, attachments);
   };
+
+  const syncCommandState = useCallback(async () => {
+    await Promise.allSettled([
+      refreshAgents(),
+      refreshAudit(),
+      refreshMetrics(),
+      refreshWorkflows(),
+    ]);
+  }, [refreshAgents, refreshAudit, refreshMetrics, refreshWorkflows]);
 
   const sidebarWidth = sidebarCollapsed ? 64 : 260;
 
@@ -266,6 +275,7 @@ const AppContent: React.FC = () => {
                 metrics={metrics}
                 systemSnapshot={niyantaSnapshot}
                 onExecuteAgent={executeAgent}
+                onSyncState={syncCommandState}
               />
             }
           />

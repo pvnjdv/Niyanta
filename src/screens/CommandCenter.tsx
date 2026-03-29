@@ -16,7 +16,7 @@ interface CommandCenterProps {
     runCount?: number;
     successRate?: number;
     updated_at?: string;
-    nodes?: Array<{ name?: string }>;
+    nodes?: string | Array<{ name?: string; instanceId?: string }>;
   }>;
   onRunAll?: () => Promise<void>;
   runAllProgress?: string | null;
@@ -56,6 +56,11 @@ const CommandCenter: React.FC<CommandCenterProps> = ({
   const criticalAlerts = toNum(m.criticalAlerts, 0);
   const recentRuns = Array.isArray(m.recentRuns) ? (m.recentRuns as Array<Record<string, unknown>>) : [];
   const liveAlerts = Array.isArray(m.alerts) ? (m.alerts as Array<Record<string, unknown>>) : [];
+  const recentNodeActivity = Array.isArray(m.recentNodeActivity) ? (m.recentNodeActivity as Array<Record<string, unknown>>) : [];
+  const approvalQueue = Array.isArray(m.approvalQueue) ? (m.approvalQueue as Array<Record<string, unknown>>) : [];
+  const latestDecisionFromMetrics = (m.latestDecision && typeof m.latestDecision === 'object')
+    ? (m.latestDecision as Record<string, unknown>)
+    : null;
 
   const activeAgents = useMemo(
     () => Object.values(agentStates).filter(s => s.status === 'processing' || s.status === 'complete').length,
@@ -63,6 +68,18 @@ const CommandCenter: React.FC<CommandCenterProps> = ({
   );
 
   const firstDecision = useMemo(() => {
+    if (latestDecisionFromMetrics) {
+      const decision = String(latestDecisionFromMetrics.decision || 'PENDING');
+      const nextAction = String(latestDecisionFromMetrics.nextAction || latestDecisionFromMetrics.event || 'Awaiting next action.');
+      const riskLevel = String(latestDecisionFromMetrics.riskLevel || '').trim();
+
+      return {
+        decision,
+        reasonText: riskLevel ? `${nextAction} Risk: ${riskLevel.toUpperCase()}.` : nextAction,
+        confidence: decision === 'AUTO-APPROVE' || decision === 'PROCEED' ? 94 : decision === 'ESCALATE' ? 88 : 82,
+      };
+    }
+
     const st = Object.values(agentStates).find(s => s.result && typeof (s.result as any)?.decision === 'string');
     if (!st || !st.result) return null;
     const result = st.result as Record<string, unknown>;
@@ -74,6 +91,26 @@ const CommandCenter: React.FC<CommandCenterProps> = ({
   }, [agentStates]);
 
   const activityItems = useMemo(() => {
+    if (recentNodeActivity.length > 0) {
+      return recentNodeActivity.slice(0, 8).map((item) => {
+        const status = String(item.status || 'running').toLowerCase();
+        const tone = status.includes('fail')
+          ? 'danger'
+          : status.includes('wait')
+            ? 'warn'
+            : status.includes('complete')
+              ? 'ok'
+              : 'info';
+
+        return {
+          time: String(item.timestamp || new Date().toISOString()),
+          label: String(item.workflowName || item.nodeName || 'Workflow Engine'),
+          detail: `${String(item.nodeName || item.nodeId || 'Node')}: ${String(item.detail || status)}`,
+          tone,
+        };
+      });
+    }
+
     const out: Array<{ time: string; label: string; detail: string; tone: 'ok' | 'warn' | 'danger' | 'info' }> = [];
     Object.entries(agentStates).forEach(([agentId, state]) => {
       const agentName = agents.find(a => a.id === agentId)?.name || agentId;
@@ -99,41 +136,85 @@ const CommandCenter: React.FC<CommandCenterProps> = ({
     return out
       .sort((a, b) => (a.time < b.time ? 1 : -1))
       .slice(0, 8);
-  }, [agentStates, agents]);
+  }, [agentStates, agents, recentNodeActivity]);
+
+  const currentLiveRun = useMemo(() => {
+    return recentRuns.find((run) => {
+      const status = String(run.status || '').toUpperCase();
+      return status === 'RUNNING' || status === 'WAITING_APPROVAL';
+    }) || recentRuns[0] || null;
+  }, [recentRuns]);
+
+  const currentWorkflow = useMemo(() => {
+    if (!currentLiveRun) {
+      return workflows[0] || null;
+    }
+
+    return workflows.find((workflow) => workflow.id === String(currentLiveRun.workflowId || ''))
+      || workflows.find((workflow) => workflow.name === String(currentLiveRun.workflowName || ''))
+      || workflows[0]
+      || null;
+  }, [currentLiveRun, workflows]);
 
   const executionStages = useMemo(() => {
-    const wf = workflows.find(w => /invoice/i.test(w.name || '')) || workflows[0];
-    let nodesArray: Array<{ name?: string }> = [];
-    if (Array.isArray(wf?.nodes)) {
-      nodesArray = wf.nodes as Array<{ name?: string }>;
-    } else if (typeof wf?.nodes === 'string') {
+    let nodesArray: Array<{ name?: string; instanceId?: string }> = [];
+    if (Array.isArray(currentWorkflow?.nodes)) {
+      nodesArray = currentWorkflow.nodes as Array<{ name?: string; instanceId?: string }>;
+    } else if (typeof currentWorkflow?.nodes === 'string') {
       try {
-        const parsed = JSON.parse(wf.nodes);
-        if (Array.isArray(parsed)) nodesArray = parsed as Array<{ name?: string }>;
+        const parsed = JSON.parse(currentWorkflow.nodes);
+        if (Array.isArray(parsed)) nodesArray = parsed as Array<{ name?: string; instanceId?: string }>;
       } catch {
         nodesArray = [];
       }
     }
-    const source = nodesArray.slice(0, 5);
-    const base = source.length > 0
-      ? source.map((node: { name?: string }) => node.name || 'Step')
-      : ['Input', 'OCR', 'Validation', 'Decision', 'Approval'];
+    const fallback = ['Input', 'OCR', 'Validation', 'Decision', 'Approval'];
+    const allNodes = nodesArray.length > 0
+      ? nodesArray.map((node) => ({
+          name: node.name || 'Step',
+          instanceId: node.instanceId,
+        }))
+      : fallback.map((name, index) => ({ name, instanceId: `fallback-${index}` }));
+    const currentNodeId = String(currentLiveRun?.currentNodeId || '');
+    const exactIndex = allNodes.findIndex((node) => node.instanceId === currentNodeId);
+    const liveIndex = exactIndex >= 0
+      ? exactIndex
+      : Math.max(0, Math.round((toNum(currentLiveRun?.progress, 0) / 100) * Math.max(0, allNodes.length - 1)));
+    const windowSize = Math.min(6, allNodes.length);
+    const windowStart = allNodes.length > windowSize && liveIndex > 2
+      ? Math.min(liveIndex - 2, allNodes.length - windowSize)
+      : 0;
+    const visibleNodes = allNodes.slice(windowStart, windowStart + windowSize);
+    const liveStatus = String(currentLiveRun?.status || '').toUpperCase();
 
-    const hasProcessing = Object.values(agentStates).some(s => s.status === 'processing');
-    const hasComplete = Object.values(agentStates).some(s => s.status === 'complete');
-    const runningIndex = hasProcessing ? Math.min(2, base.length - 1) : hasComplete ? base.length - 1 : 0;
+    return visibleNodes.map((node, idx) => {
+      const globalIndex = windowStart + idx;
+      let state = 'waiting';
 
-    return base.map((name, idx) => ({
-      name,
-      state: idx < runningIndex ? 'complete' : idx === runningIndex ? (hasComplete ? 'complete' : 'running') : 'waiting',
-    }));
-  }, [workflows, agentStates]);
+      if (liveStatus === 'COMPLETED') {
+        state = 'complete';
+      } else if (globalIndex < liveIndex) {
+        state = 'complete';
+      } else if (globalIndex === liveIndex) {
+        state = liveStatus === 'WAITING_APPROVAL' ? 'blocked' : 'running';
+      }
+
+      return { name: node.name, state };
+    });
+  }, [currentWorkflow, currentLiveRun]);
 
   const progressPct = useMemo(() => {
+    if (currentLiveRun) {
+      const liveProgress = toNum(currentLiveRun.progress, -1);
+      if (liveProgress >= 0) {
+        return liveProgress;
+      }
+    }
+
     const done = executionStages.filter(s => s.state === 'complete').length;
     const running = executionStages.some(s => s.state === 'running') ? 0.45 : 0;
     return Math.round(((done + running) / Math.max(1, executionStages.length)) * 100);
-  }, [executionStages]);
+  }, [executionStages, currentLiveRun]);
 
   const activeRunRows = useMemo(() => {
     if (recentRuns.length > 0) {
@@ -141,7 +222,7 @@ const CommandCenter: React.FC<CommandCenterProps> = ({
         id: `#${String(run.id || 'run').slice(0, 10).toUpperCase()}`,
         workflow: String(run.workflowName || run.workflowId || 'Untitled Workflow'),
         owner: agents.find((agent) => agent.id === String((run as Record<string, unknown>).agentId || ''))?.name || 'Workflow Engine',
-        status: String(run.status || 'PENDING').toLowerCase(),
+        status: String(run.status || 'PENDING').toLowerCase().replace(/_/g, ' '),
         elapsedSec: Math.max(1, Math.round(Number(run.elapsedMs || 0) / 1000)),
       }));
     }
@@ -160,6 +241,25 @@ const CommandCenter: React.FC<CommandCenterProps> = ({
       };
     });
   }, [workflows, agents, recentRuns]);
+
+  const leadApproval = useMemo(() => approvalQueue[0] || null, [approvalQueue]);
+
+  const liveExecutionTone = (() => {
+    const status = String(currentLiveRun?.status || '').toUpperCase();
+    if (status === 'WAITING_APPROVAL') return 'warn' as const;
+    if (status === 'FAILED') return 'danger' as const;
+    if (status === 'RUNNING') return 'ok' as const;
+    return 'info' as const;
+  })();
+
+  const liveExecutionLabel = (() => {
+    const status = String(currentLiveRun?.status || '').toUpperCase();
+    if (status === 'WAITING_APPROVAL') return 'Waiting Approval';
+    if (status === 'FAILED') return 'Failed';
+    if (status === 'COMPLETED') return 'Completed';
+    if (status === 'RUNNING') return 'Running';
+    return 'Standby';
+  })();
 
   const alerts = useMemo(() => {
     if (liveAlerts.length > 0) {
@@ -306,10 +406,10 @@ const CommandCenter: React.FC<CommandCenterProps> = ({
             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
               Live Execution
             </div>
-            {headerBadge('Running', 'ok')}
+            {headerBadge(liveExecutionLabel, liveExecutionTone)}
           </div>
           <div style={{ color: 'var(--text-secondary)', fontSize: 12, marginBottom: 10 }}>
-            Workflow: <span style={{ color: 'var(--text-primary)' }}>{workflows[0]?.name || 'Invoice Processing'}</span>
+            Workflow: <span style={{ color: 'var(--text-primary)' }}>{String(currentLiveRun?.workflowName || currentWorkflow?.name || 'Awaiting Niyanta Command')}</span>
           </div>
           <div style={{
             display: 'grid',
@@ -322,10 +422,12 @@ const CommandCenter: React.FC<CommandCenterProps> = ({
                 ? 'var(--status-success)'
                 : stage.state === 'running'
                   ? 'var(--status-info)'
+                  : stage.state === 'blocked'
+                    ? 'var(--status-warning)'
                   : 'var(--text-muted)';
               return (
                 <div key={stage.name + idx} style={{
-                  border: `1px solid ${stage.state === 'running' ? 'var(--cc-info-border)' : 'var(--border)'}`,
+                  border: `1px solid ${stage.state === 'running' ? 'var(--cc-info-border)' : stage.state === 'blocked' ? 'var(--cc-warn-border)' : 'var(--border)'}`,
                   borderRadius: 8,
                   background: 'var(--cc-surface-1)',
                   padding: '10px 8px',
@@ -337,7 +439,7 @@ const CommandCenter: React.FC<CommandCenterProps> = ({
                       borderRadius: 999,
                       background: tone,
                       boxShadow: stage.state === 'running' ? `0 0 10px ${tone}` : 'none',
-                      animation: stage.state === 'running' ? 'greenPulse 1.8s infinite' : undefined,
+                      animation: stage.state === 'running' || stage.state === 'blocked' ? 'greenPulse 1.8s infinite' : undefined,
                     }} />
                     <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>
                       {stage.state}
@@ -349,7 +451,7 @@ const CommandCenter: React.FC<CommandCenterProps> = ({
             })}
           </div>
           <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 6 }}>
-            Current Node: <span style={{ color: 'var(--status-info)' }}>{executionStages.find(s => s.state === 'running')?.name || executionStages[executionStages.length - 1]?.name}</span>
+            Current Node: <span style={{ color: liveExecutionTone === 'warn' ? 'var(--status-warning)' : 'var(--status-info)' }}>{executionStages.find(s => s.state === 'running' || s.state === 'blocked')?.name || executionStages[executionStages.length - 1]?.name}</span>
           </div>
           <div style={{ height: 8, borderRadius: 999, background: 'var(--bg-input)', border: '1px solid var(--border)', overflow: 'hidden' }}>
             <div style={{
@@ -455,24 +557,38 @@ const CommandCenter: React.FC<CommandCenterProps> = ({
             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
               Human Intervention
             </div>
-            {headerBadge(`${pendingApprovals || 1} Pending`, pendingApprovals > 0 ? 'warn' : 'info')}
+            {headerBadge(`${pendingApprovals} Pending`, pendingApprovals > 0 ? 'warn' : 'info')}
           </div>
           <div style={{
-            border: '1px solid var(--cc-warn-border)',
-            background: 'var(--cc-warn-bg)',
+            border: `1px solid ${leadApproval ? 'var(--cc-warn-border)' : 'var(--border)'}`,
+            background: leadApproval ? 'var(--cc-warn-bg)' : 'var(--bg-input)',
             borderRadius: 8,
             padding: 12,
             marginBottom: 10,
           }}>
-            <div style={{ fontSize: 14, color: 'var(--text-primary)', fontWeight: 600, marginBottom: 6 }}>Invoice #INV-1088</div>
-            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8 }}>
-              Vendor: Zenith Supplies · Amount: ₹75,000
+            <div style={{ fontSize: 14, color: 'var(--text-primary)', fontWeight: 600, marginBottom: 6 }}>
+              {leadApproval
+                ? String(leadApproval.invoiceNumber || leadApproval.title || 'Approval Required')
+                : 'No approval queue backlog'}
             </div>
-            <div style={{ fontSize: 12, color: 'var(--status-warning)' }}>Reason: Exceeds auto-approval threshold</div>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8 }}>
+              {leadApproval
+                ? [
+                    leadApproval.vendor ? `Vendor: ${String(leadApproval.vendor)}` : null,
+                    leadApproval.amount ? `Amount: ₹${Number(leadApproval.amount).toLocaleString('en-IN')}` : null,
+                    leadApproval.workflowName ? `Workflow: ${String(leadApproval.workflowName)}` : null,
+                  ].filter(Boolean).join(' · ')
+                : 'All approvals are currently clear.'}
+            </div>
+            <div style={{ fontSize: 12, color: leadApproval ? 'var(--status-warning)' : 'var(--text-secondary)' }}>
+              {leadApproval
+                ? `Reason: ${String(leadApproval.description || leadApproval.nodeName || 'Human review required.')}`
+                : 'The next approval request will appear here as soon as a workflow pauses.'}
+            </div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            <button onClick={() => navigate('/audit')} style={{ height: 32, borderRadius: 6, border: '1px solid var(--cc-ok-border)', background: 'var(--cc-ok-bg)', color: 'var(--status-success)', fontSize: 12 }}>Approve</button>
-            <button onClick={() => navigate('/audit')} style={{ height: 32, borderRadius: 6, border: '1px solid var(--cc-danger-border)', background: 'var(--cc-danger-bg)', color: 'var(--status-danger)', fontSize: 12 }}>Reject</button>
+            <button onClick={() => navigate('/approvals')} style={{ height: 32, borderRadius: 6, border: '1px solid var(--cc-ok-border)', background: 'var(--cc-ok-bg)', color: 'var(--status-success)', fontSize: 12 }}>Open Approvals</button>
+            <button onClick={() => navigate('/approvals')} style={{ height: 32, borderRadius: 6, border: '1px solid var(--cc-danger-border)', background: 'var(--cc-danger-bg)', color: 'var(--status-danger)', fontSize: 12 }}>Review Queue</button>
           </div>
         </section>
 

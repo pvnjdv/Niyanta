@@ -1,11 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Agent, AgentState } from '../types/agent';
-import { ChatMessage, NiyantaActivityItem } from '../types/message';
-import { NiyantaSystemContext, sendNiyantaMessage } from '../services/api';
+import { ChatMessage, ExtractedFileAttachment, NiyantaActivityItem } from '../types/message';
+import { executeNiyantaCommand, extractNiyantaFiles, RunAgentResponse } from '../services/api';
 import { readLocalStorage, writeLocalStorage } from '../utils/localStorage';
-
-// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface NiyantaCommandConsoleProps {
   agents?: Agent[];
@@ -18,47 +16,79 @@ interface NiyantaCommandConsoleProps {
     auditCount: number;
     decisionCount: number;
   };
-  onExecuteAgent?: (agentId: string, input: string) => Promise<void>;
+  onExecuteAgent?: (agentId: string, input: string) => Promise<RunAgentResponse | null>;
+  onSyncState?: () => Promise<void>;
 }
 
-// ─── Agent routing hints ──────────────────────────────────────────────────────
-
-const AGENT_KEYWORDS: Array<{ keywords: string[]; agentId: string; label: string }> = [
-  { keywords: ['invoice', 'payment', 'finance', 'vendor', 'procurement', 'purchase'], agentId: 'finance-operations', label: 'Finance Operations Agent' },
-  { keywords: ['compliance', 'gdpr', 'soc', 'audit', 'policy', 'regulation'], agentId: 'compliance', label: 'Compliance Agent' },
-  { keywords: ['hr', 'onboard', 'employee', 'recruit', 'hire', 'training'], agentId: 'hr-operations', label: 'HR Operations Agent' },
-  { keywords: ['it', 'security', 'access', 'incident', 'infrastructure', 'system'], agentId: 'it-operations', label: 'IT Operations Agent' },
-  { keywords: ['meeting', 'calendar', 'agenda', 'minutes', 'schedule'], agentId: 'meeting-intelligence', label: 'Meeting Intelligence Agent' },
-  { keywords: ['monitor', 'health', 'alert', 'uptime', 'performance'], agentId: 'monitoring', label: 'Monitoring Agent' },
-  { keywords: ['workflow', 'automation', 'process', 'orchestrat'], agentId: 'workflow-intelligence', label: 'Workflow Intelligence Agent' },
-];
-
-function detectAgents(input: string): Array<{ agentId: string; label: string }> {
-  const lc = input.toLowerCase();
-  return AGENT_KEYWORDS.filter(({ keywords }) => keywords.some(k => lc.includes(k)));
-}
-
-const QUICK_PROMPTS = [
-  { label: 'System health summary', icon: '◉', text: 'Give me a full system health summary — active agents, workflow status, and any critical signals.' },
-  { label: 'Process an invoice', icon: '⊘', text: 'Process a new invoice from Zenith Supplies for ₹48,500. Validate, check compliance, and render a decision.' },
-  { label: 'Run compliance check', icon: '◈', text: 'Run a compliance audit on the current workflows and check for GDPR or policy violations.' },
-  { label: 'Onboard new employee', icon: '◎', text: 'Start HR onboarding for a new employee — provision accounts, assign training, and notify the manager.' },
-  { label: 'Pending approvals', icon: '⇢', text: 'List all pending approvals with amounts, owners, priority, and recommended actions.' },
-  { label: 'Cross-workflow risks', icon: '⚠', text: 'Identify cross-workflow dependencies and surface any risks in the current operation pipeline.' },
-];
+type RoutedAgent = { agentId: string; label: string };
 
 const STORAGE_KEY = 'niyanta-command-chat';
 
-// ─── Tone colours ─────────────────────────────────────────────────────────────
+const AGENT_KEYWORDS: Array<RoutedAgent & { keywords: string[] }> = [
+  { agentId: 'document', label: 'Document Intelligence', keywords: ['document', 'pdf', 'file', 'attachment', 'extract'] },
+  { agentId: 'invoice', label: 'Invoice Processor', keywords: ['invoice', 'bill', 'payment', 'gst', 'invoice number', 'po reference'] },
+  { agentId: 'finance_ops', label: 'Finance Operations', keywords: ['finance', 'budget', 'payment', 'expense', 'amount', 'vendor'] },
+  { agentId: 'procurement', label: 'Procurement', keywords: ['procurement', 'purchase order', 'purchase', 'vendor onboarding', 'quotation', 'laptops'] },
+  { agentId: 'hr_ops', label: 'HR Operations', keywords: ['hr', 'employee', 'onboard', 'onboarding', 'joining date', 'induction'] },
+  { agentId: 'it_ops', label: 'IT Operations', keywords: ['it', 'account', 'access', 'provision', 'system', 'incident'] },
+  { agentId: 'compliance', label: 'Compliance', keywords: ['compliance', 'audit', 'policy', 'regulation', 'gdpr'] },
+  { agentId: 'workflow', label: 'Workflow Intelligence', keywords: ['workflow', 'routing', 'process', 'orchestrate'] },
+  { agentId: 'security', label: 'Security Monitor', keywords: ['security', 'threat', 'incident', 'breach'] },
+  { agentId: 'meeting', label: 'Meeting Intelligence', keywords: ['meeting', 'minutes', 'transcript', 'agenda'] },
+];
 
 const TONE_COLOR: Record<string, string> = {
-  info:    'var(--status-info)',
+  info: 'var(--status-info)',
   success: 'var(--status-success)',
   warning: 'var(--status-warning)',
-  danger:  'var(--status-danger)',
+  danger: 'var(--status-danger)',
 };
 
-// ─── Component ────────────────────────────────────────────────────────────────
+function normalizeText(input: string): string {
+  return input.replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+function buildCombinedInput(input: string, attachments: ExtractedFileAttachment[]): string {
+  const fileText = attachments
+    .map((attachment) => attachment.textContent || attachment.excerpt || attachment.name)
+    .join(' ');
+  return normalizeText([input, fileText].filter(Boolean).join(' '));
+}
+
+function detectAgents(input: string, attachments: ExtractedFileAttachment[]): RoutedAgent[] {
+  const combined = buildCombinedInput(input, attachments);
+  const matches = AGENT_KEYWORDS.filter(({ keywords }) => keywords.some((keyword) => combined.includes(keyword)));
+
+  if ((combined.includes('invoice') || attachments.some((attachment) => attachment.name.toLowerCase().includes('invoice'))) && !matches.some((match) => match.agentId === 'invoice')) {
+    matches.push({ agentId: 'invoice', label: 'Invoice Processor', keywords: [] });
+  }
+
+  if (attachments.length > 0 && !matches.some((match) => match.agentId === 'document')) {
+    matches.unshift({ agentId: 'document', label: 'Document Intelligence', keywords: [] });
+  }
+
+  const deduped = new Map<string, RoutedAgent>();
+  matches.forEach((match) => {
+    deduped.set(match.agentId, { agentId: match.agentId, label: match.label });
+  });
+  return Array.from(deduped.values());
+}
+
+function summarizeHistory(messages: ChatMessage[]) {
+  const items: Array<{ id: string; command: string; outcome: string; timestamp: string }> = [];
+  for (let index = 0; index < messages.length; index += 1) {
+    const current = messages[index];
+    if (current.role !== 'user') continue;
+    const nextAssistant = messages.slice(index + 1).find((message) => message.role === 'assistant');
+    items.push({
+      id: `${current.timestamp}-${index}`,
+      command: current.content || '(file attachment)',
+      outcome: nextAssistant?.reports?.[1]?.value || nextAssistant?.content.split('\n')[0] || 'Pending outcome',
+      timestamp: current.timestamp,
+    });
+  }
+  return items.reverse().slice(0, 12);
+}
 
 const NiyantaCommandConsole: React.FC<NiyantaCommandConsoleProps> = ({
   agents = [],
@@ -67,6 +97,7 @@ const NiyantaCommandConsole: React.FC<NiyantaCommandConsoleProps> = ({
   metrics = {},
   systemSnapshot,
   onExecuteAgent,
+  onSyncState,
 }) => {
   const navigate = useNavigate();
   const [messages, setMessages] = useState<ChatMessage[]>(() => readLocalStorage<ChatMessage[]>(STORAGE_KEY, []));
@@ -74,18 +105,22 @@ const NiyantaCommandConsole: React.FC<NiyantaCommandConsoleProps> = ({
   const [isSending, setIsSending] = useState(false);
   const [liveActivity, setLiveActivity] = useState<NiyantaActivityItem[]>([]);
   const [runningAgents, setRunningAgents] = useState<string[]>([]);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [isExtracting, setIsExtracting] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const m = metrics as Record<string, unknown>;
-  const toNum = (v: unknown, fb = 0) => { const n = Number(v); return Number.isFinite(n) ? n : fb; };
-  const failedToday = toNum(m.failedToday, 0);
-  const pendingApprovals = toNum(m.pendingApprovals, 0);
-  const criticalAlerts = toNum(m.criticalAlerts, 0);
-  const activeWfs = workflows.filter(w => w.status === 'active').slice(0, 6);
-  const agentList = agents.slice(0, 10).map(a => ({
-    id: a.id, name: a.name,
-    status: agentStates[a.id]?.status || 'idle',
-  }));
+  const metricMap = metrics as Record<string, unknown>;
+  const toNum = (value: unknown, fallback = 0) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  };
+
+  const failedToday = toNum(metricMap.failedToday, 0);
+  const pendingApprovals = toNum(metricMap.pendingApprovals, 0);
+  const criticalAlerts = toNum(metricMap.criticalAlerts, 0);
+  const recentRuns = Array.isArray(metricMap.recentRuns) ? (metricMap.recentRuns as Array<Record<string, unknown>>) : [];
+  const historyItems = useMemo(() => summarizeHistory(messages), [messages]);
 
   useEffect(() => {
     writeLocalStorage(STORAGE_KEY, messages);
@@ -95,109 +130,186 @@ const NiyantaCommandConsole: React.FC<NiyantaCommandConsoleProps> = ({
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, liveActivity]);
 
-  const buildSystemContext = useCallback((): NiyantaSystemContext => ({
-    generatedAt: new Date().toISOString(),
-    agents: agents.map(a => ({
-      id: a.id, name: a.name, capabilities: a.capabilities,
-      status: agentStates[a.id]?.status || 'idle',
-    })),
-    workflows: workflows.slice(0, 24).map(w => ({
-      id: w.id, name: w.name, category: w.category, status: w.status,
-    })),
-    metrics,
-    auditTrail: [],
-    reports: Object.entries(agentStates)
-      .filter(([, s]) => s.result)
-      .map(([agentId, s]) => ({
-        agentId,
-        summary: String((s.result as Record<string, unknown>)?.summary || ''),
-        decision: (s.result as Record<string, unknown>)?.decision || null,
-      })),
-  }), [agents, agentStates, workflows, metrics]);
-
-  const buildActivitySteps = useCallback((
-    msg: string,
-    matchedAgents: Array<{ agentId: string; label: string }>
-  ): NiyantaActivityItem[] => {
+  const buildPendingActivity = useCallback((messageText: string, attachments: ExtractedFileAttachment[], matchedAgents: RoutedAgent[]) => {
     const now = Date.now();
-    const steps: NiyantaActivityItem[] = [
-      { id: 'intake', label: 'Command received', detail: `Parsing: ${msg.slice(0, 80)}${msg.length > 80 ? '…' : ''}`, tone: 'info', timestamp: new Date(now).toISOString() },
+    const items: NiyantaActivityItem[] = [
+      {
+        id: 'pending-intake',
+        label: 'Input received',
+        detail: messageText || attachments.map((attachment) => attachment.name).join(', '),
+        tone: 'info',
+        timestamp: new Date(now).toISOString(),
+      },
     ];
-    if (matchedAgents.length > 0) {
-      steps.push({ id: 'route', label: 'Agents identified', detail: matchedAgents.map(a => a.label).join(', '), tone: 'info', timestamp: new Date(now + 150).toISOString() });
-      matchedAgents.forEach((a, i) => {
-        steps.push({ id: `agent-${a.agentId}`, label: `${a.label} executing`, detail: 'Routing task and collecting result.', tone: 'success', timestamp: new Date(now + 300 + i * 100).toISOString() });
+
+    if (attachments.length > 0) {
+      items.push({
+        id: 'pending-files',
+        label: 'File extraction complete',
+        detail: `${attachments.length} attachment${attachments.length === 1 ? '' : 's'} ready for command analysis.`,
+        tone: 'success',
+        timestamp: new Date(now + 120).toISOString(),
       });
     }
-    steps.push({ id: 'compose', label: 'Niyanta composing response', detail: 'Synthesising agent results with control-plane context.', tone: 'success', timestamp: new Date(now + 500).toISOString() });
-    return steps;
+
+    matchedAgents.forEach((agent, index) => {
+      items.push({
+        id: `pending-agent-${agent.agentId}`,
+        label: 'Agent activated',
+        detail: `${agent.label} is processing the command context.`,
+        tone: 'info',
+        timestamp: new Date(now + 220 + index * 90).toISOString(),
+      });
+    });
+
+    items.push({
+      id: 'pending-workflow',
+      label: 'Scenario workflow starting',
+      detail: 'Niyanta is preparing the end-to-end execution path.',
+      tone: 'success',
+      timestamp: new Date(now + 420).toISOString(),
+    });
+
+    return items;
   }, []);
 
   const handleSend = useCallback(async (preset?: string) => {
-    const text = (preset ?? input).trim();
-    if (!text || isSending) return;
+    const baseText = (preset ?? input).trim();
+    if (!baseText && pendingFiles.length === 0) return;
+    if (isSending || isExtracting) return;
+
+    let attachments: ExtractedFileAttachment[] = [];
+    let extractedText = '';
+
+    if (pendingFiles.length > 0) {
+      setIsExtracting(true);
+      try {
+        attachments = await extractNiyantaFiles(pendingFiles);
+        extractedText = attachments
+          .map((attachment) => attachment.textContent || attachment.excerpt || `File ${attachment.name}`)
+          .filter(Boolean)
+          .join('\n\n');
+      } catch (error) {
+        const failTs = new Date().toISOString();
+        const detail = error instanceof Error ? error.message : 'Failed to extract file content';
+        setMessages((prev) => [...prev, {
+          role: 'assistant',
+          content: detail,
+          timestamp: failTs,
+        }]);
+        setLiveActivity([{
+          id: 'extract-failed',
+          label: 'File extraction failed',
+          detail,
+          tone: 'danger',
+          timestamp: failTs,
+        }]);
+        setIsExtracting(false);
+        return;
+      }
+      setIsExtracting(false);
+    }
+
+    const commandText = extractedText
+      ? [baseText, extractedText].filter(Boolean).join('\n\n')
+      : baseText;
+
+    if (!commandText.trim()) {
+      return;
+    }
+
+    const userTimestamp = new Date().toISOString();
+    const userMessage: ChatMessage = {
+      role: 'user',
+      content: baseText || '(file attachment)',
+      timestamp: userTimestamp,
+      attachments: attachments.length > 0 ? attachments : undefined,
+    };
+
+    const matchedAgents = detectAgents(commandText, attachments);
+    const pendingActivity = buildPendingActivity(baseText || attachments.map((attachment) => attachment.name).join(', '), attachments, matchedAgents);
+    const timers = pendingActivity.map((item, index) => window.setTimeout(() => {
+      setLiveActivity((prev) => (prev.some((existing) => existing.id === item.id) ? prev : [...prev, item]));
+    }, index * 180));
 
     setInput('');
+    setPendingFiles([]);
     setIsSending(true);
     setLiveActivity([]);
-
-    const timestamp = new Date().toISOString();
-    setMessages(prev => [...prev, { role: 'user', content: text, timestamp }]);
-
-    const matchedAgents = detectAgents(text);
-    const pendingSteps = buildActivitySteps(text, matchedAgents);
-
-    const timers = pendingSteps.map((step, idx) =>
-      window.setTimeout(() => {
-        setLiveActivity(prev => prev.some(p => p.id === step.id) ? prev : [...prev, step]);
-      }, idx * 250)
-    );
+    setMessages((prev) => [...prev, userMessage]);
 
     try {
-      if (matchedAgents.length > 0 && onExecuteAgent) {
-        const ids = matchedAgents.map(a => a.agentId);
-        setRunningAgents(ids);
-        Promise.all(matchedAgents.map(a => onExecuteAgent(a.agentId, text).catch(() => null)))
-          .finally(() => setRunningAgents([]));
-      }
-
-      const systemContext = buildSystemContext();
       const agentResults = Object.fromEntries(
-        Object.entries(agentStates).filter(([, s]) => s.result).map(([k, s]) => [k, s.result])
+        Object.entries(agentStates)
+          .filter(([, state]) => state.result)
+          .map(([agentId, state]) => [agentId, state.result])
       ) as Record<string, unknown>;
 
-      const history = messages.map(m => ({ role: m.role, content: m.content }));
-      const response = await sendNiyantaMessage(text, history, agentResults, systemContext);
+      if (matchedAgents.length > 0 && onExecuteAgent) {
+        const ids = matchedAgents.map((agent) => agent.agentId);
+        setRunningAgents(ids);
+        const responses = await Promise.all(
+          matchedAgents.map(async (agent) => ({
+            agentId: agent.agentId,
+            response: await onExecuteAgent(agent.agentId, commandText),
+          }))
+        );
 
-      setMessages(prev => [...prev, {
+        responses.forEach(({ agentId, response }) => {
+          if (response?.result) {
+            agentResults[agentId] = response.result;
+          }
+        });
+        setRunningAgents([]);
+      }
+
+      const history = [...messages, userMessage].map((message) => ({
+        role: message.role,
+        content: message.content,
+      }));
+
+      const response = await executeNiyantaCommand(commandText, history, agentResults, attachments);
+
+      setMessages((prev) => [...prev, {
         role: 'assistant',
         content: response.reply,
         timestamp: response.timestamp,
         activity: response.activity,
+        reports: response.reports,
       }]);
-      setLiveActivity(response.activity && response.activity.length > 0 ? response.activity : pendingSteps);
-    } catch (err) {
+      setLiveActivity(response.activity && response.activity.length > 0 ? response.activity : pendingActivity);
+      await onSyncState?.();
+    } catch (error) {
       const failTs = new Date().toISOString();
-      setMessages(prev => [...prev, {
+      const detail = error instanceof Error ? error.message : 'Niyanta command failed';
+      setMessages((prev) => [...prev, {
         role: 'assistant',
-        content: err instanceof Error ? err.message : 'Niyanta failed to respond. Check server connection.',
+        content: detail,
         timestamp: failTs,
       }]);
-      setLiveActivity([...pendingSteps, {
-        id: 'error',
-        label: 'Response failed',
-        detail: err instanceof Error ? err.message : 'Unknown error',
-        tone: 'danger',
-        timestamp: failTs,
-      }]);
+      setLiveActivity([
+        ...pendingActivity,
+        {
+          id: 'command-failed',
+          label: 'Execution failed',
+          detail,
+          tone: 'danger',
+          timestamp: failTs,
+        },
+      ]);
+      await onSyncState?.();
     } finally {
-      timers.forEach(clearTimeout);
+      timers.forEach(window.clearTimeout);
+      setRunningAgents([]);
       setIsSending(false);
     }
-  }, [input, isSending, messages, agentStates, buildSystemContext, buildActivitySteps, onExecuteAgent]);
+  }, [agentStates, buildPendingActivity, input, isExtracting, isSending, messages, onExecuteAgent, onSyncState, pendingFiles]);
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      handleSend();
+    }
   };
 
   const handleClear = () => {
@@ -205,45 +317,92 @@ const NiyantaCommandConsole: React.FC<NiyantaCommandConsoleProps> = ({
     setLiveActivity([]);
   };
 
-  // ─── Render helpers ───────────────────────────────────────────────────────
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = Array.from(event.target.files ?? []);
+    if (selected.length === 0) return;
+    setPendingFiles((prev) => {
+      const existing = new Set(prev.map((file) => `${file.name}-${file.size}`));
+      return [...prev, ...selected.filter((file) => !existing.has(`${file.name}-${file.size}`))].slice(0, 4);
+    });
+    event.target.value = '';
+  };
 
-  const renderActivityLine = (item: NiyantaActivityItem, idx: number) => (
-    <div key={item.id + item.timestamp} style={{
-      display: 'flex', alignItems: 'baseline', gap: 7,
-      animation: 'slideIn 200ms ease both',
-      animationDelay: `${idx * 50}ms`,
-    }}>
+  const removeFile = (index: number) => {
+    setPendingFiles((prev) => prev.filter((_, currentIndex) => currentIndex !== index));
+  };
+
+  const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const dropped = Array.from(event.dataTransfer.files ?? []);
+    if (dropped.length === 0) return;
+    setPendingFiles((prev) => {
+      const existing = new Set(prev.map((file) => `${file.name}-${file.size}`));
+      return [...prev, ...dropped.filter((file) => !existing.has(`${file.name}-${file.size}`))].slice(0, 4);
+    });
+  };
+
+  const renderActivityLine = (item: NiyantaActivityItem, index: number) => (
+    <div
+      key={`${item.id}-${item.timestamp}`}
+      style={{
+        display: 'flex',
+        alignItems: 'baseline',
+        gap: 8,
+        padding: '7px 0',
+        borderBottom: index === liveActivity.length - 1 ? 'none' : '1px solid rgba(255,255,255,0.04)',
+        animation: 'slideIn 220ms ease both',
+        animationDelay: `${index * 50}ms`,
+      }}
+    >
       <span style={{ fontSize: 9, color: TONE_COLOR[item.tone] ?? 'var(--text-muted)', flexShrink: 0 }}>›</span>
-      <span style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-        <span style={{ fontWeight: 600, color: TONE_COLOR[item.tone] ?? 'var(--text-muted)' }}>{item.label}</span>
-        {item.detail ? <span style={{ color: 'var(--text-muted)' }}> — {item.detail}</span> : null}
-      </span>
-      <span style={{ marginLeft: 'auto', fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', whiteSpace: 'nowrap', flexShrink: 0 }}>
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div style={{ fontSize: 11, color: TONE_COLOR[item.tone] ?? 'var(--text-primary)', fontWeight: 700, letterSpacing: '0.02em' }}>
+          {item.label}
+        </div>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.55, marginTop: 2 }}>
+          {item.detail}
+        </div>
+      </div>
+      <span style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', whiteSpace: 'nowrap', flexShrink: 0 }}>
         {new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
       </span>
     </div>
   );
 
-  const renderMessage = (msg: ChatMessage, idx: number) => {
-    if (msg.role === 'user') {
-      return (
-        <div key={`${msg.timestamp}-${idx}`} style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <div style={{
-            maxWidth: '80%', padding: '10px 14px', borderRadius: 12,
-            background: 'linear-gradient(135deg, rgba(6,182,212,0.2), rgba(59,130,246,0.15))',
-            border: '1px solid rgba(6,182,212,0.25)',
-            color: 'var(--text-primary)', fontSize: 13, lineHeight: 1.65, whiteSpace: 'pre-wrap',
-            animation: 'slideIn 200ms ease both',
-          }}>
-            {msg.content}
-          </div>
-        </div>
-      );
-    }
-
-    const isError = msg.content.startsWith('Niyanta failed') || msg.content.includes('chat failed');
+  const renderReportGrid = (msg: ChatMessage) => {
+    if (!msg.reports || msg.reports.length === 0) return null;
     return (
-      <div key={`${msg.timestamp}-${idx}`} style={{ display: 'grid', gap: 6, animation: 'slideIn 240ms ease both' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8, marginTop: 4 }}>
+        {msg.reports.map((report) => (
+          <div
+            key={report.id}
+            style={{
+              border: '1px solid var(--border)',
+              borderRadius: 9,
+              background: 'var(--bg-input)',
+              padding: '10px 11px',
+              minWidth: 0,
+            }}
+          >
+            <div style={{ fontSize: 9, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)' }}>
+              {report.title}
+            </div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: TONE_COLOR[report.tone] ?? 'var(--text-primary)', marginTop: 3 }}>
+              {report.value}
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.5, marginTop: 4 }}>
+              {report.detail}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  const renderAssistantMessage = (msg: ChatMessage, index: number) => {
+    const isError = msg.content.startsWith('Niyanta failed') || msg.content.toLowerCase().includes('failed');
+    return (
+      <div key={`${msg.timestamp}-${index}`} style={{ display: 'grid', gap: 7, animation: 'slideIn 240ms ease both' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
           <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: isError ? 'var(--status-danger)' : 'var(--status-info)' }}>
             {isError ? '⚠ Error' : '◎ Niyanta'}
@@ -252,26 +411,74 @@ const NiyantaCommandConsole: React.FC<NiyantaCommandConsoleProps> = ({
             {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
           </span>
         </div>
-        <div style={{
-          color: isError ? 'var(--status-danger)' : 'var(--text-primary)',
-          fontSize: 13, lineHeight: 1.75, whiteSpace: 'pre-wrap', paddingLeft: 2,
-        }}>
+        <div style={{ color: isError ? 'var(--status-danger)' : 'var(--text-primary)', fontSize: 13, lineHeight: 1.72, whiteSpace: 'pre-wrap' }}>
           {msg.content}
         </div>
+        {renderReportGrid(msg)}
         {msg.activity && msg.activity.length > 0 && (
-          <div style={{ borderLeft: '1px solid var(--border)', paddingLeft: 10, marginTop: 2, display: 'grid', gap: 3 }}>
-            {msg.activity.map((a, i) => renderActivityLine(a, i))}
+          <div style={{ borderLeft: '1px solid var(--border)', paddingLeft: 10, display: 'grid', gap: 0 }}>
+            {msg.activity.map((item, itemIndex) => renderActivityLine(item, itemIndex))}
           </div>
         )}
       </div>
     );
   };
 
-  // ─── Panels ───────────────────────────────────────────────────────────────
+  const renderUserMessage = (msg: ChatMessage, index: number) => (
+    <div key={`${msg.timestamp}-${index}`} style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+      {msg.attachments && msg.attachments.length > 0 && (
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          {msg.attachments.map((attachment, attachmentIndex) => (
+            <div
+              key={`${attachment.name}-${attachmentIndex}`}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 5,
+                padding: '4px 9px',
+                borderRadius: 6,
+                border: '1px solid rgba(6,182,212,0.25)',
+                background: 'rgba(6,182,212,0.07)',
+                fontSize: 11,
+                color: 'var(--text-muted)',
+              }}
+            >
+              <span style={{ fontSize: 12 }}>📎</span>
+              <span style={{ maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{attachment.name}</span>
+              {attachment.pageCount ? <span style={{ fontSize: 9, fontFamily: 'var(--font-mono)' }}>{attachment.pageCount}p</span> : null}
+              {attachment.extractionStatus === 'unsupported' ? <span style={{ color: 'var(--status-warning)', fontSize: 9 }}>unsupported</span> : null}
+            </div>
+          ))}
+        </div>
+      )}
+      {msg.content && msg.content !== '(file attachment)' && (
+        <div
+          style={{
+            maxWidth: '80%',
+            padding: '10px 14px',
+            borderRadius: 12,
+            background: 'linear-gradient(135deg, rgba(6,182,212,0.2), rgba(59,130,246,0.15))',
+            border: '1px solid rgba(6,182,212,0.25)',
+            color: 'var(--text-primary)',
+            fontSize: 13,
+            lineHeight: 1.65,
+            whiteSpace: 'pre-wrap',
+            animation: 'slideIn 200ms ease both',
+          }}
+        >
+          {msg.content}
+        </div>
+      )}
+    </div>
+  );
 
   const panelLabel: React.CSSProperties = {
-    fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)',
-    textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 8,
+    fontSize: 9,
+    fontFamily: 'var(--font-mono)',
+    color: 'var(--text-muted)',
+    textTransform: 'uppercase',
+    letterSpacing: '0.1em',
+    marginBottom: 8,
   };
 
   const renderLeftPanel = () => (
@@ -280,59 +487,95 @@ const NiyantaCommandConsole: React.FC<NiyantaCommandConsoleProps> = ({
         <div style={panelLabel}>System</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
           {[
-            { k: 'Agents',    v: systemSnapshot.activeAgents,  color: systemSnapshot.activeAgents > 0 ? 'var(--status-success)' : 'var(--text-muted)' },
-            { k: 'Workflows', v: systemSnapshot.workflowCount, color: 'var(--status-info)' },
-            { k: 'Errors',    v: failedToday,     color: failedToday > 0 ? 'var(--status-danger)' : 'var(--text-muted)' },
-            { k: 'Approvals', v: pendingApprovals, color: pendingApprovals > 0 ? 'var(--status-warning)' : 'var(--text-muted)' },
-          ].map(s => (
-            <div key={s.k} style={{ border: '1px solid var(--border)', borderRadius: 7, padding: '8px 10px', background: 'var(--bg-input)' }}>
-              <div style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{s.k}</div>
-              <div style={{ fontSize: 20, fontWeight: 700, color: s.color, lineHeight: 1.2, marginTop: 2 }}>{s.v}</div>
+            { key: 'Agents', value: systemSnapshot.activeAgents, color: systemSnapshot.activeAgents > 0 ? 'var(--status-success)' : 'var(--text-muted)' },
+            { key: 'Workflows', value: systemSnapshot.workflowCount, color: 'var(--status-info)' },
+            { key: 'Errors', value: failedToday, color: failedToday > 0 ? 'var(--status-danger)' : 'var(--text-muted)' },
+            { key: 'Approvals', value: pendingApprovals, color: pendingApprovals > 0 ? 'var(--status-warning)' : 'var(--text-muted)' },
+          ].map((item) => (
+            <div key={item.key} style={{ border: '1px solid var(--border)', borderRadius: 7, padding: '8px 10px', background: 'var(--bg-input)' }}>
+              <div style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{item.key}</div>
+              <div style={{ fontSize: 20, fontWeight: 700, color: item.color, lineHeight: 1.2, marginTop: 2 }}>{item.value}</div>
             </div>
           ))}
         </div>
         {criticalAlerts > 0 && (
           <div style={{ marginTop: 6, padding: '7px 10px', borderRadius: 6, border: '1px solid rgba(239,68,68,0.25)', background: 'rgba(239,68,68,0.06)', fontSize: 11, color: 'var(--status-danger)' }}>
-            ⚠ {criticalAlerts} critical alert{criticalAlerts > 1 ? 's' : ''} active
+            {criticalAlerts} critical alert{criticalAlerts > 1 ? 's' : ''} active
           </div>
         )}
       </div>
 
-      <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        <div style={panelLabel}>Quick Commands</div>
-        <div style={{ display: 'grid', gap: 4, overflowY: 'auto' }}>
-          {QUICK_PROMPTS.map(q => (
-            <button key={q.label} onClick={() => handleSend(q.text)} disabled={isSending} style={{
-              display: 'flex', alignItems: 'center', gap: 8,
-              padding: '8px 10px', borderRadius: 7, border: '1px solid var(--border)',
-              background: 'var(--cc-surface-1)', color: isSending ? 'var(--text-muted)' : 'var(--text-secondary)',
-              fontSize: 11, cursor: isSending ? 'not-allowed' : 'pointer', textAlign: 'left', width: '100%',
-              transition: 'background 120ms',
-            }}
-              onMouseEnter={e => { if (!isSending) e.currentTarget.style.background = 'var(--bg-tile-hover)'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'var(--cc-surface-1)'; }}
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+        <div style={panelLabel}>History</div>
+        <div style={{ flex: 1, overflowY: 'auto', display: 'grid', gap: 5, alignContent: 'start' }}>
+          {historyItems.length > 0 ? historyItems.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => setInput(item.command === '(file attachment)' ? '' : item.command)}
+              style={{
+                padding: '9px 10px',
+                borderRadius: 8,
+                border: '1px solid var(--border)',
+                background: 'var(--cc-surface-1)',
+                color: 'var(--text-secondary)',
+                textAlign: 'left',
+                cursor: 'pointer',
+              }}
+              onMouseEnter={(event) => { event.currentTarget.style.background = 'var(--bg-input)'; }}
+              onMouseLeave={(event) => { event.currentTarget.style.background = 'var(--cc-surface-1)'; }}
             >
-              <span style={{ color: 'var(--status-info)', fontSize: 12, flexShrink: 0 }}>{q.icon}</span>
-              {q.label}
+              <div style={{ fontSize: 11, color: 'var(--text-primary)', lineHeight: 1.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {item.command}
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 4 }}>
+                <span style={{ fontSize: 10, color: 'var(--status-info)' }}>{item.outcome}</span>
+                <span style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
+                  {new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </span>
+              </div>
             </button>
-          ))}
+          )) : (
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.6 }}>
+              Command history appears here after the first run.
+            </div>
+          )}
         </div>
       </div>
 
       <div>
         <div style={panelLabel}>Navigate</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
-          {[{ label: 'Audit', path: '/audit' }, { label: 'Approvals', path: '/approvals' }, { label: 'Agents', path: '/agents' }, { label: 'Workflows', path: '/workflows' }].map(n => (
-            <button key={n.path} onClick={() => navigate(n.path)} style={{
-              height: 28, borderRadius: 5, border: '1px solid var(--border)',
-              background: 'transparent', color: 'var(--text-muted)',
-              fontSize: 10, fontFamily: 'var(--font-mono)', cursor: 'pointer',
-              textTransform: 'uppercase', letterSpacing: '0.06em',
-            }}
-              onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-primary)'; e.currentTarget.style.background = 'var(--bg-input)'; }}
-              onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'transparent'; }}
+          {[
+            { label: 'Audit', path: '/audit' },
+            { label: 'Approvals', path: '/approvals' },
+            { label: 'Agents', path: '/agents' },
+            { label: 'Workflows', path: '/workflows' },
+          ].map((item) => (
+            <button
+              key={item.path}
+              onClick={() => navigate(item.path)}
+              style={{
+                height: 28,
+                borderRadius: 5,
+                border: '1px solid var(--border)',
+                background: 'transparent',
+                color: 'var(--text-muted)',
+                fontSize: 10,
+                fontFamily: 'var(--font-mono)',
+                cursor: 'pointer',
+                textTransform: 'uppercase',
+                letterSpacing: '0.06em',
+              }}
+              onMouseEnter={(event) => {
+                event.currentTarget.style.color = 'var(--text-primary)';
+                event.currentTarget.style.background = 'var(--bg-input)';
+              }}
+              onMouseLeave={(event) => {
+                event.currentTarget.style.color = 'var(--text-muted)';
+                event.currentTarget.style.background = 'transparent';
+              }}
             >
-              {n.label}
+              {item.label}
             </button>
           ))}
         </div>
@@ -341,193 +584,237 @@ const NiyantaCommandConsole: React.FC<NiyantaCommandConsoleProps> = ({
   );
 
   const renderRightPanel = () => (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, height: '100%', overflow: 'hidden' }}>
-      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-        <div style={panelLabel}>Live Tape</div>
-        <div style={{ flex: 1, overflowY: 'auto', display: 'grid', gap: 4, alignContent: 'start' }}>
-          {liveActivity.length > 0
-            ? liveActivity.map((a, i) => renderActivityLine(a, i))
-            : <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.6 }}>Activity appears here as commands execute.</div>
-          }
-        </div>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+      <div style={panelLabel}>Live Tape</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+        <span style={{ width: 7, height: 7, borderRadius: 999, background: isSending ? 'var(--status-info)' : liveActivity.length > 0 ? 'var(--status-success)' : 'var(--text-muted)', boxShadow: isSending ? '0 0 8px var(--status-info)' : 'none', animation: isSending ? 'pulse 1.2s ease infinite' : 'none' }} />
+        <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+          {isSending ? 'Command execution in progress' : liveActivity.length > 0 ? `${liveActivity.length} execution events captured` : 'Waiting for a command run'}
+        </span>
       </div>
-
-      {agentList.length > 0 && (
-        <div>
-          <div style={panelLabel}>Agent Status</div>
-          <div style={{ display: 'grid', gap: 4 }}>
-            {agentList.map(a => {
-              const isActive = runningAgents.includes(a.id);
-              const dotColor = (isActive || a.status === 'processing') ? 'var(--status-info)'
-                : a.status === 'complete' ? 'var(--status-success)'
-                : a.status === 'error' ? 'var(--status-danger)'
-                : 'var(--text-muted)';
-              return (
-                <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 8, height: 26, padding: '0 8px', borderRadius: 5, border: '1px solid var(--border)', background: 'var(--bg-input)' }}>
-                  <span style={{ width: 6, height: 6, borderRadius: 999, background: dotColor, flexShrink: 0, boxShadow: (isActive || a.status === 'processing') ? `0 0 5px ${dotColor}` : 'none' }} />
-                  <span style={{ fontSize: 11, color: 'var(--text-secondary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</span>
-                  <span style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: dotColor, textTransform: 'uppercase' }}>{isActive ? 'running' : a.status}</span>
-                </div>
-              );
-            })}
+      <div style={{ flex: 1, overflowY: 'auto', display: 'grid', gap: 0, alignContent: 'start' }}>
+        {liveActivity.length > 0 ? liveActivity.map((item, index) => renderActivityLine(item, index)) : (
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.7 }}>
+            The full execution tape appears here: input received, agent activation, node-by-node workflow steps, decision, and dashboard sync.
           </div>
-        </div>
-      )}
-
-      {activeWfs.length > 0 && (
-        <div>
-          <div style={panelLabel}>Active Workflows</div>
-          <div style={{ display: 'grid', gap: 4 }}>
-            {activeWfs.map((wf, i) => (
-              <div key={wf.id || i} style={{ display: 'flex', alignItems: 'center', gap: 8, height: 26, padding: '0 8px', borderRadius: 5, border: '1px solid rgba(16,185,129,0.2)', background: 'rgba(16,185,129,0.04)' }}>
-                <span style={{ width: 5, height: 5, borderRadius: 999, background: 'var(--status-success)', flexShrink: 0 }} />
-                <span style={{ fontSize: 11, color: 'var(--text-primary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{wf.name || 'Untitled'}</span>
-                <span style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', textTransform: 'uppercase' }}>{wf.category || 'ops'}</span>
-              </div>
-            ))}
+        )}
+      </div>
+      {recentRuns.length > 0 && (
+        <div style={{ marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 10 }}>
+          <div style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Latest Run</div>
+          <div style={{ fontSize: 12, color: 'var(--text-primary)', lineHeight: 1.6 }}>
+            {String(recentRuns[0].workflowName || recentRuns[0].workflowId || 'Workflow run')}
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4 }}>
+            Status: {String(recentRuns[0].status || 'PENDING')}{recentRuns[0].currentNodeId ? ` · Node ${String(recentRuns[0].currentNodeId)}` : ''}
           </div>
         </div>
       )}
     </div>
   );
 
-  // ─── Main render ──────────────────────────────────────────────────────────
-
   return (
     <>
       <style>{`
         @keyframes slideIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes fadeIn  { from { opacity: 0; } to { opacity: 1; } }
-        @keyframes pulse   { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
-        .cmd-input:focus   { border-color: var(--status-info) !important; outline: none; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+        .cmd-input:focus { border-color: var(--status-info) !important; outline: none; }
       `}</style>
 
-      <div style={{
-        height: '100%', display: 'grid',
-        gridTemplateColumns: '260px minmax(0, 1fr) 260px',
-        background: 'var(--bg-base)', overflow: 'hidden',
-      }}>
-
-        {/* LEFT */}
+      <div
+        style={{
+          height: '100%',
+          display: 'grid',
+          gridTemplateColumns: '260px minmax(0, 1fr) 300px',
+          background: 'var(--bg-base)',
+          overflow: 'hidden',
+        }}
+      >
         <aside style={{ borderRight: '1px solid var(--border)', padding: '16px 14px', overflowY: 'auto', background: 'linear-gradient(180deg, var(--cc-panel-top), var(--cc-panel-bottom))' }}>
           {renderLeftPanel()}
         </aside>
 
-        {/* CENTER */}
         <section style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-
-          {/* Header */}
-          <div style={{
-            flexShrink: 0, padding: '14px 20px', borderBottom: '1px solid var(--border)',
-            background: 'linear-gradient(180deg, rgba(6,182,212,0.06), transparent)',
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16,
-          }}>
+          <div
+            style={{
+              flexShrink: 0,
+              padding: '14px 20px',
+              borderBottom: '1px solid var(--border)',
+              background: 'linear-gradient(180deg, rgba(6,182,212,0.06), transparent)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 16,
+            }}
+          >
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{
-                width: 8, height: 8, borderRadius: 999, flexShrink: 0,
-                background: isSending ? 'var(--status-info)' : messages.length > 0 ? 'var(--status-success)' : 'var(--text-muted)',
-                boxShadow: isSending ? '0 0 8px var(--status-info)' : 'none',
-                animation: isSending ? 'pulse 1.2s ease infinite' : 'none',
-              }} />
+              <span style={{ width: 8, height: 8, borderRadius: 999, flexShrink: 0, background: isSending ? 'var(--status-info)' : messages.length > 0 ? 'var(--status-success)' : 'var(--text-muted)', boxShadow: isSending ? '0 0 8px var(--status-info)' : 'none', animation: isSending ? 'pulse 1.2s ease infinite' : 'none' }} />
               <div>
                 <div style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 700, letterSpacing: '0.05em', color: 'var(--text-primary)', textTransform: 'uppercase' }}>
                   Niyanta Command
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginTop: 1 }}>
-                  {isSending ? 'Executing command…' : messages.length > 0 ? `${messages.filter(m => m.role === 'assistant').length} response${messages.filter(m => m.role === 'assistant').length !== 1 ? 's' : ''}` : 'Awaiting command'}
+                  {isSending ? `Executing with ${runningAgents.length || 1} active agent${runningAgents.length === 1 ? '' : 's'}...` : messages.length > 0 ? `${messages.filter((message) => message.role === 'assistant').length} response${messages.filter((message) => message.role === 'assistant').length !== 1 ? 's' : ''}` : 'Awaiting operational command'}
                 </div>
               </div>
             </div>
             {messages.length > 0 && !isSending && (
-              <button onClick={handleClear} style={{
-                height: 28, padding: '0 12px', borderRadius: 5, border: '1px solid var(--border)',
-                background: 'transparent', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)',
-                fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.07em', cursor: 'pointer',
-              }}>✕ Clear</button>
+              <button
+                onClick={handleClear}
+                style={{
+                  height: 28,
+                  padding: '0 12px',
+                  borderRadius: 5,
+                  border: '1px solid var(--border)',
+                  background: 'transparent',
+                  color: 'var(--text-muted)',
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 10,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.07em',
+                  cursor: 'pointer',
+                }}
+              >
+                ✕ Clear
+              </button>
             )}
           </div>
 
-          {/* Messages */}
           <div style={{ flex: 1, overflowY: 'auto', padding: '20px', display: 'grid', gap: 16, alignContent: 'start' }}>
             {messages.length === 0 && !isSending ? (
               <div style={{ minHeight: 300, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', color: 'var(--text-muted)', gap: 16 }}>
                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 40, opacity: 0.12, lineHeight: 1 }}>◉</div>
                 <div>
                   <div style={{ fontFamily: 'var(--font-display)', fontSize: 18, color: 'var(--text-secondary)', letterSpacing: '0.06em', marginBottom: 6 }}>Niyanta Command Intelligence</div>
-                  <div style={{ fontSize: 12, lineHeight: 1.7, maxWidth: 420 }}>
-                    Type any operational command or pick a quick prompt.<br />
-                    Niyanta will analyse your system, route to the right agents, and respond with a full report.
+                  <div style={{ fontSize: 12, lineHeight: 1.75, maxWidth: 520 }}>
+                    Enter an operational command or upload a document. Niyanta will classify the input, activate the right agents, run the workflow, update the audit and approvals state, and return a structured execution report.
                   </div>
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, maxWidth: 500, width: '100%', textAlign: 'left' }}>
-                  {QUICK_PROMPTS.slice(0, 4).map(q => (
-                    <button key={q.label} onClick={() => handleSend(q.text)} style={{
-                      padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)',
-                      background: 'var(--cc-surface-1)', color: 'var(--text-muted)', fontSize: 11,
-                      textAlign: 'left', cursor: 'pointer', lineHeight: 1.5,
-                    }}
-                      onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-secondary)'; e.currentTarget.style.background = 'var(--bg-input)'; }}
-                      onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'var(--cc-surface-1)'; }}
-                    >
-                      <span style={{ color: 'var(--status-info)', marginRight: 6 }}>{q.icon}</span>{q.label}
-                    </button>
-                  ))}
                 </div>
               </div>
             ) : (
-              messages.map((msg, i) => renderMessage(msg, i))
+              messages.map((message, index) => message.role === 'user' ? renderUserMessage(message, index) : renderAssistantMessage(message, index))
             )}
 
             {isSending && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, animation: 'fadeIn 200ms ease' }}>
                 <span style={{ color: 'var(--status-info)', fontSize: 12, animation: 'pulse 1.2s infinite', fontFamily: 'var(--font-mono)' }}>◎</span>
                 <span style={{ fontSize: 12, color: 'var(--status-info)', fontFamily: 'var(--font-mono)' }}>
-                  {liveActivity.length > 0 ? `${liveActivity[liveActivity.length - 1].label}…` : 'Niyanta is thinking…'}
+                  {liveActivity.length > 0 ? `${liveActivity[liveActivity.length - 1].label}...` : 'Niyanta is executing the workflow...'}
                 </span>
               </div>
             )}
             <div ref={bottomRef} />
           </div>
 
-          {/* Input */}
-          <div style={{ flexShrink: 0, borderTop: '1px solid var(--border)', padding: '12px 20px', background: 'var(--bg-dock)' }}>
+          <div
+            style={{ flexShrink: 0, borderTop: '1px solid var(--border)', padding: '12px 20px', background: 'var(--bg-dock)' }}
+            onDragOver={(event) => event.preventDefault()}
+            onDrop={handleDrop}
+          >
+            {pendingFiles.length > 0 && (
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+                {pendingFiles.map((file, index) => (
+                  <div
+                    key={`${file.name}-${index}`}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 5,
+                      padding: '4px 8px',
+                      borderRadius: 6,
+                      border: '1px solid rgba(6,182,212,0.3)',
+                      background: 'rgba(6,182,212,0.09)',
+                      fontSize: 11,
+                      color: 'var(--text-secondary)',
+                    }}
+                  >
+                    <span style={{ fontSize: 12 }}>📎</span>
+                    <span style={{ maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file.name}</span>
+                    <span style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>{(file.size / 1024).toFixed(0)}KB</span>
+                    <button onClick={() => removeFile(index)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '0 2px', fontSize: 11, lineHeight: 1 }}>✕</button>
+                  </div>
+                ))}
+              </div>
+            )}
             <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept=".pdf,.txt,.md,.csv,.xlsx,.xls,.json,.log,.xml,.yml,.yaml,.ts,.tsx,.js,.jsx"
+                style={{ display: 'none' }}
+                onChange={handleFileSelect}
+              />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isSending || isExtracting || pendingFiles.length >= 4}
+                title="Attach file (PDF, Excel, CSV, TXT, JSON...)"
+                style={{
+                  width: 40,
+                  height: 52,
+                  borderRadius: 10,
+                  flexShrink: 0,
+                  border: '1px solid var(--border)',
+                  background: pendingFiles.length > 0 ? 'rgba(6,182,212,0.1)' : 'var(--bg-input)',
+                  color: pendingFiles.length > 0 ? 'var(--status-info)' : 'var(--text-muted)',
+                  fontSize: 17,
+                  cursor: isSending || isExtracting ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                📎
+              </button>
               <textarea
                 className="cmd-input"
                 value={input}
-                onChange={e => setInput(e.target.value)}
+                onChange={(event) => setInput(event.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Enter a command — run agents, inspect risks, query compliance, generate reports…"
+                placeholder="Enter a command or attach a file. Example: Process this invoice for Rs 48,000 from AWS."
                 rows={2}
-                disabled={isSending}
+                disabled={isSending || isExtracting}
                 style={{
-                  flex: 1, minHeight: 52, maxHeight: 120, padding: '10px 14px', borderRadius: 10,
-                  border: '1px solid var(--border)', background: 'var(--bg-input)', color: 'var(--text-primary)',
-                  fontSize: 13, lineHeight: 1.5, resize: 'none', fontFamily: 'var(--font-body)',
-                  opacity: isSending ? 0.5 : 1,
+                  flex: 1,
+                  minHeight: 52,
+                  maxHeight: 120,
+                  padding: '10px 14px',
+                  borderRadius: 10,
+                  border: '1px solid var(--border)',
+                  background: 'var(--bg-input)',
+                  color: 'var(--text-primary)',
+                  fontSize: 13,
+                  lineHeight: 1.5,
+                  resize: 'none',
+                  fontFamily: 'var(--font-body)',
+                  opacity: isSending || isExtracting ? 0.5 : 1,
                 }}
               />
               <button
                 onClick={() => handleSend()}
-                disabled={isSending || !input.trim()}
+                disabled={isSending || isExtracting || (!input.trim() && pendingFiles.length === 0)}
                 style={{
-                  height: 52, padding: '0 22px', borderRadius: 10,
-                  border: `1px solid ${input.trim() ? 'rgba(6,182,212,0.4)' : 'var(--border)'}`,
-                  background: input.trim() ? 'linear-gradient(135deg, rgba(6,182,212,0.22), rgba(59,130,246,0.18))' : 'var(--bg-input)',
-                  color: input.trim() ? 'var(--status-info)' : 'var(--text-muted)',
-                  fontFamily: 'var(--font-mono)', fontSize: 11,
-                  textTransform: 'uppercase', letterSpacing: '0.08em',
-                  cursor: input.trim() && !isSending ? 'pointer' : 'not-allowed',
+                  height: 52,
+                  padding: '0 22px',
+                  borderRadius: 10,
+                  border: `1px solid ${(input.trim() || pendingFiles.length > 0) ? 'rgba(6,182,212,0.4)' : 'var(--border)'}`,
+                  background: (input.trim() || pendingFiles.length > 0) ? 'linear-gradient(135deg, rgba(6,182,212,0.22), rgba(59,130,246,0.18))' : 'var(--bg-input)',
+                  color: (input.trim() || pendingFiles.length > 0) ? 'var(--status-info)' : 'var(--text-muted)',
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 11,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.08em',
+                  cursor: (input.trim() || pendingFiles.length > 0) && !isSending && !isExtracting ? 'pointer' : 'not-allowed',
                   flexShrink: 0,
                 }}
               >
-                {isSending ? 'Sending…' : 'Send'}
+                {isExtracting ? 'Reading...' : isSending ? 'Running...' : 'Run'}
               </button>
             </div>
           </div>
         </section>
 
-        {/* RIGHT */}
         <aside style={{ borderLeft: '1px solid var(--border)', padding: '16px 14px', overflowY: 'auto', background: 'linear-gradient(180deg, var(--cc-panel-top), var(--cc-panel-bottom))' }}>
           {renderRightPanel()}
         </aside>
