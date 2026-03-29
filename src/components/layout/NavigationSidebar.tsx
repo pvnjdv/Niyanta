@@ -23,10 +23,12 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'studio',      label: 'Agent Studio',       path: '/agents',      icon: '◈' },
   { id: 'workflows',   label: 'Workflows',          path: '/workflows',   icon: '⇢' },
   { id: 'operations',  label: 'Operations',         path: '/monitor',     icon: '◎' },
+  { id: 'approvals',   label: 'Approvals',          path: '/approvals',   icon: '✓' },
   { id: 'audit',       label: 'Audit & Compliance', path: '/audit',       icon: '⊘' },
 ];
 
 const BOTTOM_ITEMS: NavItem[] = [
+  { id: 'services',      label: 'Services',      path: '/services',      icon: '⊕' },
   { id: 'notifications', label: 'Notifications', path: '/notifications', icon: '◉' },
   { id: 'settings',      label: 'Settings',      path: '/settings',     icon: '⚙' },
 ];
@@ -50,7 +52,9 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
     { name: 'Workflows', path: '/workflows' },
     { name: 'Agent Studio', path: '/agents' },
     { name: 'Operations', path: '/monitor' },
+    { name: 'Approvals', path: '/approvals' },
     { name: 'Audit & Compliance', path: '/audit' },
+    { name: 'Services', path: '/services' },
     { name: 'Notifications', path: '/notifications' },
     { name: 'Settings', path: '/settings' },
   ];
@@ -73,7 +77,9 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
     if (p.startsWith('/workflows')) return 'workflows';
     if (p.startsWith('/agents')) return 'studio';
     if (p.startsWith('/monitor')) return 'operations';
+    if (p.startsWith('/approvals')) return 'approvals';
     if (p.startsWith('/audit')) return 'audit';
+    if (p.startsWith('/services')) return 'services';
     if (p.startsWith('/notifications')) return 'notifications';
     if (p.startsWith('/settings')) return 'settings';
     return 'command';

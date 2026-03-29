@@ -540,30 +540,9 @@ reasoning (string), optionScores (array of { option, score, pros, cons }), crite
 // ============ DECISION NODES ============
 
 async function executeApproval(node: NodeToExecute, context: WorkflowContext): Promise<WorkflowContext> {
-  const approver = (node.config.approver as string) || '';
-  const autoApproveThreshold = (node.config.autoApproveThreshold as number) ?? 1000;
-  const amount = (context.invoice?.amount as number) ?? (context.finance?.amount as number) ?? 0;
-
-  if (amount && amount > autoApproveThreshold) {
-    try {
-      const db = getDB();
-      db.prepare(
-        `INSERT INTO pending_approvals (id, workflow_run_id, approver, amount, context, status, created_at)
-         VALUES (?, ?, ?, ?, ?, 'pending', datetime('now'))`
-      ).run(uuid(), context.runId, approver, amount, JSON.stringify(context.metadata));
-    } catch { /* table may not exist */ }
-    return {
-      ...context,
-      metadata: { ...context.metadata, approvalStatus: 'pending', pendingApprover: approver, amount },
-      workflowState: { ...context.workflowState, currentNodeId: node.instanceId, status: 'WAITING_APPROVAL' },
-    };
-  }
-
-  return {
-    ...context,
-    metadata: { ...context.metadata, approvalDecision: 'approved', approvedBy: 'auto', approvedAt: new Date().toISOString(), amount },
-    workflowState: { ...context.workflowState, currentNodeId: node.instanceId },
-  };
+  const { ApprovalNode } = require('./action/ApprovalNode');
+  const approvalNode = new ApprovalNode();
+  return approvalNode.execute(context, { ...node.config, nodeName: node.config.nodeName || node.config.title || 'Approval Node' });
 }
 
 async function executeConditionalRouting(node: NodeToExecute, context: WorkflowContext): Promise<WorkflowContext> {

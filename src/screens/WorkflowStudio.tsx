@@ -99,7 +99,7 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
       }
       
       try {
-        const res = await fetch(`http://localhost:3001/api/workflow/${workflowId}/agents`);
+        const res = await fetch(`/api/workflow/${workflowId}/agents`);
         if (res.ok) {
           const data = await res.json();
           setLinkedAgents(data.agents || []);
@@ -118,7 +118,7 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
       }
       setLoadingWorkflows(true);
       try {
-        const res = await fetch('http://localhost:3001/api/workflow');
+        const res = await fetch('/api/workflow');
         if (res.ok) {
           const data = await res.json();
           setAllWorkflows(data.workflows || []);
@@ -1095,7 +1095,7 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
       };
 
       // Call API to save
-      const response = await fetch('http://localhost:3001/api/workflow' + (workflowId ? `/${workflowId}` : ''), {
+      const response = await fetch('/api/workflow' + (workflowId ? `/${workflowId}` : ''), {
         method: workflowId ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(workflowData)
@@ -1229,7 +1229,7 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
   // Load workflow from selection
   const loadWorkflow = async (id: string) => {
     try {
-      const response = await fetch(`http://localhost:3001/api/workflow/${id}`);
+      const response = await fetch(`/api/workflow/${id}`);
       if (!response.ok) throw new Error('Failed to load workflow');
 
       const data = await response.json();
@@ -1500,7 +1500,7 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
       if (!confirm(`Delete workflow "${name}"? This cannot be undone.`)) return;
       
       try {
-        const res = await fetch(`http://localhost:3001/api/workflow/${id}`, {
+        const res = await fetch(`/api/workflow/${id}`, {
           method: 'DELETE',
         });
         if (res.ok) {
@@ -1520,7 +1520,7 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
       if (!trimmedName || trimmedName === currentName) return;
 
       try {
-        const res = await fetch(`http://localhost:3001/api/workflow/${id}`, {
+        const res = await fetch(`/api/workflow/${id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name: trimmedName }),

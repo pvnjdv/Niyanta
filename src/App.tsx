@@ -19,6 +19,8 @@ import AgentChatScreen from './screens/AgentChatScreen';
 import OperationsMonitor from './screens/OperationsMonitor';
 import AuditCompliance from './screens/AuditCompliance';
 import SettingsScreen from './screens/SettingsScreen';
+import { ApprovalsScreen } from './screens/ApprovalsScreen';
+import ServicesStatus from './screens/ServicesStatus';
 
 const AppContent: React.FC = () => {
   const { theme, toggleTheme } = useTheme();
@@ -199,7 +201,8 @@ const AppContent: React.FC = () => {
           />
           <Route path="/monitor" element={<OperationsMonitor />} />
           <Route path="/audit" element={<AuditCompliance auditEntries={entries} />} />
-          <Route path="/services" element={<Navigate to="/settings" replace />} />
+          <Route path="/approvals" element={<ApprovalsScreen />} />
+          <Route path="/services" element={<ServicesStatus agents={agents} />} />
           <Route path="/notifications" element={<div style={{ padding: 32 }}><h2>Notifications</h2><p style={{ color: 'var(--text-secondary)' }}>No new notifications.</p></div>} />
           <Route path="/settings" element={<SettingsScreen agents={agents} />} />
           <Route path="*" element={<Navigate to="/" replace />} />
