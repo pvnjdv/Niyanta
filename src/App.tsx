@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { v4 as uuid } from 'uuid';
 import { useAgents } from './hooks/useAgents';
@@ -22,12 +22,14 @@ import AuditCompliance from './screens/AuditCompliance';
 import SettingsScreen from './screens/SettingsScreen';
 import { ApprovalsScreen } from './screens/ApprovalsScreen';
 import ServicesStatus from './screens/ServicesStatus';
+import NiyantaScreen from './screens/NiyantaScreen';
+import { ExtractedFileAttachment } from './types/message';
 
 const AppContent: React.FC = () => {
   const { theme, toggleTheme } = useTheme();
   const { agents, agentStates, executeAgent, runAllAgents, runAllProgress, addMessage, refreshAgents } = useAgents();
   const { entries } = useAuditLog();
-  const { messages, isSending, sendMessage, startNewChat, historySessions, restoreFromHistory, deleteHistorySession } = useNiyantaChat();
+  const { messages, isSending, sendMessage, startNewChat, historySessions, restoreFromHistory, deleteHistorySession, liveActivity } = useNiyantaChat();
   const { metrics } = useMetrics();
   const { workflows, saveWorkflow } = useWorkflows();
   const runtimeAgents = agents.filter((agent) => !agent.isTemplate);
@@ -60,6 +62,55 @@ const AppContent: React.FC = () => {
   const agentResults = Object.fromEntries(
     Object.entries(agentStates).map(([k, v]) => [k, v.result]).filter(([, v]) => v)
   );
+  const niyantaSystemContext = useMemo(() => {
+    const auditTrail = (entries as Array<Record<string, unknown>>)
+      .slice(0, 24)
+      .map((entry) => ({
+        timestamp: String(entry.timestamp || entry.created_at || new Date().toISOString()),
+        eventType: String(entry.eventType || entry.event_type || 'EVENT'),
+        agentId: entry.agentId || entry.agent_id || null,
+        status: entry.status || null,
+        summary: String(entry.summary || entry.message || entry.details || ''),
+      }));
+
+    return {
+      generatedAt: new Date().toISOString(),
+      agents: runtimeAgents.map((agent) => ({
+        id: agent.id,
+        name: agent.name,
+        capabilities: agent.capabilities,
+        isDefault: agent.isDefault,
+        status: agentStates[agent.id]?.status || 'idle',
+      })),
+      workflows: workflows.slice(0, 24).map((workflow) => ({
+        id: workflow.id,
+        name: workflow.name,
+        category: workflow.category,
+        status: workflow.status,
+        nodeCount: Array.isArray(workflow.nodes) ? workflow.nodes.length : workflow.nodeCount,
+      })),
+      metrics,
+      auditTrail,
+      reports: Object.entries(agentResults).map(([agentId, result]) => ({
+        agentId,
+        summary: typeof (result as Record<string, unknown>)?.summary === 'string' ? (result as Record<string, unknown>).summary : '',
+        decision: (result as Record<string, unknown>)?.decision || null,
+        riskLevel: (result as Record<string, unknown>)?.riskLevel || null,
+      })),
+    };
+  }, [agentResults, agentStates, entries, metrics, runtimeAgents, workflows]);
+  const niyantaSnapshot = useMemo(() => ({
+    activeAgents: runtimeAgents.filter((agent) => {
+      const status = agentStates[agent.id]?.status;
+      return status === 'processing' || status === 'complete';
+    }).length,
+    workflowCount: workflows.length,
+    auditCount: entries.length,
+    decisionCount: Number(metrics.totalDecisionsMade || 0),
+  }), [agentStates, entries.length, metrics.totalDecisionsMade, runtimeAgents, workflows.length]);
+  const handleSendNiyantaMessage = async (message: string, attachments: ExtractedFileAttachment[] = []) => {
+    await sendMessage(message, agentResults as Record<string, unknown>, niyantaSystemContext, attachments);
+  };
 
   const sidebarWidth = sidebarCollapsed ? 64 : 260;
 
@@ -126,7 +177,6 @@ const AppContent: React.FC = () => {
                 workflows={workflows}
                 onRunAll={handleRunAll}
                 runAllProgress={runAllProgress}
-                onOpenAIPanel={() => setAiPanelOpen(true)}
                 theme={theme}
                 onToggleTheme={toggleTheme}
               />
@@ -203,6 +253,40 @@ const AppContent: React.FC = () => {
             }
           />
           <Route path="/monitor" element={<OperationsMonitor />} />
+          <Route
+            path="/niyanta"
+            element={
+              <NiyantaScreen
+                variant="regular"
+                messages={messages}
+                isSending={isSending}
+                liveActivity={liveActivity}
+                onSend={handleSendNiyantaMessage}
+                onNewChat={startNewChat}
+                historySessions={historySessions}
+                onRestoreHistory={restoreFromHistory}
+                onDeleteHistory={deleteHistorySession}
+                systemSnapshot={niyantaSnapshot}
+              />
+            }
+          />
+          <Route
+            path="/niyanta/command"
+            element={
+              <NiyantaScreen
+                variant="command"
+                messages={messages}
+                isSending={isSending}
+                liveActivity={liveActivity}
+                onSend={handleSendNiyantaMessage}
+                onNewChat={startNewChat}
+                historySessions={historySessions}
+                onRestoreHistory={restoreFromHistory}
+                onDeleteHistory={deleteHistorySession}
+                systemSnapshot={niyantaSnapshot}
+              />
+            }
+          />
           <Route path="/audit" element={<AuditCompliance auditEntries={entries} />} />
           <Route path="/approvals" element={<ApprovalsScreen />} />
           <Route path="/services" element={<ServicesStatus agents={runtimeAgents} agentStates={agentStates} />} />
@@ -216,9 +300,10 @@ const AppContent: React.FC = () => {
       <NiyantaAIPanel
         isOpen={aiPanelOpen}
         onClose={() => setAiPanelOpen(false)}
-        onSend={(msg) => sendMessage(msg, agentResults as Record<string, unknown>)}
+        onSend={handleSendNiyantaMessage}
         isSending={isSending}
         messages={messages}
+        liveActivity={liveActivity}
         onNewChat={startNewChat}
         historySessions={historySessions}
         onRestoreHistory={restoreFromHistory}

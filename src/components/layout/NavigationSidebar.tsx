@@ -22,7 +22,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { id: 'command',     label: 'Command Centre',    path: '/',            icon: '▦' },
   { id: 'studio',      label: 'Agent Studio',       path: '/agents',      icon: '◈' },
-  { id: 'workflows',   label: 'Workflows',          path: '/workflows',   icon: '⇢' },
+  { id: 'workflows',   label: 'Workflow Studio',    path: '/workflows',   icon: '⇢' },
   { id: 'operations',  label: 'Operations',         path: '/monitor',     icon: '◎' },
   { id: 'approvals',   label: 'Approvals',          path: '/approvals',   icon: '✓' },
   { id: 'audit',       label: 'Audit & Compliance', path: '/audit',       icon: '⊘' },
@@ -49,8 +49,10 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
 
   const searchItems = [
     { name: 'Command Centre', path: '/' },
-    { name: 'Workflows', path: '/workflows' },
+    { name: 'Workflow Studio', path: '/workflows' },
     { name: 'Agent Studio', path: '/agents' },
+    { name: 'Niyanta AI', path: '/niyanta' },
+    { name: 'Niyanta Command', path: '/niyanta/command' },
     { name: 'Operations', path: '/monitor' },
     { name: 'Approvals', path: '/approvals' },
     { name: 'Audit & Compliance', path: '/audit' },
@@ -89,6 +91,7 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
   };
 
   const activeId = getActiveId();
+  const niyantaRouteActive = location.pathname.startsWith('/niyanta');
   const width = collapsed ? 64 : 260;
 
   return (
@@ -352,10 +355,14 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
         {/* AI Panel toggle */}
         {onToggleAIPanel && (
           <GradientButton
-            onClick={onToggleAIPanel}
+            onClick={() => navigate('/niyanta')}
             width={collapsed ? '36px' : '100%'}
             height="36px"
             className="sidebar-niyanta-button"
+            style={niyantaRouteActive ? {
+              boxShadow: '0 0 0 1px var(--cc-info-border), 0 0 16px rgba(6, 182, 212, 0.18)',
+            } : undefined}
+            title="Open Niyanta AI workspace"
           >
             <span style={{ color: 'var(--status-info)', fontSize: 12 }}>◎</span>
             {!collapsed && <span>Niyanta AI</span>}

@@ -20,7 +20,6 @@ interface CommandCenterProps {
   }>;
   onRunAll?: () => Promise<void>;
   runAllProgress?: string | null;
-  onOpenAIPanel?: () => void;
   theme?: 'dark' | 'light';
   onToggleTheme?: () => void;
 }
@@ -32,7 +31,6 @@ const CommandCenter: React.FC<CommandCenterProps> = ({
   workflows,
   onRunAll,
   runAllProgress,
-  onOpenAIPanel,
   theme = 'dark',
   onToggleTheme,
 }) => {
@@ -250,11 +248,11 @@ const CommandCenter: React.FC<CommandCenterProps> = ({
         <GradientButton
           width="112px"
           height="32px"
-          onClick={() => onOpenAIPanel?.()}
-          title="Open Niyanta AI panel"
+          onClick={() => navigate('/niyanta/command')}
+          title="Open the main Niyanta command workspace"
         >
           <span style={{ color: 'var(--status-info)', fontSize: 12 }}>◎</span>
-          <span>Niyanta AI</span>
+          <span>Niyanta Command</span>
         </GradientButton>
       </div>
     </div>

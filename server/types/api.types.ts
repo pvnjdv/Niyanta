@@ -8,6 +8,41 @@ export interface NiyantaChatRequest {
   message: string;
   conversationHistory: Array<{ role: 'user' | 'assistant'; content: string }>;
   agentResults: Record<string, unknown>;
+  systemContext?: NiyantaSystemContext;
+}
+
+export interface NiyantaSystemContext {
+  generatedAt?: string;
+  agents?: Array<Record<string, unknown>>;
+  workflows?: Array<Record<string, unknown>>;
+  metrics?: Record<string, unknown>;
+  auditTrail?: Array<Record<string, unknown>>;
+  reports?: Array<Record<string, unknown>>;
+}
+
+export type NiyantaTone = 'info' | 'success' | 'warning' | 'danger';
+
+export interface NiyantaActivityItem {
+  id: string;
+  label: string;
+  detail: string;
+  tone: NiyantaTone;
+  timestamp: string;
+}
+
+export interface NiyantaReportCard {
+  id: string;
+  title: string;
+  value: string;
+  detail: string;
+  tone: NiyantaTone;
+}
+
+export interface NiyantaChatResponse {
+  reply: string;
+  timestamp: string;
+  activity: NiyantaActivityItem[];
+  reports: NiyantaReportCard[];
 }
 
 export interface ApiError {

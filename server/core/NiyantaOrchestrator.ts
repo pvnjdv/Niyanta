@@ -488,11 +488,15 @@ export class NiyantaOrchestrator {
   async processOrchestratorChat(
     message: string,
     conversationHistory: Array<{ role: 'user' | 'assistant'; content: string }>,
-    agentResults: Record<string, unknown>
+    agentResults: Record<string, unknown>,
+    systemContext?: Record<string, unknown>
   ): Promise<string> {
     const contextSummary = Object.entries(agentResults)
       .map(([agentId, result]) => `${agentId}: ${JSON.stringify(result).slice(0, 900)}`)
       .join('\n\n');
+    const systemContextSummary = systemContext
+      ? JSON.stringify(systemContext, null, 2).slice(0, 6000)
+      : 'No additional system context provided.';
 
     const systemPrompt = `You are NIYANTA, the Autonomous Enterprise Governor — the central AI orchestrator
 of an enterprise workflow platform. You coordinate 10 specialized agents across all departments.
@@ -502,11 +506,22 @@ You are decisive, authoritative, and concise. You proactively identify cross-wor
 You surface dependencies between workflows (e.g., a meeting approval that triggers procurement).
 You escalate critical issues immediately.
 You always provide WHY-CHAIN reasoning for your recommendations.
+You have access to live control-plane reports, workflow inventory, agent capabilities, and recent audit events.
 
 Current agent results:
 ${contextSummary || 'No agents have run yet.'}
 
-Respond with authority. Be concise. Flag risks. Surface connections between workflows.`;
+Live system context:
+${systemContextSummary}
+
+Respond in plain text with short titled sections when useful.
+Prefer this structure when the query is operational:
+Situation
+What I'm Seeing
+Control Decision
+Next Actions
+Add Risks only if there are material concerns.
+Be specific. Use the live system context instead of generic advice.`;
 
     const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
       { role: 'system', content: systemPrompt },

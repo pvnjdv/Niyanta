@@ -1,4 +1,26 @@
+import {
+  ExtractedFileAttachment,
+  NiyantaActivityItem,
+  NiyantaReportCard,
+} from '../types/message';
+
 const BASE = '/api';
+
+export interface NiyantaSystemContext {
+  generatedAt: string;
+  agents: Array<Record<string, unknown>>;
+  workflows: Array<Record<string, unknown>>;
+  metrics: Record<string, unknown>;
+  auditTrail: Array<Record<string, unknown>>;
+  reports: Array<Record<string, unknown>>;
+}
+
+export interface NiyantaChatResponse {
+  reply: string;
+  timestamp: string;
+  activity?: NiyantaActivityItem[];
+  reports?: NiyantaReportCard[];
+}
 
 export interface RunAgentResponse {
   success: boolean;
@@ -48,15 +70,33 @@ export async function runAgent(agentId: string, inputText: string): Promise<RunA
 export async function sendNiyantaMessage(
   message: string,
   conversationHistory: Array<{ role: 'user' | 'assistant'; content: string }>,
-  agentResults: Record<string, unknown>
-): Promise<{ reply: string; timestamp: string }> {
+  agentResults: Record<string, unknown>,
+  systemContext?: NiyantaSystemContext
+): Promise<NiyantaChatResponse> {
   const response = await fetch(`${BASE}/niyanta/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message, conversationHistory, agentResults }),
+    body: JSON.stringify({ message, conversationHistory, agentResults, systemContext }),
   });
   if (!response.ok) throw new Error('Niyanta chat failed');
   return response.json();
+}
+
+export async function extractNiyantaFiles(files: File[]): Promise<ExtractedFileAttachment[]> {
+  const formData = new FormData();
+  files.forEach((file) => formData.append('files', file));
+
+  const response = await fetch(`${BASE}/niyanta/extract`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to extract file content');
+  }
+
+  const data = await response.json() as { files?: ExtractedFileAttachment[] };
+  return Array.isArray(data.files) ? data.files : [];
 }
 
 export async function fetchCrossWorkflowInsights(agentResults: Record<string, unknown>): Promise<string[]> {

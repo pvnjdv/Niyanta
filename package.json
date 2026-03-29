@@ -13,6 +13,7 @@
     "start:prod": "node dist/server/index.js"
   },
   "dependencies": {
+    "@types/multer": "^2.1.0",
     "@types/react-router-dom": "^5.3.3",
     "better-sqlite3": "^11.7.0",
     "cors": "^2.8.5",
@@ -24,6 +25,8 @@
     "helmet": "^7.2.0",
     "lucide-react": "^1.7.0",
     "morgan": "^1.10.0",
+    "multer": "^2.1.1",
+    "pdf-parse": "^2.4.5",
     "pdfkit": "^0.14.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

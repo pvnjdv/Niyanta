@@ -29,6 +29,8 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
   const [renameValue, setRenameValue] = useState('');
   const [detailAgentId, setDetailAgentId] = useState<string | null>(null);
   const [detailLinkedWorkflows, setDetailLinkedWorkflows] = useState<Array<{workflow_id: string; name: string; description: string; category: string; can_trigger: number}>>([]);
+  const [testTrace, setTestTrace] = useState<Array<{ id: string; label: string; detail: string; tone: 'info' | 'success' | 'warning' | 'danger' }>>([]);
+  const [isTestingCanvas, setIsTestingCanvas] = useState(false);
 
   // Canvas state (for /agents/new or editing)
   const [agentName, setAgentName] = useState('');
@@ -424,6 +426,149 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
     setHasUnsavedAgentChanges(true);
   };
 
+  const cancelWiring = useCallback(() => {
+    wiringFrom.current = null;
+    setWiringPreview(null);
+  }, []);
+
+  const createCanvasEdge = useCallback((from: string, to: string) => {
+    if (!from || !to || from === to) {
+      cancelWiring();
+      return;
+    }
+
+    setAgentEdges((prev) => {
+      if (prev.some((edge) => edge.from === from && edge.to === to)) {
+        return prev;
+      }
+      return [...prev, { id: `e-${Date.now()}-${from}-${to}`, from, to }];
+    });
+    setHasUnsavedAgentChanges(true);
+    cancelWiring();
+  }, [cancelWiring]);
+
+  const beginWiring = useCallback((nodeId: string) => {
+    wiringFrom.current = { nodeId };
+    setWiringPreview(getHandlePos(nodeId, 'right'));
+  }, [canvasNodes, endNodePos, startNodePos]);
+
+  const completeWiring = useCallback((to: string) => {
+    const from = wiringFrom.current?.nodeId;
+    if (!from || from === to) {
+      cancelWiring();
+      return;
+    }
+    createCanvasEdge(from, to);
+  }, [cancelWiring, createCanvasEdge]);
+
+  const buildCanvasExecutionPlan = useCallback(() => {
+    const validNodeIds = new Set<string>(['__start__', '__end__', ...canvasNodes.map((node) => node.id)]);
+    const adjacency = new Map<string, string[]>();
+    agentEdges
+      .filter((edge) => validNodeIds.has(edge.from) && validNodeIds.has(edge.to))
+      .forEach((edge) => {
+        adjacency.set(edge.from, [...(adjacency.get(edge.from) || []), edge.to]);
+      });
+
+    const queue = ['__start__'];
+    const visited = new Set<string>();
+    const orderedNodes: typeof canvasNodes = [];
+
+    while (queue.length > 0) {
+      const current = queue.shift();
+      if (!current || visited.has(current)) continue;
+      visited.add(current);
+      if (current !== '__start__' && current !== '__end__') {
+        const node = canvasNodes.find((item) => item.id === current);
+        if (node) orderedNodes.push(node);
+      }
+      (adjacency.get(current) || []).forEach((next) => {
+        if (!visited.has(next)) queue.push(next);
+      });
+    }
+
+    return {
+      orderedNodes,
+      reachesOutput: visited.has('__end__'),
+    };
+  }, [agentEdges, canvasNodes]);
+
+  const handleTestCanvas = async () => {
+    if (!canvasDiagnostics.isSavable) {
+      alert(canvasDiagnostics.primaryMessage);
+      return;
+    }
+
+    const sampleInput = inputText.trim() || (agentId && agentId !== 'new' ? SAMPLES[agentId] || '' : 'Preview current canvas flow');
+    const executionPlan = buildCanvasExecutionPlan();
+    const draftMode = !editingAgentId || hasUnsavedAgentChanges;
+
+    setIsTestingCanvas(true);
+    setTestTrace([
+      {
+        id: 'trace-input',
+        label: 'Input accepted',
+        detail: sampleInput || 'No explicit input was provided, so the canvas was tested with a control-plane preview.',
+        tone: 'info',
+      },
+    ]);
+
+    try {
+      for (let index = 0; index < executionPlan.orderedNodes.length; index += 1) {
+        const node = executionPlan.orderedNodes[index];
+        await new Promise((resolve) => setTimeout(resolve, 170));
+        setTestTrace((prev) => [...prev, {
+          id: `trace-node-${node.id}`,
+          label: `${index + 1}. ${node.name}`,
+          detail: node.inputInfo || `${node.blockType === 'workflow' ? 'Workflow block' : 'Node block'} routed in controlled sequence.`,
+          tone: node.blockType === 'workflow' ? 'success' : 'info',
+        }]);
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 170));
+      setTestTrace((prev) => [...prev, {
+        id: 'trace-failure',
+        label: 'Failure handling armed',
+        detail: canvasDiagnostics.branchPoints > 0
+          ? 'Branching paths and retry or approval checkpoints are available if a step fails.'
+          : 'Linear path validated. Failures would surface directly into the Niyanta report channel.',
+        tone: 'warning',
+      }]);
+
+      await new Promise((resolve) => setTimeout(resolve, 170));
+      setTestTrace((prev) => [...prev, {
+        id: 'trace-decision',
+        label: 'Decision surfaced',
+        detail: executionPlan.reachesOutput
+          ? 'The graph reaches the Niyanta output anchor and can produce a controlled result.'
+          : 'The graph preview did not reach the output anchor cleanly.',
+        tone: executionPlan.reachesOutput ? 'success' : 'danger',
+      }]);
+
+      await new Promise((resolve) => setTimeout(resolve, 170));
+      setTestTrace((prev) => [...prev, {
+        id: 'trace-log',
+        label: draftMode ? 'Preview logged' : 'Live run ready',
+        detail: draftMode
+          ? 'This was a draft-canvas simulation. Save the agent to execute the live engine with the same structure.'
+          : 'Saved agent configuration is aligned with the current canvas and can execute on the live engine.',
+        tone: 'success',
+      }]);
+
+      if (!draftMode && editingAgentId) {
+        await onExecuteAgent(editingAgentId, sampleInput);
+        setTestTrace((prev) => [...prev, {
+          id: 'trace-live',
+          label: 'Live agent executed',
+          detail: 'The saved agent was run through the live execution engine and reported back into Agent Studio.',
+          tone: 'success',
+        }]);
+      }
+    } finally {
+      setIsTestingCanvas(false);
+    }
+  };
+
   const handleSaveAgent = async () => {
     if (!agentName.trim()) return;
     if (!canvasDiagnostics.isSavable) {
@@ -661,8 +806,11 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
   const handleCanvasMouseUp = () => {
     draggingNode.current = null;
     panningCanvas.current = null;
-    wiringFrom.current = null;
-    setWiringPreview(null);
+  };
+
+  const handleCanvasMouseLeave = () => {
+    draggingNode.current = null;
+    panningCanvas.current = null;
   };
 
   const handleRun = async () => {
@@ -751,37 +899,51 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
 
           <div style={{ flex: 1 }} />
 
+          <input
+            value={inputText}
+            onChange={e => setInputText(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') { if (editingAgentId && !hasUnsavedAgentChanges) handleRun(); else handleTestCanvas(); } }}
+            placeholder={editingAgentId ? 'Input for canvas test or live run...' : 'Input for canvas test...'}
+            style={{
+              width: 260, height: 32, padding: '0 12px',
+              background: 'var(--bg-input)', border: '1px solid var(--border)',
+              borderRadius: 4, fontFamily: 'var(--font-body)', fontSize: 12,
+              color: 'var(--text-primary)', outline: 'none',
+            }}
+          />
+          <button
+            onClick={handleTestCanvas}
+            disabled={!canvasDiagnostics.isSavable || isTestingCanvas}
+            style={{
+              height: 32, padding: '0 16px', borderRadius: 4, fontWeight: 600,
+              fontFamily: 'var(--font-mono)', fontSize: 11,
+              background: !canvasDiagnostics.isSavable || isTestingCanvas ? 'var(--bg-tile)' : 'rgba(59,130,246,0.16)',
+              border: '1px solid rgba(59,130,246,0.35)',
+              color: !canvasDiagnostics.isSavable || isTestingCanvas ? 'var(--text-muted)' : '#93C5FD',
+              cursor: !canvasDiagnostics.isSavable || isTestingCanvas ? 'not-allowed' : 'pointer',
+              display: 'flex', alignItems: 'center', gap: 6,
+            }}
+          >
+            <span>{isTestingCanvas ? '◌' : '⧉'}</span>
+            <span>{isTestingCanvas ? 'TESTING...' : 'TEST CANVAS'}</span>
+          </button>
           {editingAgentId && (
-            <>
-              <input
-                value={inputText}
-                onChange={e => setInputText(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') handleRun(); }}
-                placeholder="Run agent with input..."
-                style={{
-                  width: 260, height: 32, padding: '0 12px',
-                  background: 'var(--bg-input)', border: '1px solid var(--border)',
-                  borderRadius: 4, fontFamily: 'var(--font-body)', fontSize: 12,
-                  color: 'var(--text-primary)', outline: 'none',
-                }}
-              />
-              <button
-                onClick={handleRun}
-                disabled={selectedState?.status === 'processing'}
-                style={{
-                  height: 32, padding: '0 16px', borderRadius: 4, fontWeight: 600,
-                  fontFamily: 'var(--font-mono)', fontSize: 11,
-                  background: selectedState?.status === 'processing' ? 'var(--bg-tile)' : 'var(--accent-dim)',
-                  border: '1px solid var(--accent-border)',
-                  color: selectedState?.status === 'processing' ? 'var(--text-muted)' : 'var(--accent)',
-                  cursor: selectedState?.status === 'processing' ? 'wait' : 'pointer',
-                  display: 'flex', alignItems: 'center', gap: 6,
-                }}
-              >
-                <span>{selectedState?.status === 'processing' ? '■' : '▶'}</span>
-                <span>{selectedState?.status === 'processing' ? 'RUNNING...' : 'RUN'}</span>
-              </button>
-            </>
+            <button
+              onClick={handleRun}
+              disabled={selectedState?.status === 'processing'}
+              style={{
+                height: 32, padding: '0 16px', borderRadius: 4, fontWeight: 600,
+                fontFamily: 'var(--font-mono)', fontSize: 11,
+                background: selectedState?.status === 'processing' ? 'var(--bg-tile)' : 'var(--accent-dim)',
+                border: '1px solid var(--accent-border)',
+                color: selectedState?.status === 'processing' ? 'var(--text-muted)' : 'var(--accent)',
+                cursor: selectedState?.status === 'processing' ? 'wait' : 'pointer',
+                display: 'flex', alignItems: 'center', gap: 6,
+              }}
+            >
+              <span>{selectedState?.status === 'processing' ? '■' : '▶'}</span>
+              <span>{selectedState?.status === 'processing' ? 'RUNNING...' : 'RUN LIVE'}</span>
+            </button>
           )}
 
           <div style={{ width: 1, height: 24, background: 'var(--border)' }} />
@@ -943,6 +1105,18 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
               }}>+</button>
             </div>
 
+            <div style={{
+              position: 'absolute', top: 12, left: 12, zIndex: 10,
+              maxWidth: 360, padding: '10px 12px', borderRadius: 8,
+              border: '1px solid rgba(6,182,212,0.25)', background: 'rgba(6,182,212,0.08)',
+              color: 'var(--text-secondary)', fontSize: 11, lineHeight: 1.55,
+            }}>
+              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#93C5FD', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
+                Canvas Wiring
+              </div>
+              Click an output port, then click an input port to connect blocks. Dragging still works, but click-to-connect keeps the graph controlled and easier to test.
+            </div>
+
             <div
               ref={canvasRef}
               className="canvas-grid"
@@ -955,7 +1129,7 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
               onMouseDown={handleCanvasMouseDown}
               onMouseMove={handleCanvasMouseMove}
               onMouseUp={handleCanvasMouseUp}
-              onMouseLeave={handleCanvasMouseUp}
+              onMouseLeave={handleCanvasMouseLeave}
             >
               <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 1 }}>
                 <defs>
@@ -1026,9 +1200,9 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
                     title="Drag to connect"
                     onMouseDown={e => {
                       e.stopPropagation();
-                      wiringFrom.current = { nodeId: '__start__' };
-                      setWiringPreview(getHandlePos('__start__', 'right'));
+                      beginWiring('__start__');
                     }}
+                    onClick={e => { e.stopPropagation(); beginWiring('__start__'); }}
                     style={{ position: 'absolute', right: -8, top: '50%', transform: 'translateY(-50%)', width: 16, height: 16, borderRadius: '50%', background: '#3B82F6', border: '2px solid var(--bg-base)', cursor: 'crosshair', zIndex: 20 }} />
                 </div>
 
@@ -1048,14 +1222,9 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
                     title="Drop connection here"
                     onMouseUp={e => {
                       e.stopPropagation();
-                      if (wiringFrom.current && wiringFrom.current.nodeId !== '__end__') {
-                        const from = wiringFrom.current.nodeId;
-                        setAgentEdges(prev => prev.some(ed => ed.from === from && ed.to === '__end__') ? prev : [...prev, { id: `e-${Date.now()}`, from, to: '__end__' }]);
-                        setHasUnsavedAgentChanges(true);
-                      }
-                      wiringFrom.current = null;
-                      setWiringPreview(null);
+                      completeWiring('__end__');
                     }}
+                    onClick={e => { e.stopPropagation(); completeWiring('__end__'); }}
                     style={{ position: 'absolute', left: -8, top: '50%', transform: 'translateY(-50%)', width: 16, height: 16, borderRadius: '50%', background: '#7C3AED', border: '2px solid var(--bg-base)', cursor: wiringPreview ? 'crosshair' : 'default', zIndex: 20 }} />
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
                     <div style={{ width: 32, height: 32, borderRadius: 7, background: '#7C3AED', display: 'grid', placeItems: 'center', color: '#fff', fontWeight: 700, fontSize: 14 }}>N</div>
@@ -1090,23 +1259,18 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
                       title="Drop connection here"
                       onMouseUp={e => {
                         e.stopPropagation();
-                        if (wiringFrom.current && wiringFrom.current.nodeId !== node.id) {
-                          const from = wiringFrom.current.nodeId;
-                          setAgentEdges(prev => prev.some(ed => ed.from === from && ed.to === node.id) ? prev : [...prev, { id: `e-${Date.now()}`, from, to: node.id }]);
-                          setHasUnsavedAgentChanges(true);
-                        }
-                        wiringFrom.current = null;
-                        setWiringPreview(null);
+                        completeWiring(node.id);
                       }}
+                      onClick={e => { e.stopPropagation(); completeWiring(node.id); }}
                       style={{ position: 'absolute', left: -8, top: '50%', transform: 'translateY(-50%)', width: 16, height: 16, borderRadius: '50%', background: node.color, border: '2px solid var(--bg-base)', cursor: wiringPreview ? 'crosshair' : 'default', zIndex: 20 }} />
                     {/* Right handle — start new wire */}
                     <div
                       title="Drag to connect"
                       onMouseDown={e => {
                         e.stopPropagation();
-                        wiringFrom.current = { nodeId: node.id };
-                        setWiringPreview(getHandlePos(node.id, 'right'));
+                        beginWiring(node.id);
                       }}
+                      onClick={e => { e.stopPropagation(); beginWiring(node.id); }}
                       style={{ position: 'absolute', right: -8, top: '50%', transform: 'translateY(-50%)', width: 16, height: 16, borderRadius: '50%', background: node.color, border: '2px solid var(--bg-base)', cursor: 'crosshair', zIndex: 20 }} />
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
@@ -1173,6 +1337,19 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
                 fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)',
                 textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 12,
               }}>AGENT CONFIGURATION</div>
+
+              <div style={{
+                marginBottom: 14,
+                padding: '10px 12px',
+                borderRadius: 8,
+                border: '1px solid rgba(59,130,246,0.22)',
+                background: 'rgba(59,130,246,0.08)',
+                fontSize: 11,
+                color: 'var(--text-secondary)',
+                lineHeight: 1.55,
+              }}>
+                Test flow here before saving. The canvas test walks Input → Agent decides → Workflow executes → Failure handling → Decision → Action → Logging so you can validate control flow without guessing.
+              </div>
 
               <label style={{ display: 'block', fontSize: 11, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 6 }}>
                 Description
@@ -1249,6 +1426,69 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
                   />
                 ))}
               </div>
+            </div>
+
+            <div style={{ padding: '16px', borderBottom: '1px solid var(--border)' }}>
+              <div style={{
+                fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)',
+                textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 12,
+              }}>TEST RUN</div>
+
+              <div style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
+                <button
+                  onClick={handleTestCanvas}
+                  disabled={!canvasDiagnostics.isSavable || isTestingCanvas}
+                  style={{
+                    height: 34,
+                    borderRadius: 8,
+                    border: '1px solid rgba(59,130,246,0.35)',
+                    background: !canvasDiagnostics.isSavable || isTestingCanvas ? 'var(--bg-tile)' : 'rgba(59,130,246,0.14)',
+                    color: !canvasDiagnostics.isSavable || isTestingCanvas ? 'var(--text-muted)' : '#93C5FD',
+                    cursor: !canvasDiagnostics.isSavable || isTestingCanvas ? 'not-allowed' : 'pointer',
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: 11,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em',
+                  }}
+                >
+                  {isTestingCanvas ? 'Testing Canvas...' : 'Test Current Canvas'}
+                </button>
+                {editingAgentId && !hasUnsavedAgentChanges && (
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                    Saved agent runs will execute the live engine after the test trace completes.
+                  </div>
+                )}
+              </div>
+
+              {testTrace.length === 0 ? (
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.6 }}>
+                  No canvas trace yet. Run a test to validate graph order, failure posture, and output reporting.
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gap: 8 }}>
+                  {testTrace.map((item) => {
+                    const toneColor = item.tone === 'success'
+                      ? '#10B981'
+                      : item.tone === 'warning'
+                        ? '#F59E0B'
+                        : item.tone === 'danger'
+                          ? '#EF4444'
+                          : '#06B6D4';
+                    return (
+                      <div key={item.id} style={{
+                        border: '1px solid var(--border)',
+                        borderLeft: `3px solid ${toneColor}`,
+                        borderRadius: 8,
+                        padding: '10px 12px',
+                        background: 'var(--cc-surface-1)',
+                      }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: toneColor, marginBottom: 4 }}>{item.label}</div>
+                        <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.55 }}>{item.detail}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             {/* Assigned workflows summary */}

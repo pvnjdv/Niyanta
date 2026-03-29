@@ -1,13 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ChatMessage } from '../../types/message';
+import { extractNiyantaFiles } from '../../services/api';
 import { NiyantaChatSession } from '../../hooks/useNiyantaChat';
+import { ChatMessage, ExtractedFileAttachment, NiyantaActivityItem } from '../../types/message';
 
 interface NiyantaAIPanelProps {
   isOpen: boolean;
   onClose: () => void;
-  onSend: (message: string) => Promise<void>;
+  onSend: (message: string, attachments?: ExtractedFileAttachment[]) => Promise<void>;
   isSending: boolean;
   messages: ChatMessage[];
+  liveActivity: NiyantaActivityItem[];
   onNewChat: () => void;
   historySessions: NiyantaChatSession[];
   onRestoreHistory: (sessionId: string) => void;
@@ -20,6 +22,7 @@ const NiyantaAIPanel: React.FC<NiyantaAIPanelProps> = ({
   onSend,
   isSending,
   messages,
+  liveActivity,
   onNewChat,
   historySessions,
   onRestoreHistory,
@@ -28,11 +31,13 @@ const NiyantaAIPanel: React.FC<NiyantaAIPanelProps> = ({
   const [input, setInput] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
-  const [uploadedFiles, setUploadedFiles] = useState<Array<{ name: string; size: number; type: string; excerpt: string }>>([]);
+  const [uploadedFiles, setUploadedFiles] = useState<ExtractedFileAttachment[]>([]);
+  const [isExtractingFiles, setIsExtractingFiles] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const latestAssistantMessage = [...messages].reverse().find((message) => message.role === 'assistant') || null;
   const quickPrompts = [
     'Summarize current system health and alerts.',
     'Which agent had the most failures today?',
@@ -61,17 +66,10 @@ const NiyantaAIPanel: React.FC<NiyantaAIPanelProps> = ({
     const text = input.trim();
     if ((!text && uploadedFiles.length === 0) || isSending) return;
 
-    let payload = text;
-    if (uploadedFiles.length > 0) {
-      const filesContext = uploadedFiles
-        .map((f, idx) => `File ${idx + 1}: ${f.name} (${Math.max(1, Math.round(f.size / 1024))} KB)\nExcerpt: ${f.excerpt || 'No text preview available.'}`)
-        .join('\n\n');
-      payload = `${text || 'Please analyze the uploaded files.'}\n\n[Uploaded Files Context]\n${filesContext}`;
-    }
-
     setInput('');
+    const attachments = uploadedFiles;
     setUploadedFiles([]);
-    await onSend(payload);
+    await onSend(text, attachments);
   };
 
   const handleQuickPrompt = async (prompt: string) => {
@@ -93,29 +91,18 @@ const NiyantaAIPanel: React.FC<NiyantaAIPanelProps> = ({
     }
   };
 
-  const readFileExcerpt = async (file: File): Promise<string> => {
-    const textLike = ['text/', 'application/json', 'application/xml', 'application/javascript'];
-    if (!textLike.some((type) => file.type.startsWith(type) || file.type === type) && !/\.(txt|md|csv|json|log)$/i.test(file.name)) {
-      return '';
-    }
-    const text = await file.text();
-    const normalized = text.replace(/\s+/g, ' ').trim();
-    return normalized.slice(0, 180);
-  };
-
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
+    const files = Array.from(e.target.files || []).slice(0, 4);
     if (files.length === 0) return;
 
-    const parsed = await Promise.all(files.slice(0, 4).map(async (file) => ({
-      name: file.name,
-      size: file.size,
-      type: file.type,
-      excerpt: await readFileExcerpt(file),
-    })));
-
-    setUploadedFiles(parsed);
-    e.target.value = '';
+    setIsExtractingFiles(true);
+    try {
+      const parsed = await extractNiyantaFiles(files);
+      setUploadedFiles(parsed);
+    } finally {
+      setIsExtractingFiles(false);
+      e.target.value = '';
+    }
   };
 
   if (!isOpen) return null;
@@ -258,6 +245,17 @@ const NiyantaAIPanel: React.FC<NiyantaAIPanelProps> = ({
         <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 999, border: '1px solid var(--border)', color: uploadedFiles.length > 0 ? 'var(--status-success)' : 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>Files {uploadedFiles.length}</span>
       </div>
 
+      {liveActivity.length > 0 && (
+        <div style={{ display: 'flex', gap: 8, padding: '8px 12px', overflowX: 'auto', borderBottom: '1px solid var(--border-subtle)', background: 'rgba(6,182,212,0.05)' }}>
+          {liveActivity.map((item) => (
+            <div key={item.id + item.timestamp} style={{ minWidth: 160, padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--cc-surface-1)' }}>
+              <div style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--status-info)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>{item.label}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.45 }}>{item.detail}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Messages */}
       <div
         style={{
@@ -333,6 +331,26 @@ const NiyantaAIPanel: React.FC<NiyantaAIPanelProps> = ({
               }}
             >
               {msg.content}
+              {msg.attachments && msg.attachments.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                  {msg.attachments.map((file) => (
+                    <span key={file.name + file.size} style={{ fontSize: 10, padding: '4px 7px', borderRadius: 6, border: '1px solid var(--border)', background: 'rgba(255,255,255,0.04)', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>
+                      {file.name}
+                    </span>
+                  ))}
+                </div>
+              )}
+              {msg.reports && msg.reports.length > 0 && (
+                <div style={{ display: 'grid', gap: 6, marginTop: 10 }}>
+                  {msg.reports.map((report) => (
+                    <div key={report.id} style={{ border: '1px solid var(--border)', borderRadius: 8, padding: '8px 10px', background: 'rgba(255,255,255,0.03)' }}>
+                      <div style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--status-info)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{report.title}</div>
+                      <div style={{ marginTop: 4, fontSize: 18, fontWeight: 700 }}>{report.value}</div>
+                      <div style={{ marginTop: 4, fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.5 }}>{report.detail}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
             <span
               style={{
@@ -347,6 +365,17 @@ const NiyantaAIPanel: React.FC<NiyantaAIPanelProps> = ({
             </span>
           </div>
         ))}
+
+        {latestAssistantMessage?.activity && latestAssistantMessage.activity.length > 0 && (
+          <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: 8, display: 'grid', gap: 6 }}>
+            {latestAssistantMessage.activity.map((item) => (
+              <div key={item.id + item.timestamp} style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                <span style={{ color: 'var(--status-info)', fontFamily: 'var(--font-mono)', marginRight: 6 }}>{item.label}</span>
+                {item.detail}
+              </div>
+            ))}
+          </div>
+        )}
 
         {isSending && (
           <div
@@ -386,7 +415,7 @@ const NiyantaAIPanel: React.FC<NiyantaAIPanelProps> = ({
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
             {uploadedFiles.map((f) => (
               <span key={f.name} style={{ fontSize: 10, padding: '4px 7px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--cc-surface-1)', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>
-                {f.name}
+                {f.name} {f.pageCount ? `· ${f.pageCount}p` : ''}
               </span>
             ))}
           </div>
@@ -406,7 +435,7 @@ const NiyantaAIPanel: React.FC<NiyantaAIPanelProps> = ({
               borderRadius: 4,
               border: '1px solid var(--border)',
               background: 'transparent',
-              color: uploadedFiles.length > 0 ? 'var(--status-success)' : 'var(--text-secondary)',
+              color: isExtractingFiles ? 'var(--status-info)' : uploadedFiles.length > 0 ? 'var(--status-success)' : 'var(--text-secondary)',
               cursor: 'pointer',
               display: 'grid',
               placeItems: 'center',
@@ -415,7 +444,7 @@ const NiyantaAIPanel: React.FC<NiyantaAIPanelProps> = ({
             }}
             title="Upload files"
           >
-            ⤴
+            {isExtractingFiles ? '…' : '⤴'}
           </button>
           <textarea
             ref={inputRef}
