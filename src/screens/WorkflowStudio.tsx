@@ -1489,6 +1489,12 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
       (wf.description || '').toLowerCase().includes(searchFilter.toLowerCase()) ||
       (wf.category || '').toLowerCase().includes(searchFilter.toLowerCase())
     );
+    const activeCount = allWorkflows.filter(wf => {
+      const status = String(wf.status || '').toLowerCase();
+      return status === 'active' || status === 'running' || status === 'published';
+    }).length;
+    const draftCount = allWorkflows.filter(wf => String(wf.status || '').toLowerCase() === 'draft').length;
+    const defaultCount = allWorkflows.filter(wf => Boolean(wf.is_default)).length;
 
     const handleDelete = async (id: string, name: string) => {
       if (!confirm(`Delete workflow "${name}"? This cannot be undone.`)) return;
@@ -1600,50 +1606,113 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
     };
 
     return (
-      <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--bg-base)' }}>
-        {/* Top Bar */}
+      <div style={{
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        background: 'radial-gradient(circle at 15% 0%, var(--cc-glow-a), transparent 40%), radial-gradient(circle at 85% 0%, var(--cc-glow-b), transparent 35%)',
+        padding: 16,
+        gap: 12,
+      }}>
         <div style={{
-          height: 56, display: 'flex', alignItems: 'center', padding: '0 24px', gap: 12,
-          borderBottom: '1px solid var(--border)', background: 'var(--bg-dock)', flexShrink: 0,
+          borderRadius: 12,
+          border: '1px solid var(--border)',
+          background: 'linear-gradient(160deg, var(--cc-panel-top), var(--cc-panel-bottom))',
+          boxShadow: 'var(--cc-panel-shadow)',
+          padding: 14,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 12,
+          flexShrink: 0,
         }}>
-          <input
-            value={searchFilter}
-            onChange={(e) => setSearchFilter(e.target.value)}
-            placeholder="Search workflows..."
-            style={{
-              flex: 1, maxWidth: 400, height: 36, padding: '0 14px', fontSize: 13,
-              background: 'var(--bg-input)', border: '1px solid var(--border)',
-              borderRadius: 4, color: 'var(--text-primary)', outline: 'none',
-            }}
-          />
-          <button
-            onClick={() => navigate('/workflows/new')}
-            style={{
-              height: 36, padding: '0 20px', borderRadius: 4, fontWeight: 600,
-              background: 'var(--accent-dim)', border: '1px solid var(--accent-border)',
-              color: 'var(--accent)', cursor: 'pointer', fontSize: 13,
-              fontFamily: 'var(--font-mono)', marginLeft: 'auto',
-            }}
-          >
-            + CREATE
-          </button>
-          <button
-            onClick={() => setShowTemplateGallery(true)}
-            style={{
-              height: 36, padding: '0 20px', borderRadius: 4, fontWeight: 600,
-              background: 'transparent', border: '1px solid var(--border)',
-              color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13,
-              fontFamily: 'var(--font-mono)',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent-border)'; e.currentTarget.style.color = 'var(--accent)'; }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
-          >
-            TEMPLATES
-          </button>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+            <div>
+              <div style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 700, letterSpacing: '0.02em' }}>Workflow Studio</div>
+              <div style={{ marginTop: 4, fontSize: 13, color: 'var(--text-secondary)' }}>Build, deploy, and monitor reusable automations.</div>
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              <span style={{ height: 22, display: 'inline-flex', alignItems: 'center', padding: '0 10px', borderRadius: 999, border: '1px solid var(--cc-ok-border)', background: 'var(--cc-ok-bg)', color: 'var(--status-success)', fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 700 }}>
+                {activeCount} Active
+              </span>
+              <span style={{ height: 22, display: 'inline-flex', alignItems: 'center', padding: '0 10px', borderRadius: 999, border: '1px solid var(--cc-warn-border)', background: 'var(--cc-warn-bg)', color: 'var(--status-warning)', fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 700 }}>
+                {draftCount} Draft
+              </span>
+              <span style={{ height: 22, display: 'inline-flex', alignItems: 'center', padding: '0 10px', borderRadius: 999, border: '1px solid var(--cc-info-border)', background: 'var(--cc-info-bg)', color: 'var(--status-info)', fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 700 }}>
+                {defaultCount} Default
+              </span>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <input
+              value={searchFilter}
+              onChange={(e) => setSearchFilter(e.target.value)}
+              placeholder="Search workflows..."
+              style={{
+                flex: 1,
+                minWidth: 220,
+                maxWidth: 480,
+                height: 36,
+                padding: '0 14px',
+                fontSize: 13,
+                background: 'var(--bg-input)',
+                border: '1px solid var(--border)',
+                borderRadius: 8,
+                color: 'var(--text-primary)',
+                outline: 'none',
+              }}
+            />
+            <button
+              onClick={() => navigate('/workflows/new')}
+              style={{
+                height: 36,
+                padding: '0 18px',
+                borderRadius: 8,
+                fontWeight: 700,
+                background: 'var(--accent-dim)',
+                border: '1px solid var(--accent-border)',
+                color: 'var(--accent)',
+                cursor: 'pointer',
+                fontSize: 12,
+                fontFamily: 'var(--font-mono)',
+                letterSpacing: '0.04em',
+              }}
+            >
+              NEW WORKFLOW
+            </button>
+            <button
+              onClick={() => setShowTemplateGallery(true)}
+              style={{
+                height: 36,
+                padding: '0 18px',
+                borderRadius: 8,
+                fontWeight: 700,
+                background: 'var(--cc-action-primary-bg)',
+                border: '1px solid var(--border)',
+                color: 'var(--text-secondary)',
+                cursor: 'pointer',
+                fontSize: 12,
+                fontFamily: 'var(--font-mono)',
+                letterSpacing: '0.04em',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent-border)'; e.currentTarget.style.color = 'var(--accent)'; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
+            >
+              TEMPLATES
+            </button>
+          </div>
         </div>
 
         {/* Workflow Grid */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
+        <div style={{
+          flex: 1,
+          overflowY: 'auto',
+          padding: 12,
+          borderRadius: 12,
+          border: '1px solid var(--border)',
+          background: 'linear-gradient(160deg, var(--cc-panel-top), var(--cc-panel-bottom))',
+          boxShadow: 'var(--cc-panel-shadow)',
+        }}>
           {loadingWorkflows ? (
             <div style={{ textAlign: 'center', padding: '32px 0' }}>
               <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Loading workflows...</div>
@@ -1693,16 +1762,16 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
                   <div
                     key={workflow.id}
                     style={{
-                      background: 'var(--bg-panel)',
+                      background: 'var(--cc-surface-1)',
                       border: '1px solid var(--border)',
                       borderLeft: `3px solid ${catColor}`,
-                      borderRadius: 6,
+                      borderRadius: 10,
                       padding: '16px 18px',
                       cursor: 'pointer',
-                      transition: 'border-color 0.15s',
+                      transition: 'border-color 0.15s, transform 0.15s ease',
                     }}
-                    onMouseEnter={e => { e.currentTarget.style.borderColor = catColor; }}
-                    onMouseLeave={e => { (e.currentTarget.style as any).border = '1px solid var(--border)'; e.currentTarget.style.borderLeft = `3px solid ${catColor}`; }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = catColor; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                    onMouseLeave={e => { (e.currentTarget.style as any).border = '1px solid var(--border)'; e.currentTarget.style.borderLeft = `3px solid ${catColor}`; e.currentTarget.style.transform = 'translateY(0)'; }}
                     onClick={(e) => {
                       if (!(e.target as HTMLElement).closest('.workflow-action-btn')) {
                         setOpenWorkflowMenuId(null);
