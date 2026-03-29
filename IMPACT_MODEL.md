@@ -7,10 +7,10 @@ This document gives a back-of-envelope estimate of business impact for Niyanta A
 For a mid-sized company using Niyanta for invoice processing, document intake, procurement approvals, onboarding/access workflows, and incident triage, a reasonable base-case estimate is:
 
 - Time saved: about 308 hours per month
-- Labor savings: about $166,000 per year
-- Cost reduced: about $72,000 per year
-- Revenue recovered: about $64,000 per year
-- Total modeled annual impact: about $302,000 per year
+- Labor savings: about ₹1,49,76,900 per year
+- Cost reduced: about ₹64,80,000 per year
+- Revenue recovered: about ₹57,60,000 per year
+- Total modeled annual impact: about ₹2,72,16,900 per year
 
 ## Scope of the Model
 
@@ -47,12 +47,12 @@ It does not attempt to count every possible upside. It excludes secondary benefi
 
 | Assumption | Value |
 | --- | ---: |
-| Blended loaded labor rate | $45/hour |
+| Blended loaded labor rate | ₹4,050/hour |
 | Revenue-facing hires per year | 12 |
 | Productive days recovered per revenue-facing hire | 5 days |
-| Realized revenue per recovered productive day | $600/day |
+| Realized revenue per recovered productive day | ₹54,000/day |
 | At-risk renewals affected by faster incident response | 4 per year |
-| Average renewal value | $20,000 ARR |
+| Average renewal value | ₹18,00,000 ARR |
 | Probability of saving each at-risk renewal | 35% |
 
 ## Impact Formulas
@@ -82,56 +82,54 @@ Revenue recovery is estimated from:
 
 | Workflow area | Manual time | With Niyanta | Minutes saved | Monthly hours saved | Annual labor value |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Invoice processing | 12 min | 4 min | 8 min | 200.0 | $108,000 |
-| Procurement approvals | 18 min | 8 min | 10 min | 41.7 | $22,500 |
-| Document intake/classification | 6 min | 2 min | 4 min | 33.3 | $18,000 |
-| HR/IT onboarding and access | 60 min | 15 min | 45 min | 22.5 | $12,150 |
-| Incident triage and monitoring | 15 min | 7 min | 8 min | 10.7 | $5,760 |
-| **Total** |  |  |  | **308.2** | **$166,410** |
+| Invoice processing | 12 min | 4 min | 8 min | 200.0 | ₹97,20,000 |
+| Procurement approvals | 18 min | 8 min | 10 min | 41.7 | ₹20,25,000 |
+| Document intake/classification | 6 min | 2 min | 4 min | 33.3 | ₹16,20,000 |
+| HR/IT onboarding and access | 60 min | 15 min | 45 min | 22.5 | ₹10,93,500 |
+| Incident triage and monitoring | 15 min | 7 min | 8 min | 10.7 | ₹5,18,400 |
+| **Total** |  |  |  | **308.2** | **₹1,49,76,900** |
 
 Rounded summary:
 
 - Monthly time saved: about 308 hours
 - Annual time saved: about 3,698 hours
-- Annual labor savings: about $166,000
+- Annual labor savings: about ₹1,49,77,000
 
 ## Base-Case Cost Reduction Model
 
 | Cost bucket | Assumption | Annual impact |
 | --- | --- | ---: |
-| Duplicate or incorrect invoice handling avoided | $18M annual AP spend × 0.10% avoidable leakage prevented | $18,000 |
-| Procurement policy leakage reduced | $6M in-scope spend × 0.60% off-contract leakage avoided | $36,000 |
-| SLA credits or service penalties avoided | 6 incidents per year × $3,000 avoided cost each | $18,000 |
-| **Total cost reduced** |  | **$72,000** |
+| Duplicate or incorrect invoice handling avoided | ₹162,00,00,000 annual AP spend × 0.10% avoidable leakage prevented | ₹16,20,000 |
+| Procurement policy leakage reduced | ₹54,00,00,000 in-scope spend × 0.60% off-contract leakage avoided | ₹32,40,000 |
+| SLA credits or service penalties avoided | 6 incidents per year × ₹2,70,000 avoided cost each | ₹16,20,000 |
+| **Total cost reduced** |  | **₹64,80,000** |
 
 ## Base-Case Revenue Recovered Model
 
 | Revenue bucket | Assumption | Annual impact |
 | --- | --- | ---: |
-| Faster onboarding of revenue-facing hires | 12 hires × 5 recovered days × $600/day | $36,000 |
-| Reduced churn/service risk from faster incident response | 4 at-risk renewals × $20,000 ARR × 35% save probability | $28,000 |
-| **Total revenue recovered** |  | **$64,000** |
+| Faster onboarding of revenue-facing hires | 12 hires × 5 recovered days × ₹54,000/day | ₹32,40,000 |
+| Reduced churn/service risk from faster incident response | 4 at-risk renewals × ₹18,00,000 ARR × 35% save probability | ₹25,20,000 |
+| **Total revenue recovered** |  | **₹57,60,000** |
 
 ## Total Base-Case Impact
 
 | Impact type | Annual value |
 | --- | ---: |
-| Labor savings from time saved | $166,410 |
-| Cost reduced | $72,000 |
-| Revenue recovered | $64,000 |
-| **Total modeled annual impact** | **$302,410** |
+| Labor savings from time saved | ₹1,49,76,900 |
+| Cost reduced | ₹64,80,000 |
+| Revenue recovered | ₹57,60,000 |
+| **Total modeled annual impact** | **₹2,72,16,900** |
 
-Rounded executive number: about **$302K per year**.
+Rounded executive number: about **₹2.72 Cr per year**.
 
 ## Scenario View
 
-The same model can be expressed as conservative, base, and aggressive scenarios.
-
 | Scenario | Hours saved per month | Labor savings per year | Cost reduced per year | Revenue recovered per year | Total annual impact |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Conservative | 220 | $118,800 | $40,000 | $30,000 | $188,800 |
-| Base case | 308 | $166,410 | $72,000 | $64,000 | $302,410 |
-| Aggressive | 430 | $232,200 | $110,000 | $105,000 | $447,200 |
+| Conservative | 220 | ₹1,06,92,000 | ₹36,00,000 | ₹27,00,000 | ₹1,69,92,000 |
+| Base case | 308 | ₹1,49,76,900 | ₹64,80,000 | ₹57,60,000 | ₹2,72,16,900 |
+| Aggressive | 430 | ₹2,08,98,000 | ₹99,00,000 | ₹94,50,000 | ₹4,02,48,000 |
 
 ## Why These Assumptions Are Reasonable
 
@@ -146,7 +144,7 @@ Replace the base assumptions with your actual numbers:
 
 1. Replace monthly volumes with your own invoice, request, onboarding, and incident counts.
 2. Replace manual and automated handling times with time-study data from your teams.
-3. Replace the $45/hour labor rate with your fully loaded internal rate.
+3. Replace the ₹4,050/hour labor rate with your fully loaded internal rate.
 4. Replace renewal and productivity assumptions with your actual ARR, quota, or service-credit numbers.
 5. Recompute the same formulas to get a company-specific estimate.
 
