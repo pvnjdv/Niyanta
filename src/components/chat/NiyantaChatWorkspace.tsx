@@ -77,7 +77,16 @@ const NiyantaChatWorkspace: React.FC<NiyantaChatWorkspaceProps> = ({
 
   const m = metrics as Record<string, unknown>;
   const toNum = (v: unknown, fallback = 0) => { const n = Number(v); return Number.isFinite(n) ? n : fallback; };
-  const failedToday = toNum(m.failedToday, 0);
+  const recentRuns = Array.isArray(m.recentRuns) ? (m.recentRuns as Array<Record<string, unknown>>) : [];
+  const activeFailures = toNum(
+    m.activeFailures,
+    recentRuns.filter((run) => {
+      const status = String(run.status || '').toUpperCase();
+      const category = String(run.category || '').toLowerCase();
+      const workflowId = String(run.workflowId || '');
+      return status === 'FAILED' && category !== 'agent' && !workflowId.startsWith('wf_agent_');
+    }).length
+  );
   const criticalAlerts = toNum(m.criticalAlerts, 0);
   const pendingApprovals = toNum(m.pendingApprovals, 0);
   const totalRuns = toNum(m.totalWorkflowsRun ?? m.totalRuns, workflows.length);
@@ -399,7 +408,7 @@ const NiyantaChatWorkspace: React.FC<NiyantaChatWorkspaceProps> = ({
                 {[
                   { label: 'Agents', value: systemSnapshot.activeAgents, tone: systemSnapshot.activeAgents > 0 ? 'var(--status-success)' : 'var(--text-muted)' },
                   { label: 'Workflows', value: systemSnapshot.workflowCount, tone: 'var(--status-info)' },
-                  { label: 'Errors', value: failedToday, tone: failedToday > 0 ? 'var(--status-danger)' : 'var(--text-muted)' },
+                  { label: 'Errors', value: activeFailures, tone: activeFailures > 0 ? 'var(--status-danger)' : 'var(--text-muted)' },
                   { label: 'Decisions', value: systemSnapshot.decisionCount, tone: 'var(--status-info)' },
                 ].map(stat => (
                   <div key={stat.label} style={{ border: '1px solid var(--border)', borderRadius: 8, padding: '8px 10px', background: 'var(--bg-input)' }}>

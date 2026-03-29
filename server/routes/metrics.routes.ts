@@ -54,7 +54,7 @@ router.get('/', (_req: Request, res: Response) => {
 
   const runs = db
     .prepare(
-      `SELECT wr.*, w.name AS workflow_name, w.category AS workflow_category
+      `SELECT wr.*, w.name AS workflow_name, w.category AS workflow_category, COALESCE(w.is_agent, 0) AS workflow_is_agent
        FROM workflow_runs wr
        LEFT JOIN workflows w ON w.id = wr.workflow_id
        ORDER BY wr.started_at DESC`
@@ -112,7 +112,15 @@ router.get('/', (_req: Request, res: Response) => {
   let totalTasksCreated = 0;
 
   const runById = new Map<string, Record<string, unknown>>(runs.map((run) => [String(run.id), run]));
+  const latestRunByWorkflow = new Map<string, Record<string, unknown>>();
   const workflowNodeNames = new Map<string, string>();
+
+  runs.forEach((run) => {
+    const workflowId = String(run.workflow_id || '');
+    if (workflowId && !latestRunByWorkflow.has(workflowId)) {
+      latestRunByWorkflow.set(workflowId, run);
+    }
+  });
 
   workflowRows.forEach((workflow) => {
     const workflowId = String(workflow.id || '');
@@ -207,6 +215,10 @@ router.get('/', (_req: Request, res: Response) => {
     const startedAt = new Date(String(run.started_at || 0)).getTime();
     return String(run.status) === 'FAILED' && startedAt >= startOfDay.getTime();
   }).length;
+  const activeFailures = Array.from(latestRunByWorkflow.values()).filter((run) => (
+    String(run.status || '').toUpperCase() === 'FAILED'
+      && Number(run.workflow_is_agent || 0) === 0
+  )).length;
 
   const alerts = [
     ...approvals
@@ -340,6 +352,7 @@ router.get('/', (_req: Request, res: Response) => {
     activeAgents,
     workflows: workflowCount,
     pendingApprovals,
+    activeFailures,
     failedToday,
     criticalAlerts,
     workflowStatusBreakdown,

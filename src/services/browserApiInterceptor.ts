@@ -740,6 +740,7 @@ function buildMetrics(store: BrowserStoreShape): JsonRecord {
   const startOfDay = new Date();
   startOfDay.setHours(0, 0, 0, 0);
   const workflowById = new Map(store.workflows.map((workflow) => [workflow.id, workflow]));
+  const latestRunByWorkflow = new Map<string, Record<string, unknown>>();
   const workflowStatusBreakdown = {
     PENDING: 0,
     RUNNING: 0,
@@ -752,6 +753,13 @@ function buildMetrics(store: BrowserStoreShape): JsonRecord {
   let totalDurationMs = 0;
   let completedDurationCount = 0;
   let totalTasksCreated = 0;
+
+  runs.forEach((run) => {
+    const workflowId = String(run.workflow_id || '');
+    if (workflowId && !latestRunByWorkflow.has(workflowId)) {
+      latestRunByWorkflow.set(workflowId, run as unknown as Record<string, unknown>);
+    }
+  });
 
   store.auditEntries.forEach((entry) => {
     const decision = String(entry.decision || '').toUpperCase();
@@ -850,6 +858,10 @@ function buildMetrics(store: BrowserStoreShape): JsonRecord {
     .slice(0, 8);
 
   const pendingApprovals = approvals.filter((approval) => String(approval.status) === 'PENDING').length;
+  const activeFailures = Array.from(latestRunByWorkflow.values()).filter((run) => {
+    const workflow = workflowById.get(String(run.workflow_id || '')) as { is_agent?: number } | undefined;
+    return String(run.status || '').toUpperCase() === 'FAILED' && Number(workflow?.is_agent || 0) === 0;
+  }).length;
   const alerts = [
     ...approvals
       .filter((approval) => String(approval.status) === 'PENDING' && String(approval.priority) === 'critical')
@@ -894,6 +906,7 @@ function buildMetrics(store: BrowserStoreShape): JsonRecord {
     workflows: store.workflows.length,
     templates: store.agents.filter((agent) => agent.is_template === 1).length,
     pendingApprovals,
+    activeFailures,
     failedToday: runs.filter((run) => String(run.status) === 'FAILED' && new Date(String(run.started_at)).getTime() >= startOfDay.getTime()).length,
     criticalAlerts: alerts.filter((alert) => alert.level === 'critical').length,
     workflowStatusBreakdown,

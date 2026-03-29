@@ -793,9 +793,15 @@ function countMeaningfulNodes(logs: WorkflowContext['logs']): number {
   return uniqueNodeIds.size;
 }
 
+function getAIFallbackCount(context: WorkflowContext): number {
+  const fallbacks = context.metadata?.aiFallbacks;
+  return Array.isArray(fallbacks) ? fallbacks.length : 0;
+}
+
 function buildActivity(parsed: ParsedCommand, attachments: CommandAttachment[], workflowName: string | undefined, result: { status: string; context: WorkflowContext }, runId?: string): NiyantaActivityItem[] {
   const startedAt = new Date().toISOString();
   const extractionIssues = attachments.filter((attachment) => attachment.extractionStatus === 'failed' || attachment.extractionStatus === 'unsupported');
+  const aiFallbackCount = getAIFallbackCount(result.context);
   const items: NiyantaActivityItem[] = [
     {
       id: 'command-received',
@@ -853,6 +859,16 @@ function buildActivity(parsed: ParsedCommand, attachments: CommandAttachment[], 
     });
   });
 
+  if (aiFallbackCount > 0) {
+    items.push({
+      id: 'ai-fallback',
+      label: 'Local AI fallback engaged',
+      detail: `${aiFallbackCount} AI step${aiFallbackCount === 1 ? '' : 's'} used local fallback because Groq was unavailable or rate-limited.`,
+      tone: 'warning',
+      timestamp: new Date(Date.now() + 900).toISOString(),
+    });
+  }
+
   items.push({
     id: 'niyanta-decision',
     label: 'Niyanta decision',
@@ -875,6 +891,11 @@ function buildActivity(parsed: ParsedCommand, attachments: CommandAttachment[], 
 function buildReports(parsed: ParsedCommand, result: { status: string; context: WorkflowContext }, runId?: string): NiyantaReportCard[] {
   const nodeCount = countMeaningfulNodes(result.context.logs || []);
   const failureCount = (result.context.logs || []).filter((log) => log.status === 'failed').length;
+  const aiFallbackCount = getAIFallbackCount(result.context);
+  const runDetail = runId ? `Workflow run ${runId.slice(0, 8)} is now persisted.` : 'No workflow run created.';
+  const fallbackDetail = aiFallbackCount > 0
+    ? ` Executed with local fallback in ${aiFallbackCount} AI step${aiFallbackCount === 1 ? '' : 's'}.`
+    : '';
 
   return [
     {
@@ -902,8 +923,8 @@ function buildReports(parsed: ParsedCommand, result: { status: string; context: 
       id: 'run',
       title: 'Run Status',
       value: result.status,
-      detail: runId ? `Workflow run ${runId.slice(0, 8)} is now persisted.` : 'No workflow run created.',
-      tone: result.status === 'WAITING_APPROVAL' ? 'warning' : result.status === 'FAILED' ? 'danger' : 'success',
+      detail: `${runDetail}${fallbackDetail}`,
+      tone: result.status === 'WAITING_APPROVAL' ? 'warning' : result.status === 'FAILED' ? 'danger' : aiFallbackCount > 0 ? 'warning' : 'success',
     },
   ];
 }
@@ -911,11 +932,15 @@ function buildReports(parsed: ParsedCommand, result: { status: string; context: 
 function buildReply(parsed: ParsedCommand, result: { status: string; context: WorkflowContext }, attachments: CommandAttachment[]): string {
   const nodeCount = countMeaningfulNodes(result.context.logs || []);
   const failureCount = (result.context.logs || []).filter((log) => log.status === 'failed').length;
+  const aiFallbackCount = getAIFallbackCount(result.context);
   const attachmentLine = attachments.length > 0
     ? `Attachments: ${attachments.map((attachment) => attachment.name).join(', ')}`
     : 'Attachments: None';
   const vendorLine = parsed.vendor ? `Vendor: ${parsed.vendor}` : 'Vendor: Not detected';
   const amountLine = parsed.amount ? `Amount: ${formatCurrency(parsed.amount)}` : 'Amount: Not detected';
+  const executionModeLine = aiFallbackCount > 0
+    ? `Execution Mode: Local fallback used for ${aiFallbackCount} AI step${aiFallbackCount === 1 ? '' : 's'} because Groq was unavailable or rate-limited.`
+    : null;
   const approvalLine = result.status === 'WAITING_APPROVAL'
     ? 'Approval Required: Please approve from Approvals or type "approve latest" here. Type "reject latest: <reason>" to reject.'
     : result.status === 'FAILED'
@@ -934,6 +959,7 @@ function buildReply(parsed: ParsedCommand, result: { status: string; context: Wo
     `Risk: ${parsed.riskLevel.toUpperCase()}`,
     `Next Action: ${parsed.nextAction}`,
     `Summary: ${nodeCount} operational node${nodeCount === 1 ? '' : 's'} executed.`,
+    executionModeLine,
     approvalLine,
   ].filter(Boolean).join('\n');
 }

@@ -10,6 +10,204 @@ export interface NodeToExecute {
   config: Record<string, unknown>;
 }
 
+function toErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : 'Unknown';
+}
+
+function normalizeStringList(value: unknown, fallback: string[] = []): string[] {
+  if (Array.isArray(value)) {
+    return value.map((entry) => String(entry).trim()).filter(Boolean);
+  }
+
+  if (typeof value === 'string') {
+    return value.split(',').map((entry) => entry.trim()).filter(Boolean);
+  }
+
+  return fallback;
+}
+
+function flattenText(value: unknown): string {
+  if (typeof value === 'string') {
+    return value.toLowerCase();
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((entry) => flattenText(entry)).join(' ');
+  }
+
+  if (value && typeof value === 'object') {
+    return Object.values(value as Record<string, unknown>).map((entry) => flattenText(entry)).join(' ');
+  }
+
+  return String(value || '').toLowerCase();
+}
+
+function toNumericValue(...values: unknown[]): number | undefined {
+  for (const value of values) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+
+  return undefined;
+}
+
+function buildFallbackMetadata(
+  context: WorkflowContext,
+  node: NodeToExecute,
+  reason: string,
+  extra: Record<string, unknown>
+): Record<string, unknown> {
+  const aiFallbacks = Array.isArray(context.metadata.aiFallbacks) ? (context.metadata.aiFallbacks as unknown[]) : [];
+
+  return {
+    ...context.metadata,
+    ...extra,
+    aiFallbackUsed: true,
+    aiFallbacks: [
+      ...aiFallbacks,
+      {
+        nodeId: node.instanceId,
+        nodeType: node.nodeType,
+        reason,
+        timestamp: new Date().toISOString(),
+      },
+    ],
+  };
+}
+
+function buildLocalClassification(categories: string[], contextData: unknown): Record<string, unknown> {
+  const normalizedCategories = categories.length > 0 ? categories : ['general'];
+  const haystack = flattenText(contextData);
+  const heuristics: Array<{ label: string; pattern: RegExp }> = [
+    { label: 'invoice', pattern: /invoice|gst|vendor|payment|invoice number|amount/ },
+    { label: 'procurement', pattern: /procurement|purchase order|purchase request|quotation|quote|vendor comparison/ },
+    { label: 'hr', pattern: /employee|onboard|onboarding|joining|candidate|department/ },
+    { label: 'general', pattern: /document|file|attachment|contract|policy|letter/ },
+  ];
+
+  const heuristicMatch = heuristics.find((entry) => entry.pattern.test(haystack));
+  const matchedCategory = normalizedCategories.find((category) => {
+    const normalized = category.toLowerCase();
+    return haystack.includes(normalized) || haystack.includes(normalized.replace(/_/g, ' '));
+  });
+
+  const fallbackCategory = matchedCategory
+    || normalizedCategories.find((category) => category.toLowerCase() === heuristicMatch?.label)
+    || normalizedCategories[0];
+
+  return {
+    classification: fallbackCategory,
+    confidence: 0.42,
+    reasoning: 'Local heuristic classification was used because the AI provider was unavailable.',
+    fallback: true,
+  };
+}
+
+function buildLocalRiskAnalysis(riskDomain: string, context: WorkflowContext): Record<string, unknown> {
+  const metadata = context.metadata as Record<string, unknown>;
+  const invoice = context.invoice as Record<string, unknown>;
+  const procurement = context.procurement as Record<string, unknown>;
+  const amount = toNumericValue(metadata.amount, invoice.amount, procurement.amount) || 0;
+  const vendor = String(metadata.vendor || invoice.vendor || procurement.vendor || '').trim();
+  const trustedVendor = [metadata.vendorTrusted, invoice.trustedVendor, procurement.trustedVendor]
+    .find((value) => typeof value === 'boolean') as boolean | undefined;
+  const attachmentCount = toNumericValue(metadata.attachmentCount) || 0;
+  const risks: Array<{ description: string; severity: string; likelihood: string; impact: string }> = [];
+  const mitigations: string[] = [];
+  let overallScore = 8;
+
+  if (amount >= 50000) {
+    overallScore += 40;
+    risks.push({
+      description: 'High-value transaction threshold reached.',
+      severity: 'high',
+      likelihood: 'medium',
+      impact: 'financial_control',
+    });
+    mitigations.push('Require human approval before execution.');
+  } else if (amount >= 10000) {
+    overallScore += 12;
+    risks.push({
+      description: 'Material transaction amount merits additional review.',
+      severity: 'medium',
+      likelihood: 'medium',
+      impact: 'financial_review',
+    });
+    mitigations.push('Confirm ledger coding and supporting details before settlement.');
+  }
+
+  if (trustedVendor === false) {
+    overallScore += 28;
+    risks.push({
+      description: 'Vendor is not on the trusted supplier list.',
+      severity: 'high',
+      likelihood: 'medium',
+      impact: 'third_party_risk',
+    });
+    mitigations.push('Validate vendor onboarding and banking details.');
+  }
+
+  if (!vendor) {
+    overallScore += 10;
+    risks.push({
+      description: 'Vendor information is incomplete.',
+      severity: 'medium',
+      likelihood: 'medium',
+      impact: 'data_quality',
+    });
+    mitigations.push('Capture vendor identity before continuing downstream actions.');
+  }
+
+  if (!amount) {
+    overallScore += 14;
+    risks.push({
+      description: 'Transaction amount could not be verified.',
+      severity: 'medium',
+      likelihood: 'high',
+      impact: 'control_gap',
+    });
+    mitigations.push('Confirm amount from source document before approval or payment.');
+  }
+
+  if (attachmentCount > 0) {
+    overallScore += 4;
+    mitigations.push('Retain source attachments with the workflow audit trail.');
+  }
+
+  const boundedScore = Math.max(5, Math.min(95, overallScore));
+  const riskLevel = boundedScore >= 80
+    ? 'critical'
+    : boundedScore >= 55
+      ? 'high'
+      : boundedScore >= 30
+        ? 'medium'
+        : 'low';
+
+  if (risks.length === 0) {
+    risks.push({
+      description: 'No material control anomalies were detected by the local fallback assessment.',
+      severity: 'low',
+      likelihood: 'low',
+      impact: 'minimal',
+    });
+  }
+
+  if (mitigations.length === 0) {
+    mitigations.push('Proceed with standard downstream controls and audit logging.');
+  }
+
+  return {
+    riskLevel,
+    risks,
+    mitigations,
+    overallScore: boundedScore,
+    domain: riskDomain,
+    fallback: true,
+  };
+}
+
 export async function executeNode(node: NodeToExecute, context: WorkflowContext): Promise<WorkflowContext> {
   const nodeType = node.nodeType.toLowerCase();
 
@@ -388,7 +586,7 @@ Return a JSON object with: analysis (string), confidence (0-1), recommendations 
 }
 
 async function executeClassification(node: NodeToExecute, context: WorkflowContext): Promise<WorkflowContext> {
-  const categories = (node.config.categories as string[]) || ['high', 'medium', 'low'];
+  const categories = normalizeStringList(node.config.categories, ['high', 'medium', 'low']);
   const input = (node.config.input as string) || 'document';
 
   const contextData = (context as unknown as Record<string, unknown>)[input];
@@ -416,7 +614,17 @@ Return a JSON object with: classification (string matching one of the categories
       },
     };
   } catch (error) {
-    throw new Error(`ClassificationFailed: ${error instanceof Error ? error.message : 'Unknown'}`);
+    const reason = `ClassificationFailed: ${toErrorMessage(error)}`;
+    return {
+      ...context,
+      metadata: buildFallbackMetadata(context, node, reason, {
+        classification: buildLocalClassification(categories, contextData),
+      }),
+      workflowState: {
+        ...context.workflowState,
+        currentNodeId: node.instanceId,
+      },
+    };
   }
 }
 
@@ -492,7 +700,17 @@ mitigations (array of strings), overallScore (0-100 where 100 is highest risk), 
       },
     };
   } catch (error) {
-    throw new Error(`RiskAnalysisFailed: ${error instanceof Error ? error.message : 'Unknown'}`);
+    const reason = `RiskAnalysisFailed: ${toErrorMessage(error)}`;
+    return {
+      ...context,
+      metadata: buildFallbackMetadata(context, node, reason, {
+        riskAnalysis: buildLocalRiskAnalysis(riskDomain, context),
+      }),
+      workflowState: {
+        ...context.workflowState,
+        currentNodeId: node.instanceId,
+      },
+    };
   }
 }
 

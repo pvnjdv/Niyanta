@@ -175,10 +175,18 @@ const NiyantaCommandConsole: React.FC<NiyantaCommandConsoleProps> = ({
     return Number.isFinite(parsed) ? parsed : fallback;
   };
 
-  const failedToday = toNum(metricMap.failedToday, 0);
+  const recentRuns = Array.isArray(metricMap.recentRuns) ? (metricMap.recentRuns as Array<Record<string, unknown>>) : [];
+  const activeFailures = toNum(
+    metricMap.activeFailures,
+    recentRuns.filter((run) => {
+      const status = String(run.status || '').toUpperCase();
+      const category = String(run.category || '').toLowerCase();
+      const workflowId = String(run.workflowId || '');
+      return status === 'FAILED' && category !== 'agent' && !workflowId.startsWith('wf_agent_');
+    }).length
+  );
   const pendingApprovals = toNum(metricMap.pendingApprovals, 0);
   const criticalAlerts = toNum(metricMap.criticalAlerts, 0);
-  const recentRuns = Array.isArray(metricMap.recentRuns) ? (metricMap.recentRuns as Array<Record<string, unknown>>) : [];
   const historyItems = useMemo(() => summarizeHistory(messages), [messages]);
   const systemContext = useMemo(() => ({
     generatedAt: new Date().toISOString(),
@@ -643,7 +651,7 @@ const NiyantaCommandConsole: React.FC<NiyantaCommandConsoleProps> = ({
           {[
             { key: 'Agents', value: systemSnapshot.activeAgents, color: systemSnapshot.activeAgents > 0 ? 'var(--status-success)' : 'var(--text-muted)' },
             { key: 'Workflows', value: systemSnapshot.workflowCount, color: 'var(--status-info)' },
-            { key: 'Issues', value: failedToday, color: failedToday > 0 ? 'var(--status-danger)' : 'var(--status-success)' },
+            { key: 'Issues', value: activeFailures, color: activeFailures > 0 ? 'var(--status-danger)' : 'var(--status-success)' },
             { key: 'Approvals', value: pendingApprovals, color: pendingApprovals > 0 ? 'var(--status-warning)' : 'var(--text-muted)' },
           ].map((item) => (
             <div key={item.key} style={{ border: '1px solid var(--border)', borderRadius: 7, padding: '8px 10px', background: 'var(--bg-input)' }}>
