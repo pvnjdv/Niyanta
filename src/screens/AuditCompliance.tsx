@@ -186,7 +186,7 @@ const AuditCompliance: React.FC<{ auditEntries: unknown[] }> = ({ auditEntries }
         style={{
           flex: 1,
           display: 'grid',
-          gridTemplateColumns: 'minmax(0, 1.55fr) minmax(0, 1fr)',
+          gridTemplateColumns: 'minmax(0, 1.55fr) minmax(0, 0.81fr)',
           gap: 12,
           overflow: 'hidden',
           padding: '12px',
@@ -315,7 +315,7 @@ const AuditCompliance: React.FC<{ auditEntries: unknown[] }> = ({ auditEntries }
         </div>
 
         {/* Right — Two small panels */}
-        <div style={{ minWidth: 0, display: 'grid', gridTemplateRows: '1fr 1fr', gap: 12, overflow: 'hidden' }}>
+        <div style={{ minWidth: 0, display: 'grid', gridTemplateRows: '1.3fr 0.7fr', gap: 12, overflow: 'hidden' }}>
           {/* Compliance Scorecard */}
           <div style={{ ...panelStyle, overflow: 'hidden' }}>
             <div style={{ padding: 16, borderBottom: '1px solid var(--border)' }}>
