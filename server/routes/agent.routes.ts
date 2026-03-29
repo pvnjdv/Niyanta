@@ -289,7 +289,7 @@ router.post('/', (req: Request, res: Response) => {
     const agentManager = orchestrator.getAgentManager();
     const canvasValidation = validateAgentCanvasLayout(config?.canvasLayout);
     if (config?.canvasLayout !== undefined && !canvasValidation.valid) {
-      return res.status(400).json({ error: 'InvalidCanvasLayout', message: canvasValidation.message });
+      return res.status(400).json({ error: 'InvalidCanvasLayout', message: (canvasValidation as { message?: string }).message });
     }
     
     // Parse capabilities as array if it's a string (comma-separated)
@@ -397,7 +397,7 @@ router.put('/:id', (req: Request, res: Response) => {
       ? validateAgentCanvasLayout(config.canvasLayout)
       : { valid: true, normalizedLayout: undefined, workflowIds: [] as string[] };
     if (!canvasValidation.valid) {
-      return res.status(400).json({ error: 'InvalidCanvasLayout', message: canvasValidation.message });
+      return res.status(400).json({ error: 'InvalidCanvasLayout', message: (canvasValidation as { message?: string }).message });
     }
 
     // Parse capabilities as array if provided as comma-separated string

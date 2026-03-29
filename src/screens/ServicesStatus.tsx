@@ -1,67 +1,83 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Agent } from '../types/agent';
-import { fetchHealth } from '../services/api';
+import { Agent, AgentState } from '../types/agent';
+import { fetchHealth, fetchMetrics } from '../services/api';
 import StatusDot from '../components/shared/StatusDot';
 import ProgressBar from '../components/shared/ProgressBar';
 
 interface ServicesStatusProps {
   agents: Agent[];
+  agentStates?: Record<string, AgentState>;
 }
 
-const ServicesStatus: React.FC<ServicesStatusProps> = ({ agents }) => {
+const ServicesStatus: React.FC<ServicesStatusProps> = ({ agents, agentStates = {} }) => {
   const navigate = useNavigate();
   const [health, setHealth] = useState<Record<string, unknown>>({});
+  const [metrics, setMetrics] = useState<Record<string, unknown>>({});
 
   useEffect(() => {
-    fetchHealth().then(setHealth).catch(() => {});
-    const iv = setInterval(() => { fetchHealth().then(setHealth).catch(() => {}); }, 15000);
-    return () => clearInterval(iv);
+    const load = async () => {
+      try {
+        const [healthData, metricsData] = await Promise.all([fetchHealth(), fetchMetrics()]);
+        setHealth(healthData);
+        setMetrics(metricsData);
+      } catch {
+        setHealth({});
+        setMetrics({});
+      }
+    };
+
+    load();
+    const interval = setInterval(load, 15000);
+    return () => clearInterval(interval);
   }, []);
 
-  const systemServices = [
-    { name: 'Niyanta Orchestrator', status: 'UP', uptime: '99.9%', latency: '12ms', p95: '28ms' },
-    { name: 'Groq AI (llama-3.3)', status: 'UP', uptime: '99.7%', latency: '890ms', p95: '1.4s' },
-    { name: 'SQLite Database', status: 'UP', uptime: '100%', latency: '2ms', p95: '5ms' },
-    { name: 'Workflow Engine', status: 'UP', uptime: '99.9%', latency: '45ms', p95: '120ms' },
-    { name: 'Node Execution Runner', status: 'UP', uptime: '99.8%', latency: '78ms', p95: '240ms' },
-    { name: 'Audit Logger', status: 'UP', uptime: '100%', latency: '8ms', p95: '15ms' },
-    { name: 'File Generator', status: 'UP', uptime: '99.9%', latency: '34ms', p95: '85ms' },
-    { name: 'Agent Manager', status: 'UP', uptime: '99.9%', latency: '22ms', p95: '48ms' },
-    { name: 'Rate Limiter', status: 'UP', uptime: '100%', latency: '1ms', p95: '3ms' },
-    { name: 'Local Storage', status: 'UP', uptime: '100%', latency: '4ms', p95: '8ms' },
-  ];
+  const systemServices = Array.isArray(health.services) ? (health.services as Array<Record<string, unknown>>) : [];
+  const recentRuns = Array.isArray(metrics.recentRuns) ? (metrics.recentRuns as Array<Record<string, unknown>>) : [];
+  const agentRunCounts = (metrics.agentRunCounts || {}) as Record<string, number>;
 
-  const agentServices = agents.map(a => ({
-    name: a.name,
-    color: a.color,
-    id: a.id,
-    status: 'UP',
-    runs: Math.floor(Math.random() * 50) + 10,
-    successRate: Math.floor(Math.random() * 8) + 92,
-    avgTime: `${(Math.random() * 3 + 1).toFixed(1)}s`,
-    lastActive: '2 min ago',
-  }));
+  const agentServices = useMemo(
+    () =>
+      agents.map((agent) => {
+        const state = agentStates[agent.id];
+        const matchingRun = recentRuns.find((run) => String(run.workflowName || '').toLowerCase().includes(agent.name.toLowerCase()));
+        const status = state?.status === 'error' ? 'ERROR' : state?.status === 'processing' ? 'BUSY' : 'UP';
+        return {
+          id: agent.id,
+          name: agent.name,
+          color: agent.color,
+          status,
+          runs: Number(agentRunCounts[agent.id] || 0),
+          lastDuration: state?.processingTime ? `${(state.processingTime / 1000).toFixed(1)}s` : '—',
+          lastActive:
+            state?.lastActivity || matchingRun?.startedAt
+              ? new Date(String(state?.lastActivity || matchingRun?.startedAt)).toLocaleString()
+              : 'No recent activity',
+        };
+      }),
+    [agents, agentRunCounts, agentStates, recentRuns]
+  );
 
-  const statusColor = (s: string) => s === 'UP' ? 'var(--green-primary)' : s === 'DEGRADED' ? 'var(--status-warning)' : 'var(--status-danger)';
-  const latencyColor = (l: string) => {
-    const ms = parseInt(l);
-    if (isNaN(ms)) return 'var(--text-primary)';
-    return ms < 100 ? 'var(--green-primary)' : ms < 500 ? 'var(--status-warning)' : 'var(--status-danger)';
-  };
+  const statusColor = (value: string) =>
+    value === 'UP' ? 'var(--green-primary)' : value === 'BUSY' || value === 'DEGRADED' ? 'var(--status-warning)' : 'var(--status-danger)';
 
-  const allUp = systemServices.every(s => s.status === 'UP');
+  const allUp = systemServices.every((service) => String(service.status) === 'UP');
+  const activeAgents = Number(health.agentsActive || metrics.agentsActive || agents.length || 0);
+  const workflowCount = Number(metrics.workflows || 0);
+  const totalRuns = Number(metrics.totalRuns || metrics.totalWorkflowsRun || 0);
+  const totalDecisions = Number(metrics.totalDecisionsMade || 0);
+  const uptimeHours = Math.round((Number(health.uptimeSeconds || 0) / 3600) * 10) / 10;
+  const queueDepth = Number(metrics.pendingApprovals || 0) + recentRuns.filter((run) => String(run.status || '').toUpperCase() === 'WAITING_APPROVAL').length;
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', animation: 'fadeScale 220ms ease' }}>
-      {/* Header */}
       <div style={{
         height: 56, borderBottom: '1px solid var(--border)', display: 'flex',
         alignItems: 'center', justifyContent: 'space-between', padding: '0 20px', flexShrink: 0,
       }}>
         <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 18 }}>SERVICES & SYSTEM STATUS</span>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)' }}>All times UTC</span>
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)' }}>Last refresh {new Date().toLocaleTimeString([], { hour12: false })}</span>
           <span style={{
             fontFamily: 'var(--font-mono)', fontSize: 9, padding: '3px 10px',
             background: allUp ? 'var(--green-dim)' : 'rgba(255,184,0,0.1)',
@@ -72,125 +88,109 @@ const ServicesStatus: React.FC<ServicesStatusProps> = ({ agents }) => {
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '12px 12px 0' }}>
-        {/* System Services */}
         <div className="tile">
           <div style={{ height: 40, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', padding: '0 20px' }}>
             <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, textTransform: 'uppercase', color: 'var(--text-secondary)' }}>SYSTEM SERVICES</span>
           </div>
-          {/* Table header */}
           <div style={{ height: 32, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', padding: '0 20px' }}>
-            <span style={{ flex: 2, fontFamily: 'var(--font-mono)', fontSize: 9, textTransform: 'uppercase', color: 'var(--text-muted)' }}>SERVICE</span>
-            <span style={{ width: 80, fontFamily: 'var(--font-mono)', fontSize: 9, textTransform: 'uppercase', color: 'var(--text-muted)' }}>STATUS</span>
-            <span style={{ width: 80, fontFamily: 'var(--font-mono)', fontSize: 9, textTransform: 'uppercase', color: 'var(--text-muted)' }}>UPTIME</span>
-            <span style={{ width: 80, fontFamily: 'var(--font-mono)', fontSize: 9, textTransform: 'uppercase', color: 'var(--text-muted)' }}>LATENCY</span>
-            <span style={{ width: 80, fontFamily: 'var(--font-mono)', fontSize: 9, textTransform: 'uppercase', color: 'var(--text-muted)' }}>P95</span>
+            <span style={{ flex: 1.1, fontFamily: 'var(--font-mono)', fontSize: 9, textTransform: 'uppercase', color: 'var(--text-muted)' }}>SERVICE</span>
+            <span style={{ width: 90, fontFamily: 'var(--font-mono)', fontSize: 9, textTransform: 'uppercase', color: 'var(--text-muted)' }}>STATUS</span>
+            <span style={{ flex: 1.4, fontFamily: 'var(--font-mono)', fontSize: 9, textTransform: 'uppercase', color: 'var(--text-muted)' }}>DETAIL</span>
           </div>
-          {systemServices.map((s, i) => (
-            <div key={i} style={{
+          {systemServices.map((service, index) => (
+            <div key={index} style={{
               height: 44, borderBottom: '1px solid var(--border-subtle)', display: 'flex',
-              alignItems: 'center', padding: '0 20px', cursor: 'pointer',
-              borderLeft: s.status !== 'UP' ? '2px solid var(--status-danger)' : 'none',
-            }}
-            onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-tile-hover)')}
-            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-            >
-              <span style={{ flex: 2, fontFamily: 'var(--font-body)', fontWeight: 500, fontSize: 13 }}>{s.name}</span>
-              <div style={{ width: 80, display: 'flex', alignItems: 'center', gap: 6 }}>
-                <StatusDot status={s.status === 'UP' ? 'active' : 'error'} size={6} />
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: statusColor(s.status) }}>{s.status}</span>
+              alignItems: 'center', padding: '0 20px',
+              borderLeft: String(service.status) !== 'UP' ? '2px solid var(--status-danger)' : 'none',
+            }}>
+              <span style={{ flex: 1.1, fontFamily: 'var(--font-body)', fontWeight: 500, fontSize: 13 }}>{String(service.name || 'Service')}</span>
+              <div style={{ width: 90, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <StatusDot status={String(service.status) === 'UP' ? 'active' : String(service.status) === 'DEGRADED' ? 'warning' : 'error'} size={6} />
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: statusColor(String(service.status || 'DOWN')) }}>{String(service.status || 'DOWN')}</span>
               </div>
-              <span style={{ width: 80, fontFamily: 'var(--font-mono)', fontSize: 10 }}>{s.uptime}</span>
-              <span style={{ width: 80, fontFamily: 'var(--font-mono)', fontSize: 10, color: latencyColor(s.latency) }}>{s.latency}</span>
-              <span style={{ width: 80, fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)' }}>{s.p95}</span>
+              <span style={{ flex: 1.4, fontFamily: 'var(--font-body)', fontSize: 12, color: 'var(--text-secondary)' }}>{String(service.detail || 'No service detail available')}</span>
             </div>
           ))}
         </div>
 
-        {/* Agent Services */}
         <div className="tile" style={{ marginTop: 12 }}>
           <div style={{ height: 40, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', padding: '0 20px' }}>
             <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, textTransform: 'uppercase', color: 'var(--text-secondary)' }}>AGENT SERVICES</span>
           </div>
           <div style={{ height: 32, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', padding: '0 20px' }}>
             <span style={{ flex: 2, fontFamily: 'var(--font-mono)', fontSize: 9, textTransform: 'uppercase', color: 'var(--text-muted)' }}>AGENT</span>
-            <span style={{ width: 60, fontFamily: 'var(--font-mono)', fontSize: 9, textTransform: 'uppercase', color: 'var(--text-muted)' }}>STATUS</span>
-            <span style={{ width: 60, fontFamily: 'var(--font-mono)', fontSize: 9, textTransform: 'uppercase', color: 'var(--text-muted)' }}>RUNS</span>
-            <span style={{ width: 80, fontFamily: 'var(--font-mono)', fontSize: 9, textTransform: 'uppercase', color: 'var(--text-muted)' }}>SUCCESS</span>
-            <span style={{ width: 70, fontFamily: 'var(--font-mono)', fontSize: 9, textTransform: 'uppercase', color: 'var(--text-muted)' }}>AVG TIME</span>
-            <span style={{ width: 80, fontFamily: 'var(--font-mono)', fontSize: 9, textTransform: 'uppercase', color: 'var(--text-muted)' }}>LAST ACTIVE</span>
+            <span style={{ width: 70, fontFamily: 'var(--font-mono)', fontSize: 9, textTransform: 'uppercase', color: 'var(--text-muted)' }}>STATUS</span>
+            <span style={{ width: 64, fontFamily: 'var(--font-mono)', fontSize: 9, textTransform: 'uppercase', color: 'var(--text-muted)' }}>RUNS</span>
+            <span style={{ width: 96, fontFamily: 'var(--font-mono)', fontSize: 9, textTransform: 'uppercase', color: 'var(--text-muted)' }}>LAST RUN</span>
+            <span style={{ width: 140, fontFamily: 'var(--font-mono)', fontSize: 9, textTransform: 'uppercase', color: 'var(--text-muted)' }}>LAST ACTIVE</span>
           </div>
-          {agentServices.map((a, i) => (
-            <div key={i} style={{
+          {agentServices.map((service) => (
+            <div key={service.id} style={{
               height: 44, borderBottom: '1px solid var(--border-subtle)', display: 'flex',
               alignItems: 'center', padding: '0 20px', cursor: 'pointer',
             }}
-            onClick={() => navigate(`/agents/${a.id}`)}
-            onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-tile-hover)')}
-            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+            onClick={() => navigate(`/agents/${service.id}`)}
+            onMouseEnter={(event) => (event.currentTarget.style.background = 'var(--bg-tile-hover)')}
+            onMouseLeave={(event) => (event.currentTarget.style.background = 'transparent')}
             >
               <div style={{ flex: 2, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ width: 6, height: 6, borderRadius: '50%', background: a.color }} />
-                <span style={{ fontFamily: 'var(--font-body)', fontWeight: 500, fontSize: 13 }}>{a.name}</span>
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: service.color }} />
+                <span style={{ fontFamily: 'var(--font-body)', fontWeight: 500, fontSize: 13 }}>{service.name}</span>
               </div>
-              <div style={{ width: 60, display: 'flex', alignItems: 'center', gap: 4 }}>
-                <StatusDot status="active" color={a.color} size={6} />
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--green-primary)' }}>{a.status}</span>
+              <div style={{ width: 70, display: 'flex', alignItems: 'center', gap: 4 }}>
+                <StatusDot status={service.status === 'ERROR' ? 'error' : service.status === 'BUSY' ? 'warning' : 'active'} color={service.color} size={6} />
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: statusColor(service.status) }}>{service.status}</span>
               </div>
-              <span style={{ width: 60, fontFamily: 'var(--font-mono)', fontSize: 10 }}>{a.runs}</span>
-              <span style={{ width: 80, fontFamily: 'var(--font-mono)', fontSize: 10, color: a.successRate >= 95 ? 'var(--green-primary)' : a.successRate >= 80 ? 'var(--status-warning)' : 'var(--status-danger)' }}>{a.successRate}%</span>
-              <span style={{ width: 70, fontFamily: 'var(--font-mono)', fontSize: 10 }}>{a.avgTime}</span>
-              <span style={{ width: 80, fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)' }}>{a.lastActive}</span>
+              <span style={{ width: 64, fontFamily: 'var(--font-mono)', fontSize: 10 }}>{service.runs}</span>
+              <span style={{ width: 96, fontFamily: 'var(--font-mono)', fontSize: 10 }}>{service.lastDuration}</span>
+              <span style={{ width: 140, fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{service.lastActive}</span>
             </div>
           ))}
         </div>
 
-        {/* Resource Usage */}
         <div style={{ display: 'flex', gap: 12, marginTop: 12 }}>
-          {/* Compute */}
           <div className="tile" style={{ flex: 1, padding: 16 }}>
-            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 12 }}>COMPUTE RESOURCES</div>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 12 }}>ORCHESTRATION LOAD</div>
             <div style={{ marginBottom: 8 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                <span style={{ fontFamily: 'var(--font-body)', fontSize: 12 }}>CPU</span>
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10 }}>23%</span>
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: 12 }}>Active Agents</span>
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10 }}>{activeAgents} / {Math.max(agents.length, 1)}</span>
               </div>
-              <ProgressBar value={23} />
+              <ProgressBar value={(activeAgents / Math.max(agents.length, 1)) * 100} />
             </div>
             <div style={{ marginBottom: 8 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                <span style={{ fontFamily: 'var(--font-body)', fontSize: 12 }}>Memory</span>
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10 }}>1.8 / 8GB</span>
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: 12 }}>Approval Queue</span>
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10 }}>{queueDepth}</span>
               </div>
-              <ProgressBar value={22.5} />
+              <ProgressBar value={Math.min(100, queueDepth * 10)} color={queueDepth > 0 ? 'var(--status-warning)' : 'var(--status-success)'} />
             </div>
-            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-secondary)', marginTop: 8 }}>Process uptime: 3d 4h 12m</div>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-secondary)', marginTop: 8 }}>Process uptime: {uptimeHours}h</div>
           </div>
 
-          {/* Storage */}
           <div className="tile" style={{ flex: 1, padding: 16 }}>
-            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 12 }}>STORAGE</div>
-            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-secondary)', marginBottom: 6 }}>Database: <span style={{ color: 'var(--text-primary)' }}>128 MB</span></div>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 12 }}>WORKFLOW STORAGE</div>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-secondary)', marginBottom: 6 }}>Workflows tracked: <span style={{ color: 'var(--text-primary)' }}>{workflowCount}</span></div>
             <div style={{ marginBottom: 8 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                <span style={{ fontFamily: 'var(--font-body)', fontSize: 12 }}>Files</span>
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10 }}>42 / 500 GB</span>
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: 12 }}>Recorded Runs</span>
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10 }}>{totalRuns}</span>
               </div>
-              <ProgressBar value={8.4} />
+              <ProgressBar value={Math.min(100, totalRuns)} color="var(--status-info)" />
             </div>
-            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-secondary)' }}>Files stored: 234</div>
-            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-secondary)' }}>Audit entries: 1,247</div>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-secondary)' }}>Pending approvals: {Number(metrics.pendingApprovals || 0)}</div>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-secondary)' }}>Failed today: {Number(metrics.failedToday || 0)}</div>
           </div>
 
-          {/* Groq API */}
           <div className="tile" style={{ flex: 1, padding: 16 }}>
-            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 12 }}>GROQ API</div>
-            <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 20, color: 'var(--text-primary)', marginBottom: 4 }}>847</div>
-            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', marginBottom: 8 }}>REQUESTS TODAY</div>
-            <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 20, color: 'var(--text-primary)', marginBottom: 4 }}>1.2M</div>
-            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', marginBottom: 8 }}>TOKENS USED</div>
-            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-secondary)' }}>Rate limit: 60 / min</div>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 12 }}>AI RUNTIME</div>
+            <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 20, color: 'var(--text-primary)', marginBottom: 4 }}>{totalDecisions}</div>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', marginBottom: 8 }}>DECISIONS RECORDED</div>
+            <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 20, color: 'var(--text-primary)', marginBottom: 4 }}>{Math.round(Number(metrics.avgProcessingTimeMs || 0))}ms</div>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', marginBottom: 8 }}>AVG PROCESSING TIME</div>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-secondary)' }}>Model: {String(health.model || 'unconfigured')}</div>
             <div style={{ marginTop: 4 }}>
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, padding: '2px 6px', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>llama-3.3-70b</span>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, padding: '2px 6px', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>{String(health.status || 'unknown').toUpperCase()}</span>
             </div>
           </div>
         </div>

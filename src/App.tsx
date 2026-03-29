@@ -203,7 +203,7 @@ const AppContent: React.FC = () => {
           <Route path="/monitor" element={<OperationsMonitor />} />
           <Route path="/audit" element={<AuditCompliance auditEntries={entries} />} />
           <Route path="/approvals" element={<ApprovalsScreen />} />
-          <Route path="/services" element={<ServicesStatus agents={agents} />} />
+          <Route path="/services" element={<ServicesStatus agents={agents} agentStates={agentStates} />} />
           <Route path="/notifications" element={<div style={{ padding: 32 }}><h2>Notifications</h2><p style={{ color: 'var(--text-secondary)' }}>No new notifications.</p></div>} />
           <Route path="/settings" element={<SettingsScreen agents={agents} />} />
           <Route path="*" element={<Navigate to="/" replace />} />
