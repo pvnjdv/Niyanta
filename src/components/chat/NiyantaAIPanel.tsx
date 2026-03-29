@@ -11,6 +11,7 @@ interface NiyantaAIPanelProps {
   onNewChat: () => void;
   historySessions: NiyantaChatSession[];
   onRestoreHistory: (sessionId: string) => void;
+  onDeleteHistory: (sessionId: string) => void;
 }
 
 const NiyantaAIPanel: React.FC<NiyantaAIPanelProps> = ({
@@ -22,6 +23,7 @@ const NiyantaAIPanel: React.FC<NiyantaAIPanelProps> = ({
   onNewChat,
   historySessions,
   onRestoreHistory,
+  onDeleteHistory,
 }) => {
   const [input, setInput] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
@@ -256,39 +258,6 @@ const NiyantaAIPanel: React.FC<NiyantaAIPanelProps> = ({
         <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 999, border: '1px solid var(--border)', color: uploadedFiles.length > 0 ? 'var(--status-success)' : 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>Files {uploadedFiles.length}</span>
       </div>
 
-      {showHistory && (
-        <div style={{ borderBottom: '1px solid var(--border)', padding: 12, maxHeight: 170, overflowY: 'auto', background: 'var(--cc-surface-1)' }}>
-          <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)', marginBottom: 8 }}>
-            Recent Chats
-          </div>
-          {historySessions.length === 0 ? (
-            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>No chat history yet.</div>
-          ) : (
-            <div style={{ display: 'grid', gap: 6 }}>
-              {historySessions.map((session) => (
-                <button
-                  key={session.id}
-                  onClick={() => onRestoreHistory(session.id)}
-                  style={{
-                    border: '1px solid var(--border)',
-                    background: 'var(--bg-panel)',
-                    borderRadius: 6,
-                    padding: '8px 10px',
-                    textAlign: 'left',
-                    color: 'var(--text-primary)',
-                  }}
-                >
-                  <div style={{ fontSize: 12, fontWeight: 600 }}>{session.title}</div>
-                  <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2, fontFamily: 'var(--font-mono)' }}>
-                    {new Date(session.timestamp).toLocaleString()} · {session.messages.length} msgs
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
       {/* Messages */}
       <div
         style={{
@@ -492,6 +461,82 @@ const NiyantaAIPanel: React.FC<NiyantaAIPanelProps> = ({
           </button>
         </div>
       </div>
+
+      {showHistory && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 56,
+            right: 0,
+            bottom: 0,
+            width: '100%',
+            background: 'var(--bg-overlay)',
+            zIndex: 35,
+            display: 'flex',
+            justifyContent: 'flex-end',
+          }}
+          onClick={() => setShowHistory(false)}
+        >
+          <div
+            style={{
+              width: '100%',
+              maxWidth: 360,
+              height: '100%',
+              background: 'var(--bg-panel)',
+              borderLeft: '1px solid var(--border)',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ height: 44, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', padding: '0 12px', gap: 8 }}>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, textTransform: 'uppercase', color: 'var(--text-secondary)', letterSpacing: '0.08em' }}>Chat History</span>
+              <span style={{ marginLeft: 'auto', fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)' }}>{historySessions.length} sessions</span>
+              <button
+                onClick={() => setShowHistory(false)}
+                style={{ width: 24, height: 24, borderRadius: 4, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer', display: 'grid', placeItems: 'center' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{ flex: 1, overflowY: 'auto', padding: 10, display: 'grid', gap: 8 }}>
+              {historySessions.length === 0 ? (
+                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>No chat history yet.</div>
+              ) : (
+                historySessions.map((session) => (
+                  <div
+                    key={session.id}
+                    style={{ border: '1px solid var(--border)', background: 'var(--cc-surface-1)', borderRadius: 8, padding: '8px 10px', display: 'grid', gap: 6 }}
+                  >
+                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>{session.title}</div>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                      {new Date(session.timestamp).toLocaleString()} · {session.messages.length} msgs
+                    </div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button
+                        onClick={() => {
+                          onRestoreHistory(session.id);
+                          setShowHistory(false);
+                        }}
+                        style={{ height: 28, padding: '0 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-panel)', color: 'var(--text-primary)', fontSize: 11, cursor: 'pointer' }}
+                      >
+                        Open
+                      </button>
+                      <button
+                        onClick={() => onDeleteHistory(session.id)}
+                        style={{ height: 28, padding: '0 10px', borderRadius: 6, border: '1px solid var(--cc-danger-border)', background: 'var(--cc-danger-bg)', color: 'var(--status-danger)', fontSize: 11, cursor: 'pointer' }}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

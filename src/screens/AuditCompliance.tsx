@@ -182,9 +182,18 @@ const AuditCompliance: React.FC<{ auditEntries: unknown[] }> = ({ auditEntries }
       </div>
 
       {/* Content */}
-      <div style={{ flex: 1, display: 'flex', gap: 12, overflow: 'hidden', padding: '12px' }}>
-        {/* Left — Main content */}
-        <div style={{ ...panelStyle, flex: 65, overflowY: 'auto' }}>
+      <div
+        style={{
+          flex: 1,
+          display: 'grid',
+          gridTemplateColumns: 'minmax(0, 1.55fr) minmax(0, 1fr)',
+          gap: 12,
+          overflow: 'hidden',
+          padding: '12px',
+        }}
+      >
+        {/* Left — Big panel */}
+        <div style={{ ...panelStyle, minWidth: 0, overflowY: 'auto' }}>
           {activeTab === 'log' && filteredEntries.map((entry, i) => {
             const dc = decisionColors[entry.decision] || decisionColors.FLAG;
             return (
@@ -305,10 +314,11 @@ const AuditCompliance: React.FC<{ auditEntries: unknown[] }> = ({ auditEntries }
           )}
         </div>
 
-        {/* Right — Scorecard */}
-        <div style={{ ...panelStyle, flex: 35, overflowY: 'auto' }}>
+        {/* Right — Two small panels */}
+        <div style={{ minWidth: 0, display: 'grid', gridTemplateRows: '1fr 1fr', gap: 12, overflow: 'hidden' }}>
           {/* Compliance Scorecard */}
-          <div style={{ padding: 16, borderBottom: '1px solid var(--border)' }}>
+          <div style={{ ...panelStyle, overflow: 'hidden' }}>
+            <div style={{ padding: 16, borderBottom: '1px solid var(--border)' }}>
             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, textTransform: 'uppercase', color: 'var(--text-secondary)', marginBottom: 4 }}>COMPLIANCE SCORECARD</div>
             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', marginBottom: 16 }}>Last assessment: Today 14:32</div>
             {complianceItems.map((c, i) => (
@@ -320,22 +330,31 @@ const AuditCompliance: React.FC<{ auditEntries: unknown[] }> = ({ auditEntries }
             ))}
             <div style={{ borderTop: '1px solid var(--border)', padding: '12px 0', marginTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-secondary)' }}>OVERALL</span>
-              <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 28, color: overallScore >= 80 ? 'var(--status-success)' : 'var(--status-warning)' }}>{overallScore}%</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span
+                  style={{
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: 9,
+                    padding: '4px 10px',
+                    borderRadius: 999,
+                    background: overallScore >= 80 ? 'var(--cc-ok-bg)' : 'var(--cc-warn-bg)',
+                    border: `1px solid ${overallScore >= 80 ? 'var(--cc-ok-border)' : 'var(--cc-warn-border)'}`,
+                    color: overallScore >= 80 ? 'var(--status-success)' : 'var(--status-warning)',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.04em',
+                  }}
+                >
+                  {overallScore >= 80 ? 'Compliant' : 'Need Attention'}
+                </span>
+                <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 28, color: overallScore >= 80 ? 'var(--status-success)' : 'var(--status-warning)' }}>{overallScore}%</span>
+              </div>
             </div>
-            <span style={{
-              display: 'inline-flex',
-              fontFamily: 'var(--font-mono)',
-              fontSize: 9,
-              padding: '4px 10px',
-              borderRadius: 999,
-              background: overallScore >= 80 ? 'var(--cc-ok-bg)' : 'var(--cc-warn-bg)',
-              border: `1px solid ${overallScore >= 80 ? 'var(--cc-ok-border)' : 'var(--cc-warn-border)'}`,
-              color: overallScore >= 80 ? 'var(--status-success)' : 'var(--status-warning)',
-            }}>{overallScore >= 80 ? 'COMPLIANT' : 'NEEDS ATTENTION'}</span>
+          </div>
           </div>
 
           {/* Decisions Summary */}
-          <div style={{ padding: 16 }}>
+          <div style={{ ...panelStyle, overflow: 'hidden' }}>
+            <div style={{ padding: 16 }}>
             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 12 }}>DECISIONS THIS WEEK</div>
             {[
               { label: 'Approved', count: 652 },
@@ -362,6 +381,7 @@ const AuditCompliance: React.FC<{ auditEntries: unknown[] }> = ({ auditEntries }
                 border: '1px solid var(--cc-ok-border)',
                 color: 'var(--status-success)',
               }}>77% AUTONOMOUS</span>
+            </div>
             </div>
           </div>
         </div>
