@@ -36,6 +36,7 @@ const AgentChatScreen: React.FC<AgentChatScreenProps> = ({ agents, agentStates, 
 
   const agent = agents.find(a => a.id === agentId);
   const agentState = agentId ? agentStates[agentId] : null;
+  const quickAgentPrompts = agent?.capabilities?.slice(0, 3).map(cap => `Run ${cap.toLowerCase()} analysis on current dataset.`) || [];
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, processingSteps]);
   useEffect(() => { inputRef.current?.focus(); }, []);
@@ -150,6 +151,12 @@ const AgentChatScreen: React.FC<AgentChatScreenProps> = ({ agents, agentStates, 
     }
   };
 
+  const handleQuickPrompt = (prompt: string) => {
+    if (isSending) return;
+    setInput(prompt);
+    inputRef.current?.focus();
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
   };
@@ -162,13 +169,13 @@ const AgentChatScreen: React.FC<AgentChatScreenProps> = ({ agents, agentStates, 
   };
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--bg-base)' }}>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'radial-gradient(circle at 14% 0%, var(--cc-glow-a), transparent 42%), var(--bg-base)' }}>
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
 
       {/* Header */}
-      <div style={{ height: 56, display: 'flex', alignItems: 'center', padding: '0 20px', gap: 12, borderBottom: '1px solid var(--border)', background: 'var(--bg-dock)', flexShrink: 0 }}>
+      <div style={{ height: 58, display: 'flex', alignItems: 'center', padding: '0 20px', gap: 12, borderBottom: '1px solid var(--border)', background: `linear-gradient(90deg, ${agent.color}18, transparent 30%), var(--bg-dock)`, flexShrink: 0 }}>
         <button onClick={() => navigate('/agents')} style={{ width: 32, height: 32, borderRadius: 4, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer', display: 'grid', placeItems: 'center', fontSize: 16 }} title="Back">←</button>
-        <div style={{ width: 32, height: 32, borderRadius: 6, background: agent.color, display: 'grid', placeItems: 'center', fontSize: 16, flexShrink: 0 }}>{agent.icon}</div>
+        <div style={{ width: 32, height: 32, borderRadius: 8, background: `${agent.color}20`, border: `1px solid ${agent.color}66`, display: 'grid', placeItems: 'center', fontSize: 16, flexShrink: 0 }}>{agent.icon}</div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontWeight: 600, fontSize: 14 }}>{agent.name}</div>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{agent.subtitle}</div>
@@ -210,6 +217,27 @@ const AgentChatScreen: React.FC<AgentChatScreenProps> = ({ agents, agentStates, 
               ))}
             </div>
             <div style={{ marginTop: 24, fontSize: 12, color: 'var(--text-muted)' }}>Type a message or paste data to start</div>
+            {quickAgentPrompts.length > 0 && (
+              <div style={{ marginTop: 18, display: 'grid', gap: 8, maxWidth: 620, marginLeft: 'auto', marginRight: 'auto' }}>
+                {quickAgentPrompts.map((prompt) => (
+                  <button
+                    key={prompt}
+                    onClick={() => handleQuickPrompt(prompt)}
+                    style={{
+                      border: `1px solid ${agent.color}50`,
+                      background: `${agent.color}14`,
+                      borderRadius: 8,
+                      padding: '8px 10px',
+                      fontSize: 12,
+                      color: 'var(--text-secondary)',
+                      textAlign: 'left',
+                    }}
+                  >
+                    {prompt}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         ) : (
           messages.map((msg, i) => (
@@ -246,7 +274,7 @@ const AgentChatScreen: React.FC<AgentChatScreenProps> = ({ agents, agentStates, 
         {isSending && processingSteps.length > 0 && (
           <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
             <div style={{ width: 32, height: 32, borderRadius: 6, background: agent.color, display: 'grid', placeItems: 'center', fontSize: 14, flexShrink: 0 }}>{agent.icon}</div>
-            <div style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 6, padding: '12px 16px', minWidth: 320, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ background: `${agent.color}0D`, border: `1px solid ${agent.color}44`, borderRadius: 10, padding: '12px 16px', minWidth: 320, display: 'flex', flexDirection: 'column', gap: 8 }}>
               <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 4 }}>Processing</div>
               {processingSteps.map(step => (
                 <div key={step.id} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12 }}>

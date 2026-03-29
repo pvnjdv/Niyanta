@@ -19,6 +19,11 @@ const NiyantaAIPanel: React.FC<NiyantaAIPanelProps> = ({
   const [input, setInput] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const quickPrompts = [
+    'Summarize current system health and alerts.',
+    'Which agent had the most failures today?',
+    'Suggest workflow optimizations for response time.',
+  ];
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -33,6 +38,18 @@ const NiyantaAIPanel: React.FC<NiyantaAIPanelProps> = ({
     if (!text || isSending) return;
     setInput('');
     await onSend(text);
+  };
+
+  const handleQuickPrompt = async (prompt: string) => {
+    if (isSending) return;
+    setInput('');
+    await onSend(prompt);
+  };
+
+  const formatTime = (value: string) => {
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return '';
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -52,7 +69,7 @@ const NiyantaAIPanel: React.FC<NiyantaAIPanelProps> = ({
         right: 0,
         bottom: 0,
         width: 380,
-        background: 'var(--bg-panel)',
+        background: 'radial-gradient(circle at 10% 0%, var(--cc-glow-a), transparent 42%), linear-gradient(180deg, var(--cc-panel-top), var(--cc-panel-bottom))',
         borderLeft: '1px solid var(--border)',
         display: 'flex',
         flexDirection: 'column',
@@ -62,7 +79,7 @@ const NiyantaAIPanel: React.FC<NiyantaAIPanelProps> = ({
       {/* Header */}
       <div
         style={{
-          height: 48,
+          height: 56,
           display: 'flex',
           alignItems: 'center',
           padding: '0 16px',
@@ -71,17 +88,25 @@ const NiyantaAIPanel: React.FC<NiyantaAIPanelProps> = ({
           flexShrink: 0,
         }}
       >
-        <span
-          style={{
-            fontFamily: 'var(--font-display)',
-            fontWeight: 700,
-            fontSize: 14,
-            color: 'var(--text-primary)',
-            letterSpacing: '0.08em',
-          }}
-        >
-          NIYANTA AI
-        </span>
+        <div style={{ width: 30, height: 30, borderRadius: 8, border: '1px solid var(--cc-info-border)', background: 'var(--cc-info-bg)', display: 'grid', placeItems: 'center', color: 'var(--status-info)', fontSize: 14, flexShrink: 0 }}>
+          ◎
+        </div>
+        <div>
+          <div
+            style={{
+              fontFamily: 'var(--font-display)',
+              fontWeight: 700,
+              fontSize: 14,
+              color: 'var(--text-primary)',
+              letterSpacing: '0.08em',
+            }}
+          >
+            NIYANTA AI
+          </div>
+          <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginTop: 1 }}>
+            Central Intelligence Layer
+          </div>
+        </div>
         <span
           style={{
             fontFamily: 'var(--font-mono)',
@@ -142,6 +167,25 @@ const NiyantaAIPanel: React.FC<NiyantaAIPanelProps> = ({
             <div>
               Ask about agents, workflows, operations, or request actions.
             </div>
+            <div style={{ display: 'grid', gap: 8, marginTop: 18 }}>
+              {quickPrompts.map((prompt) => (
+                <button
+                  key={prompt}
+                  onClick={() => handleQuickPrompt(prompt)}
+                  style={{
+                    border: '1px solid var(--border)',
+                    background: 'var(--cc-surface-1)',
+                    borderRadius: 8,
+                    padding: '8px 10px',
+                    color: 'var(--text-secondary)',
+                    fontSize: 12,
+                    textAlign: 'left',
+                  }}
+                >
+                  {prompt}
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
@@ -158,9 +202,9 @@ const NiyantaAIPanel: React.FC<NiyantaAIPanelProps> = ({
               style={{
                 maxWidth: '85%',
                 padding: '10px 14px',
-                borderRadius: 4,
-                background: msg.role === 'user' ? 'var(--bg-tile)' : 'var(--bg-input)',
-                border: '1px solid var(--border)',
+                borderRadius: 10,
+                background: msg.role === 'user' ? 'var(--accent-dim)' : 'var(--cc-surface-1)',
+                border: msg.role === 'user' ? '1px solid var(--accent-border)' : '1px solid var(--border)',
                 fontFamily: 'var(--font-body)',
                 fontSize: 13,
                 lineHeight: 1.5,
@@ -180,7 +224,7 @@ const NiyantaAIPanel: React.FC<NiyantaAIPanelProps> = ({
                 padding: '0 2px',
               }}
             >
-              {msg.role === 'user' ? 'You' : 'Niyanta'}
+              {msg.role === 'user' ? 'You' : 'Niyanta'} {formatTime(msg.timestamp)}
             </span>
           </div>
         ))}
@@ -250,7 +294,7 @@ const NiyantaAIPanel: React.FC<NiyantaAIPanelProps> = ({
               height: 36,
               borderRadius: 4,
               border: '1px solid var(--border)',
-              background: input.trim() ? 'var(--accent-dim)' : 'transparent',
+              background: input.trim() ? 'var(--cc-info-bg)' : 'transparent',
               color: input.trim() ? 'var(--accent)' : 'var(--text-muted)',
               cursor: input.trim() ? 'pointer' : 'default',
               display: 'grid',
