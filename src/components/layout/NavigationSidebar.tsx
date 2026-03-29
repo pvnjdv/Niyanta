@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import AnimatedThemeToggle from '../shared/AnimatedThemeToggle';
 
 interface NavigationSidebarProps {
   onOpenNiyantaChat?: () => void;
@@ -346,35 +347,20 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
         )}
 
         {/* Theme toggle */}
-        <div
-          onClick={onToggleTheme}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 10, height: 36,
-            padding: collapsed ? '0 12px' : '0 12px', cursor: 'pointer',
-            justifyContent: collapsed ? 'center' : 'flex-start',
-            borderRadius: 4,
-          }}
-        >
-          {/* Toggle pill */}
-          <div style={{
-            position: 'relative', width: 34, height: 18, borderRadius: 9, flexShrink: 0,
-            background: theme === 'dark' ? 'var(--bg-tile)' : '#8B5CF6',
-            border: '1px solid var(--border)', transition: 'background 0.2s',
-          }}>
-            <div style={{
-              position: 'absolute', top: 2,
-              left: theme === 'dark' ? 2 : 14,
-              width: 12, height: 12, borderRadius: '50%',
-              background: theme === 'dark' ? 'var(--text-muted)' : '#fff',
-              transition: 'left 0.2s',
-            }} />
+        {onToggleTheme && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              height: 36,
+              padding: collapsed ? '0 12px' : '0 12px',
+              justifyContent: collapsed ? 'center' : 'flex-start',
+              borderRadius: 4,
+            }}
+          >
+            <AnimatedThemeToggle theme={theme} onToggle={onToggleTheme} />
           </div>
-          {!collapsed && (
-            <span style={{ fontSize: 13, color: 'var(--text-secondary)', fontFamily: 'var(--font-body)', whiteSpace: 'nowrap' }}>
-              {theme === 'dark' ? 'Dark' : 'Light'}
-            </span>
-          )}
-        </div>
+        )}
 
         {/* User */}
         <div

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AgentState } from '../types/agent';
 import { AGENT_LIST } from '../constants/agents';
+import AnimatedThemeToggle from '../components/shared/AnimatedThemeToggle';
 
 interface CommandCenterProps {
   agentStates: Record<string, AgentState>;
@@ -224,25 +225,7 @@ const CommandCenter: React.FC<CommandCenterProps> = ({
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         {badge}
-        <button
-          onClick={() => onToggleTheme?.()}
-          style={{
-            width: 32,
-            height: 32,
-            borderRadius: 999,
-            border: '1px solid var(--border)',
-            background: 'var(--cc-surface-1)',
-            color: 'var(--text-secondary)',
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: 12,
-            fontWeight: 700,
-          }}
-          title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-        >
-          {theme === 'dark' ? '◐' : '◑'}
-        </button>
+        <AnimatedThemeToggle theme={theme} onToggle={() => onToggleTheme?.()} />
         <button
           onClick={() => onOpenAIPanel?.()}
           style={{
