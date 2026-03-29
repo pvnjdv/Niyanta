@@ -147,12 +147,13 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ agents }) => {
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: isCompact ? '1fr' : '2fr 1fr',
+          gridTemplateColumns: isCompact ? '1fr' : 'minmax(0, 1.6fr) minmax(0, 1fr)',
+          gridTemplateRows: isCompact ? 'auto' : '1fr 1fr',
           gap: 12,
-          alignItems: 'start',
+          alignItems: 'stretch',
         }}
       >
-        <div style={{ ...panelStyle, padding: 14 }}>
+        <div style={{ ...panelStyle, padding: 14, gridRow: isCompact ? 'auto' : '1 / span 2', minHeight: isCompact ? undefined : 0 }}>
           <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
             Operational Controls
           </div>
@@ -195,63 +196,60 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ agents }) => {
           </div>
         </div>
 
-        <div style={{ display: 'grid', gap: 12 }}>
-          <div style={{ ...panelStyle, padding: 14 }}>
-            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-              Data Retention
-            </div>
-            <div style={{ marginTop: 10, display: 'grid', gap: 8 }}>
-              {['30 days', '90 days', '180 days'].map((item) => (
-                <button
-                  key={item}
-                  onClick={() => setRetention(item)}
-                  style={{
-                    height: 34,
-                    borderRadius: 8,
-                    border: `1px solid ${retention === item ? 'var(--cc-info-border)' : 'var(--border)'}`,
-                    background: retention === item ? 'var(--cc-info-bg)' : 'var(--bg-tile)',
-                    color: retention === item ? 'var(--status-info)' : 'var(--text-secondary)',
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: 11,
-                    cursor: 'pointer',
-                  }}
-                >
-                  {item}
-                </button>
-              ))}
-            </div>
+        <div style={{ ...panelStyle, padding: 14, minHeight: 0 }}>
+          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+            Data Retention
           </div>
-
-          <div style={{ ...panelStyle, padding: 14 }}>
-            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-              Environment
-            </div>
-            <div style={{ marginTop: 10, fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-              <div>API Region: ap-southeast-1</div>
-              <div>Release Channel: stable</div>
-              <div>Audit Stream: connected</div>
-              <div>Last policy sync: 6m ago</div>
-            </div>
-            <button
-              style={{
-                marginTop: 12,
-                width: '100%',
-                height: 34,
-                borderRadius: 8,
-                border: '1px solid var(--accent-border)',
-                background: 'var(--accent-dim)',
-                color: 'var(--accent)',
-                fontFamily: 'var(--font-mono)',
-                fontSize: 11,
-                fontWeight: 700,
-                letterSpacing: '0.04em',
-                cursor: 'pointer',
-              }}
-            >
-              RUN POLICY CHECK
-            </button>
+          <div style={{ marginTop: 10, display: 'grid', gap: 8 }}>
+            {['30 days', '90 days', '180 days'].map((item) => (
+              <button
+                key={item}
+                onClick={() => setRetention(item)}
+                style={{
+                  height: 34,
+                  borderRadius: 8,
+                  border: `1px solid ${retention === item ? 'var(--cc-info-border)' : 'var(--border)'}`,
+                  background: retention === item ? 'var(--cc-info-bg)' : 'var(--bg-tile)',
+                  color: retention === item ? 'var(--status-info)' : 'var(--text-secondary)',
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 11,
+                  cursor: 'pointer',
+                }}
+              >
+                {item}
+              </button>
+            ))}
           </div>
+        </div>
 
+        <div style={{ ...panelStyle, padding: 14, minHeight: 0 }}>
+          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+            Environment
+          </div>
+          <div style={{ marginTop: 10, fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+            <div>API Region: ap-southeast-1</div>
+            <div>Release Channel: stable</div>
+            <div>Audit Stream: connected</div>
+            <div>Last policy sync: 6m ago</div>
+          </div>
+          <button
+            style={{
+              marginTop: 12,
+              width: '100%',
+              height: 34,
+              borderRadius: 8,
+              border: '1px solid var(--accent-border)',
+              background: 'var(--accent-dim)',
+              color: 'var(--accent)',
+              fontFamily: 'var(--font-mono)',
+              fontSize: 11,
+              fontWeight: 700,
+              letterSpacing: '0.04em',
+              cursor: 'pointer',
+            }}
+          >
+            RUN POLICY CHECK
+          </button>
         </div>
       </div>
 
