@@ -1,5 +1,22 @@
 import React, { useEffect, useState } from 'react';
 import { Agent } from '../types/agent';
+import { readLocalStorage, writeLocalStorage } from '../utils/localStorage';
+
+const SETTINGS_STORAGE_KEY = 'niyanta-settings';
+
+interface LocalSettings {
+  alertsEnabled: boolean;
+  auditStrictMode: boolean;
+  autoApproveLowRisk: boolean;
+  retention: string;
+}
+
+const DEFAULT_SETTINGS: LocalSettings = {
+  alertsEnabled: true,
+  auditStrictMode: true,
+  autoApproveLowRisk: false,
+  retention: '90 days',
+};
 
 interface SettingsScreenProps {
   agents: Agent[];
@@ -48,11 +65,12 @@ const panelStyle: React.CSSProperties = {
 };
 
 const SettingsScreen: React.FC<SettingsScreenProps> = ({ agents }) => {
+  const storedSettings = readLocalStorage<LocalSettings>(SETTINGS_STORAGE_KEY, DEFAULT_SETTINGS);
   const [isCompact, setIsCompact] = useState<boolean>(typeof window !== 'undefined' ? window.innerWidth < 1100 : false);
-  const [alertsEnabled, setAlertsEnabled] = useState(true);
-  const [auditStrictMode, setAuditStrictMode] = useState(true);
-  const [autoApproveLowRisk, setAutoApproveLowRisk] = useState(false);
-  const [retention, setRetention] = useState('90 days');
+  const [alertsEnabled, setAlertsEnabled] = useState(storedSettings.alertsEnabled);
+  const [auditStrictMode, setAuditStrictMode] = useState(storedSettings.auditStrictMode);
+  const [autoApproveLowRisk, setAutoApproveLowRisk] = useState(storedSettings.autoApproveLowRisk);
+  const [retention, setRetention] = useState(storedSettings.retention);
   const [servicePulse] = useState(() => Date.now());
 
   useEffect(() => {
@@ -60,6 +78,15 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ agents }) => {
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
+
+  useEffect(() => {
+    writeLocalStorage<LocalSettings>(SETTINGS_STORAGE_KEY, {
+      alertsEnabled,
+      auditStrictMode,
+      autoApproveLowRisk,
+      retention,
+    });
+  }, [alertsEnabled, auditStrictMode, autoApproveLowRisk, retention]);
 
   const controls: Array<{
     key: string;

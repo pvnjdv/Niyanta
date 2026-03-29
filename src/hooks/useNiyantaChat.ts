@@ -1,6 +1,10 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { sendNiyantaMessage } from '../services/api';
 import { ChatMessage } from '../types/message';
+import { readLocalStorage, writeLocalStorage } from '../utils/localStorage';
+
+const CURRENT_CHAT_KEY = 'niyanta-chat-current';
+const CHAT_HISTORY_KEY = 'niyanta-chat-history';
 
 export interface NiyantaChatSession {
   id: string;
@@ -10,9 +14,17 @@ export interface NiyantaChatSession {
 }
 
 export function useNiyantaChat() {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>(() => readLocalStorage<ChatMessage[]>(CURRENT_CHAT_KEY, []));
   const [isSending, setIsSending] = useState(false);
-  const [historySessions, setHistorySessions] = useState<NiyantaChatSession[]>([]);
+  const [historySessions, setHistorySessions] = useState<NiyantaChatSession[]>(() => readLocalStorage<NiyantaChatSession[]>(CHAT_HISTORY_KEY, []));
+
+  useEffect(() => {
+    writeLocalStorage(CURRENT_CHAT_KEY, messages);
+  }, [messages]);
+
+  useEffect(() => {
+    writeLocalStorage(CHAT_HISTORY_KEY, historySessions);
+  }, [historySessions]);
 
   const sendMessage = useCallback(async (message: string, agentResults: Record<string, unknown>) => {
     setIsSending(true);
