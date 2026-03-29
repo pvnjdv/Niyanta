@@ -57,10 +57,15 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
   const [editingAgentId, setEditingAgentId] = useState<string | null>(null);
 
   // Canvas refs
+  const [agentEdges, setAgentEdges] = useState<Array<{ id: string; from: string; to: string }>>([]);
+  const [wiringPreview, setWiringPreview] = useState<{ x: number; y: number } | null>(null);
+
+  // Canvas refs
   const canvasRef = useRef<HTMLDivElement>(null);
   const draggingNode = useRef<{ nodeId: string; startX: number; startY: number; originX: number; originY: number } | null>(null);
   const panningCanvas = useRef<{ startX: number; startY: number; originPanX: number; originPanY: number } | null>(null);
   const hydratedAgentIdRef = useRef<string | null>(null);
+  const wiringFrom = useRef<{ nodeId: string } | null>(null);
 
   const selectedAgent = agentId && agentId !== 'new' ? agents.find(a => a.id === agentId) || null : null;
   const selectedState = selectedAgent ? agentStates[selectedAgent.id] : null;
@@ -82,6 +87,10 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
     setAgentColor(ea.color || '#00D4FF');
     setEditingAgentId(editId);
     setHasUnsavedAgentChanges(false);
+    setCanvasNodes([]);
+    setAgentEdges([]);
+    setStartNodePos({ x: 60, y: 80 });
+    setEndNodePos({ x: 900, y: 80 });
 
     const hydrateEditCanvas = async () => {
       try {
@@ -100,7 +109,8 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
           }
 
           const pipelineLayout = layout.filter((n: any) => n?.refId !== '__start__' && n?.refId !== '__end__');
-          setCanvasNodes(pipelineLayout.map((n: any, i: number) => ({
+          const pipelineNonMeta = pipelineLayout.filter((n: any) => n?.refId !== '__edges__');
+          const mappedNodes = pipelineNonMeta.map((n: any, i: number) => ({
             id: n.id || `cn-edit-${Date.now()}-${i}`,
             blockType: n.blockType === 'node' ? 'node' : 'workflow',
             refId: n.refId || '',
@@ -110,7 +120,14 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
             x: typeof n.x === 'number' ? n.x : 320,
             y: typeof n.y === 'number' ? n.y : 80,
             inputInfo: n.inputInfo || '',
-          })));
+          }));
+          setCanvasNodes(mappedNodes);
+
+          const edgesEntry = layout.find((n: any) => n?.refId === '__edges__');
+          let parsedEdges: any[] = [];
+          try { parsedEdges = edgesEntry?.inputInfo ? JSON.parse(edgesEntry.inputInfo) : []; } catch { parsedEdges = []; }
+          const validNodeIds = new Set<string>(['__start__', '__end__', ...mappedNodes.map(n => n.id)]);
+          setAgentEdges(normalizeEdges(parsedEdges, validNodeIds));
           return;
         }
       } catch {
@@ -144,6 +161,7 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
     setHasUnsavedAgentChanges(false);
     setLastSaved(null);
     setCanvasNodes([]);
+    setAgentEdges([]);
     setStartNodePos({ x: 60, y: 80 });
     setEndNodePos({ x: 900, y: 80 });
 
@@ -160,19 +178,25 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
         if (typeof endAnchor?.x === 'number') setEndNodePos({ x: endAnchor.x, y: endAnchor.y });
 
         const pipeline = layout.filter((n: any) => n?.refId !== '__start__' && n?.refId !== '__end__');
-        if (pipeline.length > 0) {
-          setCanvasNodes(pipeline.map((n: any, i: number) => ({
-            id: n.id || `cn-${agentId}-${i}`,
-            blockType: n.blockType === 'node' ? 'node' as const : 'workflow' as const,
-            refId: n.refId || '',
-            name: n.name || 'Block',
-            category: n.category || 'General',
-            color: n.color || getCategoryColor(n.category || 'General'),
-            x: typeof n.x === 'number' ? n.x : 320,
-            y: typeof n.y === 'number' ? n.y : 80,
-            inputInfo: n.inputInfo || '',
-          })));
-        }
+        const pipelineClean = pipeline.filter((n: any) => n?.refId !== '__edges__');
+        const mappedNodes = pipelineClean.map((n: any, i: number) => ({
+          id: n.id || `cn-${agentId}-${i}`,
+          blockType: n.blockType === 'node' ? 'node' as const : 'workflow' as const,
+          refId: n.refId || '',
+          name: n.name || 'Block',
+          category: n.category || 'General',
+          color: n.color || getCategoryColor(n.category || 'General'),
+          x: typeof n.x === 'number' ? n.x : 320,
+          y: typeof n.y === 'number' ? n.y : 80,
+          inputInfo: n.inputInfo || '',
+        }));
+        setCanvasNodes(mappedNodes);
+
+        const edgesEntry2 = layout.find((n: any) => n?.refId === '__edges__');
+        let parsedEdges: any[] = [];
+        try { parsedEdges = edgesEntry2?.inputInfo ? JSON.parse(edgesEntry2.inputInfo) : []; } catch { parsedEdges = []; }
+        const validNodeIds = new Set<string>(['__start__', '__end__', ...mappedNodes.map(n => n.id)]);
+        setAgentEdges(normalizeEdges(parsedEdges, validNodeIds));
       } catch {
         // best effort
       }
@@ -243,6 +267,36 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
     return colors[category] || '#6B7280';
   };
 
+  const normalizeEdges = (
+    rawEdges: any,
+    validNodeIds: Set<string>
+  ): Array<{ id: string; from: string; to: string }> => {
+    if (!Array.isArray(rawEdges)) return [];
+    const seen = new Set<string>();
+    const out: Array<{ id: string; from: string; to: string }> = [];
+    for (let i = 0; i < rawEdges.length; i++) {
+      const e = rawEdges[i] || {};
+      const from = typeof e.from === 'string' ? e.from : (typeof e.fromNodeId === 'string' ? e.fromNodeId : '');
+      const to = typeof e.to === 'string' ? e.to : (typeof e.toNodeId === 'string' ? e.toNodeId : '');
+      if (!from || !to || from === to) continue;
+      if (!validNodeIds.has(from) || !validNodeIds.has(to)) continue;
+      const key = `${from}=>${to}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ id: typeof e.id === 'string' && e.id ? e.id : `e-${Date.now()}-${i}`, from, to });
+    }
+    return out;
+  };
+
+  // Returns canvas-space position of a node's left or right connection handle
+  const getHandlePos = (nodeId: string, side: 'left' | 'right') => {
+    if (nodeId === '__start__') return { x: startNodePos.x + (side === 'right' ? 200 : 0), y: startNodePos.y + 50 };
+    if (nodeId === '__end__')   return { x: endNodePos.x   + (side === 'right' ? 200 : 0), y: endNodePos.y   + 50 };
+    const node = canvasNodes.find(n => n.id === nodeId);
+    if (!node) return { x: 0, y: 0 };
+    return { x: node.x + (side === 'right' ? 240 : 0), y: node.y + 65 };
+  };
+
   const getRoleColor = (role: string) => {
     return role === 'input' ? '#3B82F6' : role === 'process' ? '#F59E0B' : '#059669';
   };
@@ -298,7 +352,13 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
 
   const removeNodeFromCanvas = (nodeId: string) => {
     setCanvasNodes(prev => prev.filter(n => n.id !== nodeId));
+    setAgentEdges(prev => prev.filter(e => e.from !== nodeId && e.to !== nodeId));
     setSelectedNode(null);
+    setHasUnsavedAgentChanges(true);
+  };
+
+  const deleteEdge = (edgeId: string) => {
+    setAgentEdges(prev => prev.filter(e => e.id !== edgeId));
     setHasUnsavedAgentChanges(true);
   };
 
@@ -319,6 +379,7 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
         })).concat([
           { id: 'anchor-start', blockType: 'workflow' as const, refId: '__start__', name: 'Start', category: 'anchor', x: startNodePos.x, y: startNodePos.y, inputInfo: '' },
           { id: 'anchor-end', blockType: 'workflow' as const, refId: '__end__', name: 'End', category: 'anchor', x: endNodePos.x, y: endNodePos.y, inputInfo: '' },
+          { id: '__edges__', blockType: 'workflow' as const, refId: '__edges__', name: '__edges__', category: 'meta', x: 0, y: 0, inputInfo: JSON.stringify(agentEdges) },
         ]),
       },
     };
@@ -356,7 +417,51 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
     setAgentDescription(template.description);
     setAgentCapabilities(template.capabilities.join(', '));
     setAgentColor(template.color);
+    setEditingAgentId(null);
     setHasUnsavedAgentChanges(true);
+
+    // Load canvas layout from template so all its nodes/workflows appear in editor
+    try {
+      const res = await fetch(`/api/agent/${template.id}/workflows`);
+      if (res.ok) {
+        const data = await res.json();
+        const layout = Array.isArray(data.canvasLayout) ? data.canvasLayout : [];
+        const startAnchor = layout.find((n: any) => n?.refId === '__start__');
+        const endAnchor = layout.find((n: any) => n?.refId === '__end__');
+        setStartNodePos(typeof startAnchor?.x === 'number' ? { x: startAnchor.x, y: startAnchor.y } : { x: 60, y: 80 });
+        setEndNodePos(typeof endAnchor?.x === 'number' ? { x: endAnchor.x, y: endAnchor.y } : { x: 900, y: 80 });
+        const pipeline = layout.filter((n: any) => n?.refId !== '__start__' && n?.refId !== '__end__');
+        const pipelineTmpl = pipeline.filter((n: any) => n?.refId !== '__edges__');
+        const mappedNodes = pipelineTmpl.map((n: any, i: number) => ({
+          id: `cn-tmpl-${Date.now()}-${i}`,
+          blockType: n.blockType === 'node' ? 'node' as const : 'workflow' as const,
+          refId: n.refId || '',
+          name: n.name || 'Block',
+          category: n.category || 'General',
+          color: n.color || getCategoryColor(n.category || 'General'),
+          x: typeof n.x === 'number' ? n.x : 320,
+          y: typeof n.y === 'number' ? n.y : 80,
+          inputInfo: n.inputInfo || '',
+        }));
+        setCanvasNodes(mappedNodes);
+
+        const tmplEdgesEntry = layout.find((n: any) => n?.refId === '__edges__');
+        let parsedEdges: any[] = [];
+        try { parsedEdges = tmplEdgesEntry?.inputInfo ? JSON.parse(tmplEdgesEntry.inputInfo) : []; } catch { parsedEdges = []; }
+        const validNodeIds = new Set<string>(['__start__', '__end__', ...mappedNodes.map(n => n.id)]);
+        setAgentEdges(normalizeEdges(parsedEdges, validNodeIds));
+      } else {
+        setCanvasNodes([]);
+        setAgentEdges([]);
+        setStartNodePos({ x: 60, y: 80 });
+        setEndNodePos({ x: 900, y: 80 });
+      }
+    } catch {
+      setCanvasNodes([]);
+      setAgentEdges([]);
+      setStartNodePos({ x: 60, y: 80 });
+      setEndNodePos({ x: 900, y: 80 });
+    }
 
     setShowTemplates(false);
     navigate('/agents/new');
@@ -410,7 +515,14 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
 
   // ── Canvas mouse handlers ──────────────────────────────────────────────────
   const handleCanvasMouseDown = (e: React.MouseEvent) => {
-    if (e.target === canvasRef.current || (e.target as HTMLElement).classList.contains('canvas-grid')) {
+    const target = e.target as Element;
+    const tag = target.nodeName.toLowerCase();
+    const isBackground = target === canvasRef.current
+      || target.classList.contains('canvas-grid')
+      || tag === 'svg' || tag === 'g';
+    if (isBackground) {
+      wiringFrom.current = null;
+      setWiringPreview(null);
       panningCanvas.current = { startX: e.clientX, startY: e.clientY, originPanX: canvasPan.x, originPanY: canvasPan.y };
       setSelectedNode(null);
     }
@@ -438,6 +550,15 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
   };
 
   const handleCanvasMouseMove = useCallback((e: React.MouseEvent) => {
+    if (wiringFrom.current && canvasRef.current) {
+      const rect = canvasRef.current.getBoundingClientRect();
+      const scale = canvasZoom / 100;
+      setWiringPreview({
+        x: (e.clientX - rect.left - canvasPan.x) / scale,
+        y: (e.clientY - rect.top  - canvasPan.y) / scale,
+      });
+      return;
+    }
     if (draggingNode.current) {
       const { nodeId, startX, startY, originX, originY } = draggingNode.current;
       const dx = e.clientX - startX;
@@ -474,6 +595,8 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
   const handleCanvasMouseUp = () => {
     draggingNode.current = null;
     panningCanvas.current = null;
+    wiringFrom.current = null;
+    setWiringPreview(null);
   };
 
   const handleRun = async () => {
@@ -758,7 +881,7 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
               ref={canvasRef}
               className="canvas-grid"
               style={{
-                width: '100%', height: '100%', position: 'relative', cursor: panningCanvas.current ? 'grabbing' : 'grab',
+                width: '100%', height: '100%', position: 'relative', cursor: wiringPreview ? 'crosshair' : panningCanvas.current ? 'grabbing' : 'grab',
                 backgroundImage: 'radial-gradient(circle, var(--border) 1px, transparent 1px)',
                 backgroundSize: '20px 20px',
                 backgroundPosition: `${canvasPan.x}px ${canvasPan.y}px`,
@@ -768,32 +891,40 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
               onMouseUp={handleCanvasMouseUp}
               onMouseLeave={handleCanvasMouseUp}
             >
-              <svg style={{
-                position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
-                pointerEvents: 'none', zIndex: 1,
-              }}>
+              <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 1 }}>
+                <defs>
+                  <marker id="agent-arrow" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+                    <polygon points="0 0, 8 3, 0 6" fill="var(--accent)" opacity="0.7" />
+                  </marker>
+                </defs>
                 <g transform={`translate(${canvasPan.x}, ${canvasPan.y}) scale(${canvasZoom / 100})`}>
-                  {/* Auto-computed edges: INPUT → all blocks → OUTPUT (parallel) */}
-                  {(() => {
-                    const INPUT_X = startNodePos.x, INPUT_Y = startNodePos.y, INPUT_H = 80;
-                    const OUTPUT_X = endNodePos.x, OUTPUT_Y = endNodePos.y, OUTPUT_H = 80;
-                    const conns: Array<{x1:number;y1:number;x2:number;y2:number}> = [];
-                    const iy = INPUT_Y + INPUT_H / 2;
-                    const oy = OUTPUT_Y + OUTPUT_H / 2;
-                    if (canvasNodes.length === 0) {
-                      conns.push({ x1: INPUT_X + 200, y1: iy, x2: OUTPUT_X, y2: oy });
-                    } else {
-                      // Parallel: INPUT → each block, each block → OUTPUT
-                      for (const node of canvasNodes) {
-                        const ny = node.y + 40;
-                        conns.push({ x1: INPUT_X + 200, y1: iy, x2: node.x, y2: ny });
-                        conns.push({ x1: node.x + 240, y1: ny, x2: OUTPUT_X, y2: oy });
-                      }
-                    }
-                    return conns.map((c, i) => {
-                      const mx = (c.x1 + c.x2) / 2;
-                      return <path key={i} d={`M${c.x1},${c.y1} C${mx},${c.y1} ${mx},${c.y2} ${c.x2},${c.y2}`} fill="none" stroke="var(--accent)" strokeWidth={2} opacity={0.4} />;
-                    });
+                  {/* Manual edges — click to delete */}
+                  {agentEdges.map(edge => {
+                    const from = getHandlePos(edge.from, 'right');
+                    const to   = getHandlePos(edge.to,   'left');
+                    const mx   = (from.x + to.x) / 2;
+                    const d    = `M${from.x},${from.y} C${mx},${from.y} ${mx},${to.y} ${to.x},${to.y}`;
+                    return (
+                      <g key={edge.id}>
+                        {/* invisible hit-area path */}
+                        <path d={d} fill="none" stroke="transparent" strokeWidth={14}
+                          pointerEvents="stroke" style={{ cursor: 'pointer' }}
+                          onClick={() => deleteEdge(edge.id)} />
+                        <path d={d} fill="none" stroke="var(--accent)" strokeWidth={2} opacity={0.7}
+                          markerEnd="url(#agent-arrow)" pointerEvents="none" />
+                      </g>
+                    );
+                  })}
+                  {/* Live wiring preview */}
+                  {wiringFrom.current && wiringPreview && (() => {
+                    const from = getHandlePos(wiringFrom.current!.nodeId, 'right');
+                    const mx   = (from.x + wiringPreview.x) / 2;
+                    return (
+                      <path
+                        d={`M${from.x},${from.y} C${mx},${from.y} ${mx},${wiringPreview.y} ${wiringPreview.x},${wiringPreview.y}`}
+                        fill="none" stroke="var(--accent)" strokeWidth={2} opacity={0.5}
+                        strokeDasharray="6 3" pointerEvents="none" />
+                    );
                   })()}
                 </g>
               </svg>
@@ -825,7 +956,14 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
                   <div style={{ fontSize: 10, color: 'var(--text-secondary)', lineHeight: 1.5 }}>User message or file upload triggers this agent</div>
                   <div style={{ marginTop: 6, fontSize: 9, fontFamily: 'var(--font-mono)', color: '#93C5FD', textTransform: 'uppercase' }}>Required start node</div>
                   {/* Right handle */}
-                  <div style={{ position: 'absolute', right: -8, top: '50%', transform: 'translateY(-50%)', width: 16, height: 16, borderRadius: '50%', background: '#3B82F6', border: '2px solid var(--bg-base)' }} />
+                  <div
+                    title="Drag to connect"
+                    onMouseDown={e => {
+                      e.stopPropagation();
+                      wiringFrom.current = { nodeId: '__start__' };
+                      setWiringPreview(getHandlePos('__start__', 'right'));
+                    }}
+                    style={{ position: 'absolute', right: -8, top: '50%', transform: 'translateY(-50%)', width: 16, height: 16, borderRadius: '50%', background: '#3B82F6', border: '2px solid var(--bg-base)', cursor: 'crosshair', zIndex: 20 }} />
                 </div>
 
                 {/* ── Required OUTPUT node (Niyanta) ── */}
@@ -840,7 +978,19 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
                     userSelect: 'none', zIndex: 3, cursor: 'grab',
                   }}>
                   {/* Left handle */}
-                  <div style={{ position: 'absolute', left: -8, top: '50%', transform: 'translateY(-50%)', width: 16, height: 16, borderRadius: '50%', background: '#7C3AED', border: '2px solid var(--bg-base)' }} />
+                  <div
+                    title="Drop connection here"
+                    onMouseUp={e => {
+                      e.stopPropagation();
+                      if (wiringFrom.current && wiringFrom.current.nodeId !== '__end__') {
+                        const from = wiringFrom.current.nodeId;
+                        setAgentEdges(prev => prev.some(ed => ed.from === from && ed.to === '__end__') ? prev : [...prev, { id: `e-${Date.now()}`, from, to: '__end__' }]);
+                        setHasUnsavedAgentChanges(true);
+                      }
+                      wiringFrom.current = null;
+                      setWiringPreview(null);
+                    }}
+                    style={{ position: 'absolute', left: -8, top: '50%', transform: 'translateY(-50%)', width: 16, height: 16, borderRadius: '50%', background: '#7C3AED', border: '2px solid var(--bg-base)', cursor: wiringPreview ? 'crosshair' : 'default', zIndex: 20 }} />
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
                     <div style={{ width: 32, height: 32, borderRadius: 7, background: '#7C3AED', display: 'grid', placeItems: 'center', color: '#fff', fontWeight: 700, fontSize: 14 }}>N</div>
                     <div>
@@ -869,9 +1019,29 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
                     onMouseDown={e => handleNodeMouseDown(e, node.id)}
                   >
                     {/* Left handle */}
-                    <div style={{ position: 'absolute', left: -8, top: '50%', transform: 'translateY(-50%)', width: 16, height: 16, borderRadius: '50%', background: node.color, border: '2px solid var(--bg-base)' }} />
-                    {/* Right handle */}
-                    <div style={{ position: 'absolute', right: -8, top: '50%', transform: 'translateY(-50%)', width: 16, height: 16, borderRadius: '50%', background: node.color, border: '2px solid var(--bg-base)' }} />
+                    {/* Left handle — accept incoming wire */}
+                    <div
+                      title="Drop connection here"
+                      onMouseUp={e => {
+                        e.stopPropagation();
+                        if (wiringFrom.current && wiringFrom.current.nodeId !== node.id) {
+                          const from = wiringFrom.current.nodeId;
+                          setAgentEdges(prev => prev.some(ed => ed.from === from && ed.to === node.id) ? prev : [...prev, { id: `e-${Date.now()}`, from, to: node.id }]);
+                          setHasUnsavedAgentChanges(true);
+                        }
+                        wiringFrom.current = null;
+                        setWiringPreview(null);
+                      }}
+                      style={{ position: 'absolute', left: -8, top: '50%', transform: 'translateY(-50%)', width: 16, height: 16, borderRadius: '50%', background: node.color, border: '2px solid var(--bg-base)', cursor: wiringPreview ? 'crosshair' : 'default', zIndex: 20 }} />
+                    {/* Right handle — start new wire */}
+                    <div
+                      title="Drag to connect"
+                      onMouseDown={e => {
+                        e.stopPropagation();
+                        wiringFrom.current = { nodeId: node.id };
+                        setWiringPreview(getHandlePos(node.id, 'right'));
+                      }}
+                      style={{ position: 'absolute', right: -8, top: '50%', transform: 'translateY(-50%)', width: 16, height: 16, borderRadius: '50%', background: node.color, border: '2px solid var(--bg-base)', cursor: 'crosshair', zIndex: 20 }} />
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
                       <div style={{ width: 30, height: 30, borderRadius: 6, background: node.color, display: 'grid', placeItems: 'center', color: '#fff', fontSize: 12, fontWeight: 700, flexShrink: 0 }}>
@@ -1056,10 +1226,28 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
                     DATA FLOW
                   </div>
                   <div style={{ fontSize: 10, color: 'var(--text-secondary)', lineHeight: 1.8, fontFamily: 'var(--font-mono)' }}>
-                    INPUT (Chat / Data)<br />
-                    {canvasNodes.map((n, i) => <React.Fragment key={n.id}>&nbsp;&nbsp;↓<br />{n.name}<br /></React.Fragment>)}
-                    &nbsp;&nbsp;↓<br />
-                    OUTPUT (Niyanta Report)
+                    {(() => {
+                      const adj: Record<string, string[]> = {};
+                      for (const ed of agentEdges) { if (!adj[ed.from]) adj[ed.from] = []; adj[ed.from].push(ed.to); }
+                      const visited = new Set<string>();
+                      const order: typeof canvasNodes = [];
+                      const queue = ['__start__'];
+                      while (queue.length) {
+                        const cur = queue.shift()!;
+                        if (visited.has(cur)) continue;
+                        visited.add(cur);
+                        const n = canvasNodes.find(x => x.id === cur);
+                        if (n) order.push(n);
+                        for (const nxt of (adj[cur] || [])) queue.push(nxt);
+                      }
+                      for (const n of canvasNodes) if (!visited.has(n.id)) order.push(n);
+                      return <>
+                        INPUT (Chat / Data)<br />
+                        {order.map(n => <React.Fragment key={n.id}>&nbsp;&nbsp;↓<br />{n.name}<br /></React.Fragment>)}
+                        &nbsp;&nbsp;↓<br />
+                        OUTPUT (Niyanta Report)
+                      </>;
+                    })()}
                   </div>
                 </div>
               )}

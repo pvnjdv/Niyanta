@@ -81,6 +81,26 @@ function initializeSchema(): void {
     `).run();
   } catch { /* table already exists */ }
 
+  // Dedicated per-agent canvas persistence (one canvas per agent)
+  try {
+    db.prepare(`
+      CREATE TABLE IF NOT EXISTS agent_canvas_layouts (
+        agent_id TEXT PRIMARY KEY,
+        layout_json TEXT NOT NULL DEFAULT '[]',
+        updated_at TEXT DEFAULT (datetime('now')),
+        FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE
+      )
+    `).run();
+
+    // Backfill existing canvas layouts from legacy agents.canvas_layout column
+    db.prepare(`
+      INSERT OR IGNORE INTO agent_canvas_layouts (agent_id, layout_json, updated_at)
+      SELECT id, canvas_layout, datetime('now')
+      FROM agents
+      WHERE canvas_layout IS NOT NULL AND TRIM(canvas_layout) != ''
+    `).run();
+  } catch { /* table may already exist */ }
+
   seedDefaultAgents();
   seedDefaultNodes();
   seedDefaultWorkflows();

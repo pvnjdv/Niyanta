@@ -6,6 +6,48 @@ import { validateAgentRun } from '../middleware/validator';
 
 const router = Router();
 
+const readAgentCanvasLayout = (db: any, agentId: string): unknown[] => {
+  try {
+    const row = db
+      .prepare('SELECT layout_json FROM agent_canvas_layouts WHERE agent_id = ?')
+      .get(agentId) as { layout_json?: string | null } | undefined;
+    if (row?.layout_json) return JSON.parse(row.layout_json);
+  } catch {
+    // Fallback to legacy column below.
+  }
+
+  try {
+    const legacy = db
+      .prepare('SELECT canvas_layout FROM agents WHERE id = ?')
+      .get(agentId) as { canvas_layout?: string | null } | undefined;
+    if (legacy?.canvas_layout) return JSON.parse(legacy.canvas_layout);
+  } catch {
+    // Ignore malformed legacy values.
+  }
+
+  return [];
+};
+
+const writeAgentCanvasLayout = (db: any, agentId: string, canvasLayout: unknown[] | undefined) => {
+  if (canvasLayout === undefined) return;
+  const payload = JSON.stringify(Array.isArray(canvasLayout) ? canvasLayout : []);
+
+  db.prepare(
+    `INSERT INTO agent_canvas_layouts (agent_id, layout_json, updated_at)
+     VALUES (?, ?, datetime('now'))
+     ON CONFLICT(agent_id) DO UPDATE SET
+       layout_json = excluded.layout_json,
+       updated_at = datetime('now')`
+  ).run(agentId, payload);
+
+  // Keep legacy column synchronized for backwards compatibility.
+  try {
+    db.prepare('UPDATE agents SET canvas_layout = ? WHERE id = ?').run(payload, agentId);
+  } catch {
+    // Ignore if legacy column is unavailable in older DBs.
+  }
+};
+
 // ── Run an agent ─────────────────────────────────────────────────────
 router.post('/run', validateAgentRun, async (req: Request, res: Response) => {
   const { agentId, input, workflowContext }: RunAgentRequest = req.body;
@@ -139,6 +181,10 @@ router.post('/', (req: Request, res: Response) => {
       canvasLayout
     );
 
+    if (config?.canvasLayout !== undefined) {
+      writeAgentCanvasLayout(db, agentDef.agent_id, config.canvasLayout);
+    }
+
     // Link agent to selected workflows
     if (Array.isArray(workflows) && workflows.length > 0) {
       const insertWorkflowLink = db.prepare(
@@ -212,6 +258,10 @@ router.put('/:id', (req: Request, res: Response) => {
       db.prepare(`UPDATE agents SET ${setClauses.join(', ')} WHERE id = ?`).run(...values);
     }
 
+    if (config?.canvasLayout !== undefined) {
+      writeAgentCanvasLayout(db, id, config.canvasLayout);
+    }
+
     // Update backing workflow LLM prompt if systemPrompt changed
     if (systemPrompt !== undefined) {
       const workflowId = `wf_agent_${id}`;
@@ -274,6 +324,7 @@ router.delete('/:id', (req: Request, res: Response) => {
     }
     db.prepare('DELETE FROM workflow_runs WHERE workflow_id = ?').run(workflowId);
     db.prepare('DELETE FROM workflows WHERE id = ?').run(workflowId);
+    db.prepare('DELETE FROM agent_canvas_layouts WHERE agent_id = ?').run(id);
     db.prepare('DELETE FROM agents WHERE id = ?').run(id);
 
     return res.json({ success: true, message: `Agent ${id} deleted` });
@@ -480,15 +531,7 @@ router.get('/:id/workflows', (req: Request, res: Response) => {
       ORDER BY aw.created_at DESC
     `).all(id);
     
-    const agentRow = db.prepare('SELECT canvas_layout FROM agents WHERE id = ?').get(id) as { canvas_layout: string | null } | undefined;
-    let canvasLayout: unknown[] = [];
-    if (agentRow?.canvas_layout) {
-      try {
-        canvasLayout = JSON.parse(agentRow.canvas_layout);
-      } catch {
-        canvasLayout = [];
-      }
-    }
+    const canvasLayout = readAgentCanvasLayout(db, id);
 
     return res.json({ success: true, workflows: links, canvasLayout });
   } catch (error) {
