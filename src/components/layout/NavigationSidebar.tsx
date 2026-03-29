@@ -29,7 +29,6 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 const BOTTOM_ITEMS: NavItem[] = [
-  { id: 'services',      label: 'Services',      path: '/services',      icon: '⊕' },
   { id: 'notifications', label: 'Notifications', path: '/notifications', icon: '◉' },
   { id: 'settings',      label: 'Settings',      path: '/settings',     icon: '⚙' },
 ];
@@ -55,7 +54,6 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
     { name: 'Operations', path: '/monitor' },
     { name: 'Approvals', path: '/approvals' },
     { name: 'Audit & Compliance', path: '/audit' },
-    { name: 'Services', path: '/services' },
     { name: 'Notifications', path: '/notifications' },
     { name: 'Settings', path: '/settings' },
   ];
@@ -85,7 +83,6 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
     if (p.startsWith('/monitor')) return 'operations';
     if (p.startsWith('/approvals')) return 'approvals';
     if (p.startsWith('/audit')) return 'audit';
-    if (p.startsWith('/services')) return 'services';
     if (p.startsWith('/notifications')) return 'notifications';
     if (p.startsWith('/settings')) return 'settings';
     return 'command';
