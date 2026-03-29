@@ -87,15 +87,17 @@ const AppContent: React.FC = () => {
         name: workflow.name,
         category: workflow.category,
         status: workflow.status,
-        nodeCount: Array.isArray(workflow.nodes) ? workflow.nodes.length : workflow.nodeCount,
+        nodeCount: Array.isArray(workflow.nodes)
+          ? workflow.nodes.length
+          : Number((workflow as unknown as Record<string, unknown>).nodeCount || 0),
       })),
       metrics,
       auditTrail,
       reports: Object.entries(agentResults).map(([agentId, result]) => ({
         agentId,
-        summary: typeof (result as Record<string, unknown>)?.summary === 'string' ? (result as Record<string, unknown>).summary : '',
-        decision: (result as Record<string, unknown>)?.decision || null,
-        riskLevel: (result as Record<string, unknown>)?.riskLevel || null,
+        summary: typeof (result as unknown as Record<string, unknown>)?.summary === 'string' ? (result as unknown as Record<string, unknown>).summary : '',
+        decision: (result as unknown as Record<string, unknown>)?.decision || null,
+        riskLevel: (result as unknown as Record<string, unknown>)?.riskLevel || null,
       })),
     };
   }, [agentResults, agentStates, entries, metrics, runtimeAgents, workflows]);

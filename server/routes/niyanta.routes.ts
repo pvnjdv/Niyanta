@@ -150,7 +150,7 @@ router.post('/chat', async (req: Request, res: Response) => {
       message,
       Array.isArray(conversationHistory) ? conversationHistory : [],
       agentResults || {},
-      systemContext || {}
+      (systemContext || {}) as Record<string, unknown>
     );
     const response: NiyantaChatResponse = {
       reply,

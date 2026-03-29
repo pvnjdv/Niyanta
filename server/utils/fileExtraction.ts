@@ -1,5 +1,6 @@
-import pdfParse from 'pdf-parse';
 import XLSX from 'xlsx';
+
+const pdfParse = require('pdf-parse') as (buffer: Buffer) => Promise<{ text?: string; numpages?: number }>;
 
 export interface UploadedFileLike {
   originalname: string;

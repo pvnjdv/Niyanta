@@ -218,7 +218,7 @@ router.post('/:id/execute', async (req: Request, res: Response) => {
     return res.status(404).json({ error: 'NotFound', message: 'Workflow not found' });
   }
 
-  if ((workflow as Record<string, unknown>).status === 'disabled') {
+  if ((workflow as unknown as Record<string, unknown>).status === 'disabled') {
     return res.status(400).json({ error: 'WorkflowDisabled', message: 'This workflow is disabled' });
   }
 
