@@ -345,3 +345,83 @@ button, [class*="animate"] {
   background: var(--bg-tile); border: 1px solid var(--border); border-radius: 2px;
   font-family: var(--font-mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em;
 }
+
+/* ─── Gradient Button ───────────────────── */
+@keyframes rotatingGradientSpin {
+  0% { --r: 0deg; }
+  100% { --r: 360deg; }
+}
+
+@keyframes niyantaHaloPulse {
+  0%, 100% { box-shadow: 0 0 0 0 var(--niyanta-halo); }
+  50% { box-shadow: 0 0 0 4px var(--niyanta-halo); }
+}
+
+.gradient-button-shell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.gradient-button {
+  position: relative;
+  border-radius: 50px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  color: var(--text-primary);
+  outline: none;
+  user-select: none;
+  border: 1px solid var(--niyanta-border);
+  background: var(--niyanta-bg);
+  animation: niyantaHaloPulse 2.1s ease-in-out infinite;
+}
+
+.rotatingGradient {
+  background: var(--niyanta-bg);
+}
+
+.rotatingGradient::after {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  z-index: 1;
+  background: var(--niyanta-inner);
+  border-radius: 48px;
+  transition: opacity 0.3s linear;
+}
+
+.gradient-button-label {
+  position: relative;
+  z-index: 2;
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  letter-spacing: 0.02em;
+}
+
+.gradient-button--disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+[data-theme="dark"] {
+  --niyanta-border: rgba(255,255,255,0.45);
+  --niyanta-halo: rgba(255,255,255,0.25);
+  --niyanta-bg: rgba(255,255,255,0.12);
+  --niyanta-inner: rgba(10,10,15,0.92);
+}
+
+[data-theme="light"] {
+  --niyanta-border: rgba(10,10,15,0.45);
+  --niyanta-halo: rgba(10,10,15,0.18);
+  --niyanta-bg: rgba(10,10,15,0.10);
+  --niyanta-inner: rgba(255,255,255,0.95);
+}

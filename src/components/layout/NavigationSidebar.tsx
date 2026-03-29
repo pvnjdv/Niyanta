@@ -346,22 +346,6 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
           </button>
         )}
 
-        {/* Theme toggle */}
-        {onToggleTheme && (
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              height: 36,
-              padding: collapsed ? '0 12px' : '0 12px',
-              justifyContent: collapsed ? 'center' : 'flex-start',
-              borderRadius: 4,
-            }}
-          >
-            <AnimatedThemeToggle theme={theme} onToggle={onToggleTheme} />
-          </div>
-        )}
-
         {/* User */}
         <div
           style={{
@@ -370,40 +354,43 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
             gap: 10,
             height: 40,
             padding: collapsed ? '0 12px' : '0 12px',
-            justifyContent: collapsed ? 'center' : 'flex-start',
+            justifyContent: collapsed ? 'center' : 'space-between',
           }}
         >
-          <div
-            style={{
-              width: 28,
-              height: 28,
-              borderRadius: 4,
-              background: 'var(--bg-tile)',
-              border: '1px solid var(--border)',
-              display: 'grid',
-              placeItems: 'center',
-              fontFamily: 'var(--font-mono)',
-              fontSize: 10,
-              fontWeight: 600,
-              color: 'var(--text-secondary)',
-              flexShrink: 0,
-            }}
-          >
-            AD
-          </div>
-          {!collapsed && (
-            <span
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+            <div
               style={{
-                fontFamily: 'var(--font-body)',
-                fontSize: 13,
-                color: 'var(--text-primary)',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
+                width: 28,
+                height: 28,
+                borderRadius: 4,
+                background: 'var(--bg-tile)',
+                border: '1px solid var(--border)',
+                display: 'grid',
+                placeItems: 'center',
+                fontFamily: 'var(--font-mono)',
+                fontSize: 10,
+                fontWeight: 600,
+                color: 'var(--text-secondary)',
+                flexShrink: 0,
               }}
             >
-              Admin
-            </span>
-          )}
+              AD
+            </div>
+            {!collapsed && (
+              <span
+                style={{
+                  fontFamily: 'var(--font-body)',
+                  fontSize: 13,
+                  color: 'var(--text-primary)',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+              >
+                Admin
+              </span>
+            )}
+          </div>
+          {onToggleTheme && <AnimatedThemeToggle theme={theme} onToggle={onToggleTheme} />}
         </div>
       </div>
     </nav>

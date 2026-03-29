@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { AgentState } from '../types/agent';
 import { AGENT_LIST } from '../constants/agents';
 import AnimatedThemeToggle from '../components/shared/AnimatedThemeToggle';
+import GradientButton from '../components/shared/GradientButton';
 
 interface CommandCenterProps {
   agentStates: Record<string, AgentState>;
@@ -226,27 +227,15 @@ const CommandCenter: React.FC<CommandCenterProps> = ({
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         {badge}
         <AnimatedThemeToggle theme={theme} onToggle={() => onToggleTheme?.()} />
-        <button
+        <GradientButton
+          width="112px"
+          height="32px"
           onClick={() => onOpenAIPanel?.()}
-          style={{
-            width: 32,
-            height: 32,
-            padding: 0,
-            borderRadius: 999,
-            border: '1px solid var(--border)',
-            background: 'var(--cc-surface-1)',
-            color: 'var(--status-info)',
-            fontFamily: 'var(--font-body)',
-            fontSize: 13,
-            fontWeight: 700,
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
           title="Open Niyanta AI panel"
         >
-          ◎
-        </button>
+          <span style={{ color: 'var(--status-info)', fontSize: 12 }}>◎</span>
+          <span>Niyanta AI</span>
+        </GradientButton>
       </div>
     </div>
   );

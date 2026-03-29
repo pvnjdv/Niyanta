@@ -16,16 +16,17 @@ const AnimatedThemeToggle: React.FC<AnimatedThemeToggleProps> = ({ theme, onTogg
       onClick={onToggle}
       className={className}
       style={{
-        width: 32,
-        height: 32,
-        borderRadius: 999,
-        border: '1px solid var(--border)',
-        background: 'var(--cc-surface-1)',
+        width: 24,
+        height: 24,
+        borderRadius: 0,
+        border: 'none',
+        background: 'transparent',
         color: 'var(--text-secondary)',
         display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',
         cursor: 'pointer',
+        padding: 0,
       }}
       title={`Switch to ${isDark ? 'light' : 'dark'} mode`}
       aria-label={`Switch to ${isDark ? 'light' : 'dark'} mode`}
