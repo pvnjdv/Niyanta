@@ -60,24 +60,37 @@ export class NiyantaOrchestrator {
       throw new Error(`Unknown agent: ${agentId}`);
     }
 
+    const canvasPlanningContext = this.agentManager.getCanvasPlanningContext(agentId);
     let workflowPlan = this.agentManager.getExecutableWorkflowPlan(
       agentId,
       input,
       (workflowContext || {}) as Record<string, unknown>
     );
-    const { analysis, model } = await this.analyzeAgentInput(agent, input, workflowContext, workflowPlan);
+    const { analysis, model } = await this.analyzeAgentInput(
+      agent,
+      input,
+      workflowContext,
+      workflowPlan,
+      canvasPlanningContext
+    );
 
-    const preferredWorkflowIds = Array.isArray(analysis.recommendedWorkflowIds)
-      ? (analysis.recommendedWorkflowIds as unknown[]).map((value) => String(value)).filter(Boolean)
-      : [];
-    if (preferredWorkflowIds.length > 0) {
+    const preferredWorkflowIds = this.normalizeStringArray(analysis.recommendedWorkflowIds);
+    const selectedCanvasNodeIds = this.normalizeStringArray(analysis.selectedCanvasNodeIds);
+    if (preferredWorkflowIds.length > 0 || selectedCanvasNodeIds.length > 0) {
       workflowPlan = this.agentManager.getExecutableWorkflowPlan(
         agentId,
         input,
         (workflowContext || {}) as Record<string, unknown>,
-        preferredWorkflowIds
+        preferredWorkflowIds,
+        selectedCanvasNodeIds
       );
     }
+
+    const canvasPlan = this.agentManager.getResolvedCanvasPlan(agentId, selectedCanvasNodeIds);
+    const canvasApprovalRequested = canvasPlan.some((step) => /approval/i.test(`${step.refId} ${step.name}`));
+    const canvasRetryEnabled = canvasPlan.some((step) => /retry/i.test(`${step.refId} ${step.name}`));
+    const confidence = this.normalizeConfidence(analysis.confidence, workflowPlan.length > 0 ? 0.74 : 0.52);
+    const failureHandlingPlan = this.normalizeStringArray(analysis.failureHandlingPlan);
 
     let sharedContext: Partial<WorkflowContext> = this.mergeWorkflowContext(workflowContext || {}, {
       metadata: {
@@ -87,14 +100,46 @@ export class NiyantaOrchestrator {
         agentId,
         agentName: agent.name,
         workflowPlan,
+        canvasPlan,
+        canvasSummary: canvasPlanningContext.summary,
         agentAnalysis: analysis,
       },
     });
 
     const workflowExecutions: Array<Record<string, unknown>> = [];
 
+    this.auditLogger.log({
+      agentId,
+      eventType: 'AGENT_DECISION_PLAN',
+      event: `${agent.name} prepared a graph-aware execution plan`,
+      decision: this.normalizeDecision(analysis.decision, workflowPlan.length > 0 ? 'PROCEED' : 'NO_WORKFLOW'),
+      inputPreview: input.slice(0, 300),
+      metadata: {
+        preferredWorkflowIds,
+        selectedCanvasNodeIds,
+        workflowPlan,
+        canvasPlan,
+        canvasSummary: canvasPlanningContext.summary,
+        requiresHumanApproval: Boolean(analysis.requiresHumanApproval),
+        autonomyMode: typeof analysis.autonomyMode === 'string' ? analysis.autonomyMode : undefined,
+      },
+    });
+
     for (let index = 0; index < workflowPlan.length; index += 1) {
       const plannedWorkflow = workflowPlan[index];
+      this.auditLogger.log({
+        agentId,
+        eventType: 'AGENT_WORKFLOW_START',
+        event: `${agent.name} started workflow ${plannedWorkflow.name}`,
+        metadata: {
+          workflowId: plannedWorkflow.workflowId,
+          workflowName: plannedWorkflow.name,
+          sequence: index + 1,
+          totalPlanned: workflowPlan.length,
+          reason: plannedWorkflow.reason,
+        },
+      });
+
       try {
         const execution = await this.agentManager.invokeWorkflow(plannedWorkflow.workflowId, agentId, sharedContext);
         workflowExecutions.push({
@@ -112,6 +157,23 @@ export class NiyantaOrchestrator {
           sharedContext = this.mergeWorkflowContext(sharedContext, execution.context as Partial<WorkflowContext>);
         }
 
+        this.auditLogger.log({
+          agentId,
+          eventType: execution.status === 'WAITING_APPROVAL' ? 'AGENT_WORKFLOW_WAITING_APPROVAL' : 'AGENT_WORKFLOW_COMPLETED',
+          event:
+            execution.status === 'WAITING_APPROVAL'
+              ? `${agent.name} paused ${plannedWorkflow.name} for approval`
+              : `${agent.name} completed workflow ${plannedWorkflow.name}`,
+          decision: execution.status === 'WAITING_APPROVAL' ? 'PENDING_APPROVAL' : undefined,
+          metadata: {
+            workflowId: execution.workflowId,
+            workflowName: execution.workflowName,
+            runId: execution.runId,
+            status: execution.status,
+            waitingForApproval: execution.waitingForApproval,
+          },
+        });
+
         if (execution.status === 'WAITING_APPROVAL' || !execution.success) {
           break;
         }
@@ -124,6 +186,19 @@ export class NiyantaOrchestrator {
           status: 'FAILED',
           reason: plannedWorkflow.reason,
           error: message,
+        });
+
+        this.auditLogger.log({
+          agentId,
+          eventType: 'AGENT_WORKFLOW_FAILED',
+          event: `${agent.name} failed workflow ${plannedWorkflow.name}`,
+          decision: 'FAILED',
+          metadata: {
+            workflowId: plannedWorkflow.workflowId,
+            workflowName: plannedWorkflow.name,
+            error: message,
+            sequence: index + 1,
+          },
         });
 
         if (index < workflowPlan.length - 1) {
@@ -151,9 +226,11 @@ export class NiyantaOrchestrator {
     const notificationPayload = Array.isArray(sharedContext.metadata?.notifications)
       ? (sharedContext.metadata?.notifications as unknown[])
       : [];
-    const riskLevel = String(analysis.riskLevel || this.buildFallbackAnalysis(agent, input, workflowPlan).riskLevel || 'medium');
+    const fallbackAnalysis = this.buildFallbackAnalysis(agent, input, workflowPlan, canvasPlanningContext);
+    const riskLevel = String(analysis.riskLevel || fallbackAnalysis.riskLevel || 'medium');
     const needsHumanApproval =
       Boolean(analysis.requiresHumanApproval) ||
+      canvasApprovalRequested ||
       latestExecution?.status === 'WAITING_APPROVAL' ||
       riskLevel === 'high' ||
       riskLevel === 'critical';
@@ -169,7 +246,9 @@ export class NiyantaOrchestrator {
       ? analysis.whyChain
       : [
           `Input routed to ${agent.name}.`,
-          workflowPlan.length > 0
+          canvasPlan.length > 0
+            ? `Canvas resolved to ${canvasPlan.length} execution block${canvasPlan.length === 1 ? '' : 's'}.`
+            : workflowPlan.length > 0
             ? `Workflow plan created with ${workflowPlan.length} step${workflowPlan.length === 1 ? '' : 's'}.`
             : 'No matching workflow plan was available.',
           latestExecution?.status === 'WAITING_APPROVAL'
@@ -183,11 +262,38 @@ export class NiyantaOrchestrator {
         typeof analysis.summary === 'string' && analysis.summary.trim().length > 0
           ? analysis.summary
           : `${agent.name} processed the request and evaluated ${workflowExecutions.length || workflowPlan.length} workflow step${(workflowExecutions.length || workflowPlan.length) === 1 ? '' : 's'}.`,
+      reason:
+        typeof analysis.reason === 'string' && analysis.reason.trim().length > 0
+          ? analysis.reason
+          : typeof fallbackAnalysis.reason === 'string'
+            ? fallbackAnalysis.reason
+            : whyChain[0],
+      confidence,
       decision,
       riskLevel,
       requiresHumanApproval: needsHumanApproval,
       escalate_to_human: needsHumanApproval,
+      autonomyMode: needsHumanApproval
+        ? 'controlled'
+        : typeof analysis.autonomyMode === 'string' && analysis.autonomyMode.trim().length > 0
+          ? analysis.autonomyMode
+          : canvasApprovalRequested
+            ? 'guarded'
+            : 'autonomous',
+      failureHandlingPlan:
+        failureHandlingPlan.length > 0
+          ? failureHandlingPlan
+          : [
+              canvasRetryEnabled
+                ? 'Retry nodes are present in the agent canvas and workflow nodes will be retried before fallback.'
+                : 'Workflow engine retries failed nodes automatically before surfacing a failure.',
+              workflowPlan.length > 1
+                ? 'If the active workflow path fails, the agent will continue to the next viable workflow candidate.'
+                : 'No secondary workflow candidate is linked to this agent.',
+            ],
       workflowPlan,
+      canvasPlan,
+      canvasSummary: canvasPlanningContext.summary,
       workflowExecutions,
       sharedContext,
       tasks: taskPayload,
@@ -212,6 +318,7 @@ export class NiyantaOrchestrator {
       metadata: {
         model,
         workflowPlan,
+        canvasPlan,
         workflowExecutionCount: workflowExecutions.length,
         status: result.status,
       },
@@ -223,6 +330,22 @@ export class NiyantaOrchestrator {
   private normalizeDecision(value: unknown, fallback: string): string {
     const candidate = typeof value === 'string' ? value.trim() : '';
     return candidate.length > 0 ? candidate.toUpperCase() : fallback;
+  }
+
+  private normalizeStringArray(value: unknown): string[] {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+
+    return value.map((item) => String(item || '').trim()).filter(Boolean);
+  }
+
+  private normalizeConfidence(value: unknown, fallback: number): number {
+    const numeric = typeof value === 'number' ? value : Number(value);
+    if (!Number.isFinite(numeric)) {
+      return fallback;
+    }
+    return Math.max(0, Math.min(1, numeric));
   }
 
   private mergeWorkflowContext(
@@ -258,7 +381,11 @@ export class NiyantaOrchestrator {
   private buildFallbackAnalysis(
     agent: { name: string; description: string; capabilities: string[] },
     input: string,
-    workflowPlan: Array<{ workflowId: string; name: string; reason: string }>
+    workflowPlan: Array<{ workflowId: string; name: string; reason: string }>,
+    canvasPlanningContext?: {
+      blocks: Array<{ id: string; blockType: 'workflow' | 'node'; name: string }>;
+      summary: { branchPoints: number; approvalBlocks: number; retryBlocks: number };
+    }
   ): Record<string, unknown> {
     const normalized = input.toLowerCase();
     const numericMatches = Array.from(normalized.matchAll(/\b\d+(?:\.\d+)?\b/g)).map((match) => Number(match[0]));
@@ -275,9 +402,17 @@ export class NiyantaOrchestrator {
 
     return {
       summary: `${agent.name} analyzed the request using fallback heuristics and prepared ${workflowPlan.length} workflow candidate${workflowPlan.length === 1 ? '' : 's'}.`,
+      reason:
+        canvasPlanningContext && canvasPlanningContext.blocks.length > 0
+          ? 'Selected an execution path from the agent canvas and applied heuristic risk scoring.'
+          : 'Selected the best available workflows using keyword matching and heuristic risk scoring.',
+      confidence: workflowPlan.length > 0 ? 0.68 : 0.46,
       decision: riskLevel === 'critical' || riskLevel === 'high' ? 'ESCALATE' : workflowPlan.length > 0 ? 'PROCEED' : 'NO_WORKFLOW',
       riskLevel,
-      requiresHumanApproval: riskLevel === 'critical' || riskLevel === 'high',
+      requiresHumanApproval:
+        riskLevel === 'critical' ||
+        riskLevel === 'high' ||
+        Boolean(canvasPlanningContext?.summary.approvalBlocks),
       whyChain: [
         `Matched request against ${agent.name} capabilities (${agent.capabilities.join(', ') || 'general reasoning'}).`,
         workflowPlan.length > 0
@@ -285,7 +420,22 @@ export class NiyantaOrchestrator {
           : 'No linked workflow matched, so only agent analysis was returned.',
         `Risk scored as ${riskLevel} using content keywords and numeric thresholds.`,
       ],
+      selectedCanvasNodeIds: canvasPlanningContext?.blocks.map((block) => block.id) || [],
       recommendedWorkflowIds: workflowPlan.map((item) => item.workflowId),
+      failureHandlingPlan: [
+        canvasPlanningContext?.summary.retryBlocks
+          ? 'Retry nodes are present in the selected canvas path.'
+          : 'Workflow engine retries failed nodes before surfacing a failure.',
+        workflowPlan.length > 1
+          ? 'If the first workflow fails, continue to the next linked workflow candidate.'
+          : 'Only one workflow candidate is available for this request.',
+      ],
+      autonomyMode:
+        riskLevel === 'critical' || riskLevel === 'high'
+          ? 'controlled'
+          : canvasPlanningContext?.summary.approvalBlocks
+            ? 'guarded'
+            : 'autonomous',
     };
   }
 
@@ -293,17 +443,34 @@ export class NiyantaOrchestrator {
     agent: { name: string; description: string; systemPrompt: string; capabilities: string[] },
     input: string,
     workflowContext: Partial<WorkflowContext> | undefined,
-    workflowPlan: Array<{ workflowId: string; name: string; reason: string }>
+    workflowPlan: Array<{ workflowId: string; name: string; reason: string }>,
+    canvasPlanningContext: {
+      blocks: Array<{
+        id: string;
+        blockType: 'workflow' | 'node';
+        refId: string;
+        name: string;
+        category: string;
+        inputInfo: string;
+        nextStepIds: string[];
+        branch: boolean;
+      }>;
+      summary: Record<string, unknown>;
+      decisionPoints: Array<{ id: string; name: string; options: Array<{ id: string; name: string }> }>;
+    }
   ): Promise<{ analysis: Record<string, unknown>; model: string }> {
-    const fallback = this.buildFallbackAnalysis(agent, input, workflowPlan);
+    const fallback = this.buildFallbackAnalysis(agent, input, workflowPlan, canvasPlanningContext);
     try {
       const analysis = await callGroqJSON<Record<string, unknown>>(
-        `${agent.systemPrompt}\nReturn strict JSON with keys: summary, decision, riskLevel, requiresHumanApproval, whyChain, recommendedWorkflowIds. whyChain must be an array of short strings. recommendedWorkflowIds must be an array of workflow IDs from the provided candidates when applicable.`,
+        `${agent.systemPrompt}\nYou are selecting an execution path through an agent canvas graph. Return strict JSON with keys: summary, reason, decision, confidence, riskLevel, requiresHumanApproval, whyChain, recommendedWorkflowIds, selectedCanvasNodeIds, failureHandlingPlan, autonomyMode. confidence must be a number between 0 and 1. whyChain and failureHandlingPlan must be arrays of short strings. recommendedWorkflowIds must contain only workflow IDs from the provided candidates. selectedCanvasNodeIds must contain only IDs from the provided canvas steps. autonomyMode must be one of autonomous, guarded, controlled.`,
         JSON.stringify(
           {
             input,
             workflowContext: workflowContext || {},
             availableWorkflows: workflowPlan,
+            availableCanvasSteps: canvasPlanningContext.blocks,
+            decisionPoints: canvasPlanningContext.decisionPoints,
+            canvasSummary: canvasPlanningContext.summary,
             capabilities: agent.capabilities,
             agentDescription: agent.description,
           },

@@ -1,5 +1,7 @@
 import { AgentDefinition } from '../types/agent.types';
 import { v4 as uuid } from 'uuid';
+import { DEFAULT_AGENT_BLUEPRINTS } from '../config/agentBlueprints';
+import { buildAgentCanvasGraph, extractWorkflowIdsFromCanvas, resolveCanvasExecutionOrder } from '../utils/agentCanvas';
 
 export class AgentManager {
   private agents: Map<string, AgentDefinition>;
@@ -95,77 +97,91 @@ export class AgentManager {
     }
   }
 
-  private getOrderedWorkflowIdsFromCanvas(agentId: string): string[] {
+  private getOrderedWorkflowIdsFromCanvas(agentId: string, selectedCanvasNodeIds: string[] = []): string[] {
     const layout = this.readCanvasLayout(agentId);
     if (layout.length === 0) {
       return [];
     }
 
-    const workflowBlocks = layout.filter(
-      (item) => item.refId && item.refId !== '__start__' && item.refId !== '__end__' && item.refId !== '__edges__'
-    );
-    if (workflowBlocks.length === 0) {
-      return [];
-    }
+    return extractWorkflowIdsFromCanvas(layout, selectedCanvasNodeIds);
+  }
 
-    const nodeById = new Map(
-      workflowBlocks.map((item) => [String(item.id || item.refId), item])
-    );
-    let rawEdges: Array<Record<string, unknown>> = [];
+  getCanvasPlanningContext(agentId: string): {
+    blocks: Array<{
+      id: string;
+      blockType: 'workflow' | 'node';
+      refId: string;
+      name: string;
+      category: string;
+      inputInfo: string;
+      nextStepIds: string[];
+      branch: boolean;
+    }>;
+    summary: ReturnType<typeof buildAgentCanvasGraph>['summary'];
+    decisionPoints: Array<{ id: string; name: string; options: Array<{ id: string; name: string }> }>;
+  } {
+    const graph = buildAgentCanvasGraph(this.readCanvasLayout(agentId));
+    const blocks = graph.blocks
+      .filter((block) => block.refId !== '__start__' && block.refId !== '__end__')
+      .map((block) => ({
+        id: block.id,
+        blockType: block.blockType,
+        refId: block.refId,
+        name: block.name,
+        category: block.category,
+        inputInfo: block.inputInfo,
+        nextStepIds: graph.adjacency.get(block.id) || [],
+        branch: (graph.adjacency.get(block.id) || []).length > 1,
+      }));
 
-    const edgeMeta = layout.find((item) => item.refId === '__edges__');
-    try {
-      rawEdges = edgeMeta?.inputInfo ? (JSON.parse(String(edgeMeta.inputInfo)) as Array<Record<string, unknown>>) : [];
-    } catch {
-      rawEdges = [];
-    }
+    return {
+      blocks,
+      summary: graph.summary,
+      decisionPoints: blocks
+        .filter((block) => block.branch)
+        .map((block) => ({
+          id: block.id,
+          name: block.name,
+          options: (graph.adjacency.get(block.id) || []).map((nextNodeId) => ({
+            id: nextNodeId,
+            name: graph.blockById.get(nextNodeId)?.name || nextNodeId,
+          })),
+        })),
+    };
+  }
 
-    const adjacency = new Map<string, string[]>();
-    for (const edge of rawEdges) {
-      const from = String(edge.from || edge.fromNodeId || '');
-      const to = String(edge.to || edge.toNodeId || '');
-      if (!from || !to || from === to) {
-        continue;
-      }
-      const targets = adjacency.get(from) || [];
-      targets.push(to);
-      adjacency.set(from, targets);
-    }
+  getResolvedCanvasPlan(
+    agentId: string,
+    selectedCanvasNodeIds: string[] = []
+  ): Array<{
+    id: string;
+    blockType: 'workflow' | 'node';
+    refId: string;
+    name: string;
+    category: string;
+    inputInfo: string;
+    nextStepIds: string[];
+  }> {
+    const layout = this.readCanvasLayout(agentId);
+    const graph = buildAgentCanvasGraph(layout);
 
-    const visitQueue = ['__start__'];
-    const visited = new Set<string>();
-    const workflowIds: string[] = [];
-
-    while (visitQueue.length > 0) {
-      const nodeId = visitQueue.shift();
-      if (!nodeId || visited.has(nodeId)) {
-        continue;
-      }
-      visited.add(nodeId);
-      const canvasNode = nodeById.get(nodeId);
-      if (canvasNode?.blockType === 'workflow' && canvasNode.refId) {
-        const workflowId = String(canvasNode.refId);
-        if (!workflowIds.includes(workflowId)) {
-          workflowIds.push(workflowId);
-        }
-      }
-
-      const nextNodes = adjacency.get(nodeId) || [];
-      nextNodes.forEach((nextNodeId) => {
-        if (!visited.has(nextNodeId)) {
-          visitQueue.push(nextNodeId);
-        }
-      });
-    }
-
-    return workflowIds;
+    return resolveCanvasExecutionOrder(layout, selectedCanvasNodeIds).map((block) => ({
+      id: block.id,
+      blockType: block.blockType,
+      refId: block.refId,
+      name: block.name,
+      category: block.category,
+      inputInfo: block.inputInfo,
+      nextStepIds: graph.adjacency.get(block.id) || [],
+    }));
   }
 
   getExecutableWorkflowPlan(
     agentId: string,
     input: string,
     workflowContext?: Record<string, unknown>,
-    preferredWorkflowIds: string[] = []
+    preferredWorkflowIds: string[] = [],
+    selectedCanvasNodeIds: string[] = []
   ): Array<{ workflowId: string; name: string; reason: string }> {
     const db = this.getDBConnection();
     const agent = this.getAgent(agentId);
@@ -185,7 +201,7 @@ export class AgentManager {
 
     const linkedWorkflowMap = new Map(linkedRows.map((row) => [String(row.workflow_id), row]));
     const preferredSet = new Set(preferredWorkflowIds.filter(Boolean));
-    const fromCanvas = this.getOrderedWorkflowIdsFromCanvas(agentId);
+    const fromCanvas = this.getOrderedWorkflowIdsFromCanvas(agentId, selectedCanvasNodeIds);
     const orderedIds: string[] = [];
     const pushUnique = (workflowId: string) => {
       if (workflowId && !orderedIds.includes(workflowId)) {
@@ -394,78 +410,18 @@ export class AgentManager {
   }
 
   private registerAllAgents(): void {
-    const agentDefinitions: AgentDefinition[] = [
-      {
-        agent_id: 'meeting', name: 'Meeting Intelligence', subtitle: 'Transcript to action',
-        icon: 'MI', color: '#666666', glow: 'rgba(102,102,102,0.2)',
-        capabilities: ['summary', 'decisions', 'tasks', 'risks'], status: 'active',
-        description: 'Extracts outcomes from meeting transcripts.',
-        systemPrompt: 'You are the Meeting Intelligence Agent. Analyze meeting transcripts and extract summary, attendees, decisions, tasks, risks, sentiment, and WHY-CHAIN audit. Respond only with valid JSON.'
-      },
-      {
-        agent_id: 'invoice', name: 'Invoice Processor', subtitle: 'AP approval intelligence',
-        icon: 'IP', color: '#888888', glow: 'rgba(136,136,136,0.2)',
-        capabilities: ['validation', 'decisioning', 'anomaly checks'], status: 'active',
-        description: 'Validates invoices and makes decision recommendations.',
-        systemPrompt: 'You are the Invoice Processing Agent. Decide AUTO-APPROVE, FLAG, or REJECT. Return strict JSON with decision, reason, anomalies, compliance checks, and audit.'
-      },
-      {
-        agent_id: 'document', name: 'Document Intelligence', subtitle: 'Document understanding',
-        icon: 'DI', color: '#AAAAAA', glow: 'rgba(170,170,170,0.2)',
-        capabilities: ['classification', 'field extraction', 'validation'], status: 'active',
-        description: 'Classifies and extracts document data.',
-        systemPrompt: 'You are the Document Intelligence Agent. Detect document type, fields, missing fields, and validation status. Return strict JSON only.'
-      },
-      {
-        agent_id: 'finance_ops', name: 'Finance Operations', subtitle: 'Budget & expense intelligence',
-        icon: 'FO', color: '#059669', glow: 'rgba(5,150,105,0.2)',
-        capabilities: ['budget analysis', 'expense tracking', 'anomaly detection', 'forecasting'], status: 'active',
-        description: 'Analyzes financial data, monitors budgets, and detects expense anomalies.',
-        systemPrompt: 'You are the Finance Operations Agent. Analyze financial data including budgets, expenses, and invoices. Detect anomalies and generate insights. Return strict JSON with: summary, budgetStatus, anomalies, recommendations, riskLevel, whyChain.'
-      },
-      {
-        agent_id: 'hr_ops', name: 'HR Operations', subtitle: 'People & workforce intelligence',
-        icon: 'HR', color: '#EC4899', glow: 'rgba(236,72,153,0.2)',
-        capabilities: ['onboarding', 'leave management', 'compliance', 'performance tracking'], status: 'active',
-        description: 'Manages HR workflows including onboarding, leave requests, and compliance.',
-        systemPrompt: 'You are the HR Operations Agent. Handle employee requests including onboarding, leave management, and policy queries. Return strict JSON with: requestType, decision, reason, nextSteps, complianceStatus, whyChain.'
-      },
-      {
-        agent_id: 'it_ops', name: 'IT Operations', subtitle: 'Access & incident management',
-        icon: 'IT', color: '#3B82F6', glow: 'rgba(59,130,246,0.2)',
-        capabilities: ['access requests', 'incident management', 'asset tracking', 'SLA monitoring'], status: 'active',
-        description: 'Processes access requests, incidents, and asset workflows with priority and SLA.',
-        systemPrompt: 'You are the IT Operations Agent inside Niyanta AI. Process access requests, incidents, and asset workflows with priority and SLA. Return strict JSON with request_type, priority, affected_systems, access_requests, incident, assets, escalation_required, audit.'
-      },
-      {
-        agent_id: 'compliance', name: 'Compliance', subtitle: 'Policy & regulatory intelligence',
-        icon: 'CO', color: '#F59E0B', glow: 'rgba(245,158,11,0.2)',
-        capabilities: ['policy evaluation', 'regulatory checks', 'risk scoring', 'violation detection'], status: 'active',
-        description: 'Evaluates policy violations, regulatory risks, and compliance gaps.',
-        systemPrompt: 'You are the Compliance Agent inside Niyanta AI. Evaluate policy violations, regulatory risks, and compliance gaps. Return strict JSON with compliance_status, regulations_checked, violations, risk_score, recommended_actions, audit.'
-      },
-      {
-        agent_id: 'security', name: 'Security Monitor', subtitle: 'Threat & incident response',
-        icon: 'SM', color: '#EF4444', glow: 'rgba(239,68,68,0.2)',
-        capabilities: ['incident classification', 'threat assessment', 'response planning', 'escalation'], status: 'active',
-        description: 'Classifies security incidents and defines immediate response actions.',
-        systemPrompt: 'You are the Security Monitor Agent inside Niyanta AI. Classify incidents by CRITICAL/HIGH/MEDIUM/LOW and define immediate response. Return strict JSON with severity, confidence, affected, immediate_actions, escalation, regulatory_impact, audit.'
-      },
-      {
-        agent_id: 'procurement', name: 'Procurement', subtitle: 'Purchase & vendor intelligence',
-        icon: 'PR', color: '#8B5CF6', glow: 'rgba(139,92,246,0.2)',
-        capabilities: ['purchase approval', 'vendor evaluation', 'policy checks', 'compliance flags'], status: 'active',
-        description: 'Applies thresholds and quote requirements to build approval chains.',
-        systemPrompt: 'You are the Procurement Agent inside Niyanta AI. Apply thresholds and quote requirements to build approval chain. Return strict JSON with decision, approval_chain, policy_checks, compliance_flags, timeline, next_steps, audit.'
-      },
-      {
-        agent_id: 'workflow', name: 'Workflow Intelligence', subtitle: 'Optimization & routing',
-        icon: 'WI', color: '#06B6D4', glow: 'rgba(6,182,212,0.2)',
-        capabilities: ['workflow analysis', 'optimization', 'routing recommendations', 'risk assessment'], status: 'active',
-        description: 'Analyzes workflows and suggests optimization and routing improvements.',
-        systemPrompt: 'You are the Workflow Intelligence Agent inside Niyanta AI. Analyze workflow data and suggest optimization and routing improvements. Return strict JSON with workflow_analysis, optimization_suggestions, routing_recommendations, risk_assessment, audit.'
-      },
-    ];
+    const agentDefinitions: AgentDefinition[] = DEFAULT_AGENT_BLUEPRINTS.map((agent) => ({
+      agent_id: agent.id,
+      name: agent.name,
+      subtitle: agent.subtitle,
+      icon: agent.icon,
+      color: agent.color,
+      glow: agent.glow,
+      capabilities: agent.capabilities,
+      status: 'active',
+      description: agent.description,
+      systemPrompt: agent.systemPrompt,
+    }));
 
     for (const agent of agentDefinitions) {
       this.agents.set(agent.agent_id, agent);
