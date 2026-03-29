@@ -247,119 +247,89 @@ const NiyantaCommandConsole: React.FC<NiyantaCommandConsoleProps> = ({
 
   // ─── Render Message Block ──────────────────────────────────────────────────
 
-  const renderMessage = (msg: CommandMessage) => {
+  const renderMessage = (msg: CommandMessage, idx: number) => {
     const color = TYPE_COLOR[msg.type];
-    const bg = TYPE_BG[msg.type];
-    const border = TYPE_BORDER[msg.type];
-    const icon = TYPE_ICON[msg.type];
     const isRunningMsg = msg.type === 'running';
-
     const suggestionParts = msg.suggestion?.split(' · ') || [];
 
     return (
       <div
         key={msg.id}
         style={{
-          borderLeft: `3px solid ${color}`,
-          borderTop: `1px solid ${border}`,
-          borderRight: `1px solid ${border}`,
-          borderBottom: `1px solid ${border}`,
-          borderRadius: '0 6px 6px 0',
-          background: bg,
-          marginBottom: 10,
-          overflow: 'hidden',
-          animation: 'slideIn 180ms ease',
+          display: 'grid',
+          gap: 2,
+          marginBottom: 8,
+          animation: 'slideIn 200ms ease both',
+          animationDelay: `${Math.min(idx * 30, 200)}ms`,
+          paddingLeft: 12,
+          borderLeft: `2px solid ${color}22`,
         }}
       >
-        {/* Row: header */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', borderBottom: `1px solid ${border}` }}>
+        {/* Status line */}
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
           <span style={{
-            fontSize: 13,
+            fontSize: 10,
             color,
             flexShrink: 0,
-            animation: isRunningMsg ? 'spin 1.4s linear infinite' : undefined,
             display: 'inline-block',
+            animation: isRunningMsg ? 'spin 1.4s linear infinite' : undefined,
           }}>
-            {icon}
+            {TYPE_ICON[msg.type]}
           </span>
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, color, textTransform: 'uppercase', letterSpacing: '0.08em', flex: 1 }}>
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, color, textTransform: 'uppercase', letterSpacing: '0.07em' }}>
             {msg.status}
           </span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {msg.metadata?.workflow && (
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', padding: '2px 7px', borderRadius: 4, border: '1px solid var(--border)' }}>
-                {msg.metadata.workflow}
-              </span>
-            )}
-            {msg.metadata?.node && (
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', padding: '2px 7px', borderRadius: 4, border: '1px solid var(--border)' }}>
-                {msg.metadata.node}
-              </span>
-            )}
-            {msg.metadata?.timeTaken !== undefined && (
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', padding: '2px 7px', borderRadius: 4, background: 'var(--bg-input)', border: '1px solid var(--border)' }}>
-                {msg.metadata.timeTaken}s
-              </span>
-            )}
-            {msg.metadata?.confidence !== undefined && (
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: TYPE_COLOR.success, padding: '2px 7px', borderRadius: 4, border: `1px solid ${TYPE_BORDER.success}`, background: TYPE_BG.success }}>
-                {Math.round(msg.metadata.confidence * 100)}% conf
-              </span>
-            )}
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)' }}>
-              {formatTs(msg.timestamp)}
+          {msg.metadata?.agent && (
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--status-info)', padding: '1px 5px', borderRadius: 3, border: '1px solid var(--cc-info-border)', background: 'var(--cc-info-bg)' }}>
+              {msg.metadata.agent}
             </span>
-          </div>
+          )}
+          {msg.metadata?.node && (
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)' }}>
+              [{msg.metadata.node}]
+            </span>
+          )}
+          <span style={{ marginLeft: 'auto', fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
+            {msg.metadata?.timeTaken !== undefined && <span>{msg.metadata.timeTaken}s</span>}
+            {msg.metadata?.confidence !== undefined && <span style={{ color: TYPE_COLOR.success }}>{Math.round(msg.metadata.confidence * 100)}%</span>}
+            <span>{formatTs(msg.timestamp)}</span>
+          </span>
         </div>
 
-        {/* Row: action */}
-        <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr', borderBottom: `1px solid ${border}` }}>
-          <div style={{ padding: '9px 14px', fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', borderRight: `1px solid ${border}`, display: 'flex', alignItems: 'center' }}>
-            ACTION
-          </div>
-          <div style={{ padding: '9px 14px', fontSize: 13, color: 'var(--text-primary)', lineHeight: 1.5 }}>
-            {msg.metadata?.agent && (
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--status-info)', marginRight: 8, padding: '1px 6px', borderRadius: 3, border: '1px solid var(--cc-info-border)', background: 'var(--cc-info-bg)' }}>
-                {msg.metadata.agent}
-              </span>
-            )}
-            {msg.action}
-          </div>
+        {/* Action text */}
+        <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6, paddingLeft: 18 }}>
+          {msg.action}
         </div>
 
-        {/* Row: suggestion */}
-        {msg.suggestion && (
-          <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr' }}>
-            <div style={{ padding: '9px 14px', fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', borderRight: `1px solid ${border}`, display: 'flex', alignItems: 'center' }}>
-              NEXT
-            </div>
-            <div style={{ padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              {suggestionParts.length > 1 ? (
-                suggestionParts.map((part, i) => (
-                  <button
-                    key={i}
-                    onClick={() => {
-                      if (part.toLowerCase().includes('audit')) navigate('/audit');
-                      else if (part.toLowerCase().includes('workflow')) navigate('/workflows');
-                      else if (part.toLowerCase().includes('payment')) navigate('/approvals');
-                    }}
-                    style={{
-                      height: 26, padding: '0 10px', borderRadius: 4,
-                      border: `1px solid ${border}`,
-                      background: 'transparent', color, fontSize: 11,
-                      fontFamily: 'var(--font-mono)', cursor: 'pointer',
-                      textTransform: 'uppercase', letterSpacing: '0.05em',
-                    }}
-                    onMouseEnter={e => { e.currentTarget.style.background = bg; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
-                  >
-                    {part}
-                  </button>
-                ))
-              ) : (
-                <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{msg.suggestion}</span>
-              )}
-            </div>
+        {/* Suggestion / next actions */}
+        {msg.suggestion && suggestionParts.length > 1 && (
+          <div style={{ paddingLeft: 18, display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 2 }}>
+            {suggestionParts.map((part, i) => (
+              <button
+                key={i}
+                onClick={() => {
+                  if (part.toLowerCase().includes('audit')) navigate('/audit');
+                  else if (part.toLowerCase().includes('workflow')) navigate('/workflows');
+                  else if (part.toLowerCase().includes('payment')) navigate('/approvals');
+                }}
+                style={{
+                  height: 22, padding: '0 9px', borderRadius: 4,
+                  border: `1px solid ${color}44`,
+                  background: 'transparent', color, fontSize: 10,
+                  fontFamily: 'var(--font-mono)', cursor: 'pointer',
+                  letterSpacing: '0.04em',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = `${color}11`; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+              >
+                {part}
+              </button>
+            ))}
+          </div>
+        )}
+        {msg.suggestion && suggestionParts.length === 1 && (
+          <div style={{ paddingLeft: 18, fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic', lineHeight: 1.5 }}>
+            → {msg.suggestion}
           </div>
         )}
       </div>
@@ -510,8 +480,12 @@ const NiyantaCommandConsole: React.FC<NiyantaCommandConsoleProps> = ({
     <>
       <style>{`
         @keyframes slideIn {
-          from { opacity: 0; transform: translateY(6px); }
+          from { opacity: 0; transform: translateY(5px); }
           to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to   { opacity: 1; }
         }
         @keyframes spin {
           from { transform: rotate(0deg); }
@@ -711,22 +685,19 @@ const NiyantaCommandConsole: React.FC<NiyantaCommandConsoleProps> = ({
               </div>
             ) : (
               <>
-                {filteredMessages.map(renderMessage)}
+                {filteredMessages.map((msg, idx) => renderMessage(msg, idx))}
 
                 {/* Typing indicator */}
                 {typingLabel && (
                   <div style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: 10,
-                    padding: '10px 14px',
-                    borderLeft: `3px solid ${TYPE_COLOR.running}`,
-                    border: `1px solid ${TYPE_BORDER.running}`,
-                    borderRadius: '0 6px 6px 0',
-                    background: TYPE_BG.running,
-                    marginBottom: 10,
+                    gap: 8,
+                    padding: '2px 0 2px 12px',
+                    borderLeft: `2px solid ${TYPE_COLOR.running}44`,
+                    animation: 'fadeIn 150ms ease',
                   }}>
-                    <span style={{ color: TYPE_COLOR.running, fontSize: 12, animation: 'blink 0.8s ease infinite' }}>⏳</span>
+                    <span style={{ color: TYPE_COLOR.running, fontSize: 10, animation: 'blink 0.8s ease infinite' }}>⏳</span>
                     <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: TYPE_COLOR.running }}>{typingLabel}</span>
                   </div>
                 )}
