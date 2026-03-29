@@ -252,86 +252,86 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ agents }) => {
             </button>
           </div>
 
-          <div style={{ ...panelStyle, padding: 14 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                Services Overview
-              </div>
-              <span style={chipStyle(servicesAllOperational ? 'ok' : 'warn')}>
-                {servicesAllOperational ? 'All Systems Up' : 'Attention Needed'}
-              </span>
-            </div>
-            <div style={{ marginTop: 10, display: 'grid', gap: 8 }}>
-              {systemServices.map((service) => {
-                const statusColor = service.status === 'UP' ? 'var(--status-success)' : 'var(--status-danger)';
-                return (
-                  <div
-                    key={service.name}
-                    style={{
-                      border: '1px solid var(--border)',
-                      background: 'var(--cc-surface-1)',
-                      borderRadius: 8,
-                      padding: '8px 10px',
-                      display: 'grid',
-                      gridTemplateColumns: '1fr auto',
-                      gap: 6,
-                    }}
-                  >
-                    <div>
-                      <div style={{ fontSize: 12, fontWeight: 600 }}>{service.name}</div>
-                      <div style={{ marginTop: 2, fontSize: 11, color: 'var(--text-secondary)' }}>
-                        Uptime {service.uptime} · {service.latency}ms latency
-                      </div>
-                    </div>
-                    <span style={{ alignSelf: 'center', fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, color: statusColor }}>
-                      {service.status}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
         </div>
       </div>
 
       <div style={{ ...panelStyle, padding: 14, marginTop: 12 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-            Agent Service Health
+            Service Operations
           </div>
-          <span style={chipStyle('info')}>{agentServiceRows.length} Agents</span>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <span style={chipStyle(servicesAllOperational ? 'ok' : 'warn')}>
+              {servicesAllOperational ? 'Core Up' : 'Core Alert'}
+            </span>
+            <span style={chipStyle('info')}>{agentServiceRows.length} Agents</span>
+          </div>
         </div>
-        <div style={{ marginTop: 10, display: 'grid', gap: 8 }}>
-          {agentServiceRows.length === 0 ? (
-            <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>No agents available yet.</div>
-          ) : (
-            agentServiceRows.map((row) => (
-              <div
-                key={row.id}
-                style={{
-                  border: '1px solid var(--border)',
-                  borderLeft: `3px solid ${row.color}`,
-                  background: 'var(--cc-surface-1)',
-                  borderRadius: 10,
-                  padding: '10px 12px',
-                  display: 'grid',
-                  gridTemplateColumns: isCompact ? '1fr' : '1.3fr 0.6fr 0.8fr 0.8fr',
-                  gap: 8,
-                  alignItems: 'center',
-                }}
-              >
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 600 }}>{row.name}</div>
-                  <div style={{ marginTop: 2, fontSize: 11, color: 'var(--text-secondary)' }}>Status {row.status}</div>
-                </div>
-                <div style={{ fontSize: 11, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>Runs {row.runs}</div>
-                <div style={{ fontSize: 11, color: row.successRate >= 95 ? 'var(--status-success)' : 'var(--status-warning)', fontFamily: 'var(--font-mono)' }}>
-                  Success {row.successRate}%
-                </div>
-                <div style={{ fontSize: 11, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>Avg {row.avgTime}</div>
-              </div>
-            ))
-          )}
+
+        <div style={{ marginTop: 10, display: 'grid', gap: 12, gridTemplateColumns: isCompact ? '1fr' : '1fr 1.2fr' }}>
+          <div style={{ border: '1px solid var(--border)', borderRadius: 10, background: 'var(--cc-surface-1)', padding: 10 }}>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 8 }}>
+              Core Services
+            </div>
+            <div style={{ display: 'grid', gap: 6 }}>
+              {systemServices.map((service) => {
+                const statusColor = service.status === 'UP' ? 'var(--status-success)' : 'var(--status-danger)';
+                return (
+                  <div key={service.name} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, padding: '6px 4px', borderBottom: '1px solid var(--border-subtle)' }}>
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 600 }}>{service.name}</div>
+                      <div style={{ marginTop: 1, fontSize: 11, color: 'var(--text-secondary)' }}>{service.uptime} uptime · {service.latency}ms</div>
+                    </div>
+                    <div style={{ alignSelf: 'center', fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, color: statusColor }}>{service.status}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div style={{ border: '1px solid var(--border)', borderRadius: 10, background: 'var(--cc-surface-1)', padding: 10 }}>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 8 }}>
+              Agent Services
+            </div>
+            <div style={{ marginBottom: 8, display: isCompact ? 'none' : 'grid', gridTemplateColumns: '1.3fr 0.6fr 0.8fr 0.8fr', gap: 8, fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+              <span>Agent</span>
+              <span>Runs</span>
+              <span>Success</span>
+              <span>Avg</span>
+            </div>
+            <div style={{ display: 'grid', gap: 8 }}>
+              {agentServiceRows.length === 0 ? (
+                <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>No agents available yet.</div>
+              ) : (
+                agentServiceRows.map((row) => (
+                  <div
+                    key={row.id}
+                    style={{
+                      border: '1px solid var(--border)',
+                      borderLeft: `3px solid ${row.color}`,
+                      background: 'var(--bg-tile)',
+                      borderRadius: 10,
+                      padding: '10px 12px',
+                      display: 'grid',
+                      gridTemplateColumns: isCompact ? '1fr' : '1.3fr 0.6fr 0.8fr 0.8fr',
+                      gap: 8,
+                      alignItems: 'center',
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 600 }}>{row.name}</div>
+                      <div style={{ marginTop: 2, fontSize: 11, color: 'var(--text-secondary)' }}>Status {row.status}</div>
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>{row.runs}</div>
+                    <div style={{ fontSize: 11, color: row.successRate >= 95 ? 'var(--status-success)' : 'var(--status-warning)', fontFamily: 'var(--font-mono)' }}>
+                      {row.successRate}%
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>{row.avgTime}</div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>

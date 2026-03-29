@@ -19,6 +19,8 @@ interface CommandCenterProps {
   onRunAll?: () => Promise<void>;
   runAllProgress?: string | null;
   onOpenAIPanel?: () => void;
+  theme?: 'dark' | 'light';
+  onToggleTheme?: () => void;
 }
 
 const CommandCenter: React.FC<CommandCenterProps> = ({
@@ -28,6 +30,8 @@ const CommandCenter: React.FC<CommandCenterProps> = ({
   onRunAll,
   runAllProgress,
   onOpenAIPanel,
+  theme = 'dark',
+  onToggleTheme,
 }) => {
   const navigate = useNavigate();
   const agents = AGENT_LIST;
@@ -221,27 +225,44 @@ const CommandCenter: React.FC<CommandCenterProps> = ({
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         {badge}
         <button
-          onClick={() => onOpenAIPanel?.()}
+          onClick={() => onToggleTheme?.()}
           style={{
-            height: 34,
-            padding: '0 14px',
+            width: 32,
+            height: 32,
             borderRadius: 999,
-            border: '1px solid var(--cc-info-border)',
-            background: 'linear-gradient(120deg, var(--cc-info-bg), var(--cc-ok-bg))',
-            color: 'var(--text-primary)',
-            fontFamily: 'var(--font-body)',
-            fontSize: 12,
-            fontWeight: 700,
-            letterSpacing: '0.02em',
+            border: '1px solid var(--border)',
+            background: 'var(--cc-surface-1)',
+            color: 'var(--text-secondary)',
             display: 'inline-flex',
             alignItems: 'center',
-            gap: 8,
-            boxShadow: '0 8px 20px rgba(46,125,140,0.18)',
+            justifyContent: 'center',
+            fontSize: 12,
+            fontWeight: 700,
+          }}
+          title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+        >
+          {theme === 'dark' ? '◐' : '◑'}
+        </button>
+        <button
+          onClick={() => onOpenAIPanel?.()}
+          style={{
+            width: 32,
+            height: 32,
+            padding: 0,
+            borderRadius: 999,
+            border: '1px solid var(--border)',
+            background: 'var(--cc-surface-1)',
+            color: 'var(--status-info)',
+            fontFamily: 'var(--font-body)',
+            fontSize: 13,
+            fontWeight: 700,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
           }}
           title="Open Niyanta AI panel"
         >
-          <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--status-info)', boxShadow: '0 0 8px var(--status-info)' }} />
-          Niyanta AI
+          ◎
         </button>
       </div>
     </div>

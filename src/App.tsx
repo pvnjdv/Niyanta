@@ -122,6 +122,8 @@ const AppContent: React.FC = () => {
                 onRunAll={handleRunAll}
                 runAllProgress={runAllProgress}
                 onOpenAIPanel={() => setAiPanelOpen(true)}
+                theme={theme}
+                onToggleTheme={toggleTheme}
               />
             }
           />

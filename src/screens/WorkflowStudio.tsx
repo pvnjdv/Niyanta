@@ -1614,36 +1614,25 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
         padding: 16,
         gap: 12,
       }}>
-        <div style={{
-          borderRadius: 12,
-          border: '1px solid var(--border)',
-          background: 'linear-gradient(160deg, var(--cc-panel-top), var(--cc-panel-bottom))',
-          boxShadow: 'var(--cc-panel-shadow)',
-          padding: 14,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 12,
-          flexShrink: 0,
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-            <div>
-              <div style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 700, letterSpacing: '0.02em' }}>Workflow Studio</div>
-              <div style={{ marginTop: 4, fontSize: 13, color: 'var(--text-secondary)' }}>Build, deploy, and monitor reusable automations.</div>
-            </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-              <span style={{ height: 22, display: 'inline-flex', alignItems: 'center', padding: '0 10px', borderRadius: 999, border: '1px solid var(--cc-ok-border)', background: 'var(--cc-ok-bg)', color: 'var(--status-success)', fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 700 }}>
-                {activeCount} Active
-              </span>
-              <span style={{ height: 22, display: 'inline-flex', alignItems: 'center', padding: '0 10px', borderRadius: 999, border: '1px solid var(--cc-warn-border)', background: 'var(--cc-warn-bg)', color: 'var(--status-warning)', fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 700 }}>
-                {draftCount} Draft
-              </span>
-              <span style={{ height: 22, display: 'inline-flex', alignItems: 'center', padding: '0 10px', borderRadius: 999, border: '1px solid var(--cc-info-border)', background: 'var(--cc-info-bg)', color: 'var(--status-info)', fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 700 }}>
-                {defaultCount} Default
-              </span>
-            </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <div>
+            <div style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 700, letterSpacing: '0.02em' }}>Workflow Studio</div>
+            <div style={{ marginTop: 4, fontSize: 13, color: 'var(--text-secondary)' }}>Build, deploy, and monitor reusable automations.</div>
           </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            <span style={{ height: 22, display: 'inline-flex', alignItems: 'center', padding: '0 10px', borderRadius: 999, border: '1px solid var(--cc-ok-border)', background: 'var(--cc-ok-bg)', color: 'var(--status-success)', fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 700 }}>
+              {activeCount} Active
+            </span>
+            <span style={{ height: 22, display: 'inline-flex', alignItems: 'center', padding: '0 10px', borderRadius: 999, border: '1px solid var(--cc-warn-border)', background: 'var(--cc-warn-bg)', color: 'var(--status-warning)', fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 700 }}>
+              {draftCount} Draft
+            </span>
+            <span style={{ height: 22, display: 'inline-flex', alignItems: 'center', padding: '0 10px', borderRadius: 999, border: '1px solid var(--cc-info-border)', background: 'var(--cc-info-bg)', color: 'var(--status-info)', fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 700 }}>
+              {defaultCount} Default
+            </span>
+          </div>
+        </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             <input
               value={searchFilter}
               onChange={(e) => setSearchFilter(e.target.value)}
@@ -1700,7 +1689,6 @@ const WorkflowStudio: React.FC<WorkflowStudioProps> = ({ workflows, onSaveWorkfl
             >
               TEMPLATES
             </button>
-          </div>
         </div>
 
         {/* Workflow Grid */}

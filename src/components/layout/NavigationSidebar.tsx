@@ -26,7 +26,6 @@ const NAV_ITEMS: NavItem[] = [
 
 const BOTTOM_ITEMS: NavItem[] = [
   { id: 'notifications', label: 'Notifications', path: '/notifications', icon: '◉' },
-  { id: 'services',      label: 'Services',      path: '/services',     icon: '⬡' },
   { id: 'settings',      label: 'Settings',      path: '/settings',     icon: '⚙' },
 ];
 
@@ -50,7 +49,6 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
     { name: 'Agent Studio', path: '/agents' },
     { name: 'Operations', path: '/monitor' },
     { name: 'Audit & Compliance', path: '/audit' },
-    { name: 'Services', path: '/services' },
     { name: 'Notifications', path: '/notifications' },
     { name: 'Settings', path: '/settings' },
   ];
@@ -75,7 +73,6 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
     if (p.startsWith('/monitor')) return 'operations';
     if (p.startsWith('/audit')) return 'audit';
     if (p.startsWith('/notifications')) return 'notifications';
-    if (p.startsWith('/services')) return 'services';
     if (p.startsWith('/settings')) return 'settings';
     return 'command';
   };
