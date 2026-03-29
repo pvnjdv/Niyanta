@@ -13,6 +13,9 @@ export interface WorkflowContext {
     retries: Record<string, number>;
     startedAt: string;
     completedAt?: string;
+    pendingNodeIds?: string[];
+    executedNodeIds?: string[];
+    lastError?: string;
     status: WorkflowStatus;
   };
   logs: WorkflowLog[];

@@ -1,9 +1,11 @@
 import { Router, Request, Response } from 'express';
 import { getDB } from '../db/database';
 import { WorkflowEngine } from '../core/WorkflowEngine';
+import { AuditLogger } from '../core/AuditLogger';
 
 const router = Router();
 const workflowEngine = new WorkflowEngine();
+const auditLogger = new AuditLogger();
 
 // GET all pending approvals
 router.get('/pending', (req: Request, res: Response) => {
@@ -95,49 +97,40 @@ router.post('/:id/approve', async (req: Request, res: Response) => {
       WHERE id = ?
     `).run(now, approvedBy, comment || null, data ? JSON.stringify(data) : null, id);
     
-    // Resume workflow execution
     const workflowRunId = approval.workflow_run_id;
-    
-    // Update run status back to RUNNING
-    db.prepare(`
-      UPDATE workflow_runs 
-      SET status = 'RUNNING' 
-      WHERE id = ?
-    `).run(workflowRunId);
-    
-    // Get workflow to continue execution
-    const run = db.prepare('SELECT * FROM workflow_runs WHERE id = ?').get(workflowRunId) as any;
-    
-    if (run) {
-      // Continue workflow execution from the next node
-      const context = JSON.parse(run.context || '{}');
-      context.approvalDecision = {
-        approved: true,
-        comment,
-        data,
-        approvedBy,
-        approvedAt: now,
-      };
-      
-      // Note: Workflow resumption would be handled by WorkflowEngine
-      // This is a simplified version - full implementation would need
-      // to track which node to resume from
-      
-      res.json({
-        success: true,
-        message: 'Approval granted',
+
+    const resolution = await workflowEngine.resolveApproval(workflowRunId, {
+      approved: true,
+      actor: approvedBy,
+      comment,
+      data,
+    });
+
+    auditLogger.log({
+      agentId: approvedBy,
+      eventType: 'APPROVAL_APPROVED',
+      event: `Approval ${id} approved by ${approvedBy}`,
+      decision: 'APPROVED',
+      metadata: {
         approvalId: id,
         workflowRunId,
-        timestamp: now,
-      });
-    } else {
-      res.json({
-        success: true,
-        message: 'Approval granted but workflow run not found',
-        approvalId: id,
-        timestamp: now,
-      });
-    }
+        workflowId: approval.workflow_id,
+        comment: comment || null,
+        data: data || null,
+      },
+    });
+
+    res.json({
+      success: resolution.success,
+      message: resolution.waitingForApproval ? 'Approval granted and workflow is awaiting a later approval' : 'Approval granted',
+      approvalId: id,
+      workflowRunId,
+      status: resolution.status,
+      waitingForApproval: resolution.waitingForApproval || false,
+      context: resolution.context,
+      error: resolution.error,
+      timestamp: now,
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     res.status(500).json({ success: false, error: 'ApproveFailed', message });
@@ -176,22 +169,36 @@ router.post('/:id/reject', async (req: Request, res: Response) => {
       WHERE id = ?
     `).run(now, rejectedBy, comment || reason || null, id);
     
-    // Mark workflow as FAILED
     const workflowRunId = approval.workflow_run_id;
-    
-    db.prepare(`
-      UPDATE workflow_runs 
-      SET status = 'FAILED',
-          error_message = ?,
-          completed_at = ?
-      WHERE id = ?
-    `).run(`Approval rejected: ${comment || reason || 'No reason provided'}`, now, workflowRunId);
+
+    const rejectionReason = comment || reason || 'No reason provided';
+    const resolution = await workflowEngine.resolveApproval(workflowRunId, {
+      approved: false,
+      actor: rejectedBy,
+      comment: rejectionReason,
+    });
+
+    auditLogger.log({
+      agentId: rejectedBy,
+      eventType: 'APPROVAL_REJECTED',
+      event: `Approval ${id} rejected by ${rejectedBy}`,
+      decision: 'REJECTED',
+      metadata: {
+        approvalId: id,
+        workflowRunId,
+        workflowId: approval.workflow_id,
+        reason: rejectionReason,
+      },
+    });
     
     res.json({
-      success: true,
+      success: resolution.success,
       message: 'Approval rejected',
       approvalId: id,
       workflowRunId,
+      status: resolution.status,
+      error: resolution.error,
+      context: resolution.context,
       timestamp: now,
     });
   } catch (error) {

@@ -52,6 +52,213 @@ export class AgentManager {
     return this.agents.delete(id);
   }
 
+  private getDBConnection(): any | null {
+    try {
+      const { getDB } = require('../db/database');
+      return getDB();
+    } catch {
+      return null;
+    }
+  }
+
+  private tokenizeText(...parts: Array<string | undefined>): string[] {
+    return parts
+      .filter(Boolean)
+      .flatMap((part) => String(part).toLowerCase().split(/[^a-z0-9]+/g))
+      .map((token) => token.trim())
+      .filter((token) => token.length > 2);
+  }
+
+  private readCanvasLayout(agentId: string): Array<Record<string, unknown>> {
+    const db = this.getDBConnection();
+    if (!db) {
+      return [];
+    }
+
+    const row = db
+      .prepare('SELECT layout_json FROM agent_canvas_layouts WHERE agent_id = ?')
+      .get(agentId) as { layout_json?: string | null } | undefined;
+    const fallback = db
+      .prepare('SELECT canvas_layout FROM agents WHERE id = ?')
+      .get(agentId) as { canvas_layout?: string | null } | undefined;
+
+    const raw = row?.layout_json || fallback?.canvas_layout;
+    if (!raw) {
+      return [];
+    }
+
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? (parsed as Array<Record<string, unknown>>) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  private getOrderedWorkflowIdsFromCanvas(agentId: string): string[] {
+    const layout = this.readCanvasLayout(agentId);
+    if (layout.length === 0) {
+      return [];
+    }
+
+    const workflowBlocks = layout.filter(
+      (item) => item.refId && item.refId !== '__start__' && item.refId !== '__end__' && item.refId !== '__edges__'
+    );
+    if (workflowBlocks.length === 0) {
+      return [];
+    }
+
+    const nodeById = new Map(
+      workflowBlocks.map((item) => [String(item.id || item.refId), item])
+    );
+    let rawEdges: Array<Record<string, unknown>> = [];
+
+    const edgeMeta = layout.find((item) => item.refId === '__edges__');
+    try {
+      rawEdges = edgeMeta?.inputInfo ? (JSON.parse(String(edgeMeta.inputInfo)) as Array<Record<string, unknown>>) : [];
+    } catch {
+      rawEdges = [];
+    }
+
+    const adjacency = new Map<string, string[]>();
+    for (const edge of rawEdges) {
+      const from = String(edge.from || edge.fromNodeId || '');
+      const to = String(edge.to || edge.toNodeId || '');
+      if (!from || !to || from === to) {
+        continue;
+      }
+      const targets = adjacency.get(from) || [];
+      targets.push(to);
+      adjacency.set(from, targets);
+    }
+
+    const visitQueue = ['__start__'];
+    const visited = new Set<string>();
+    const workflowIds: string[] = [];
+
+    while (visitQueue.length > 0) {
+      const nodeId = visitQueue.shift();
+      if (!nodeId || visited.has(nodeId)) {
+        continue;
+      }
+      visited.add(nodeId);
+      const canvasNode = nodeById.get(nodeId);
+      if (canvasNode?.blockType === 'workflow' && canvasNode.refId) {
+        const workflowId = String(canvasNode.refId);
+        if (!workflowIds.includes(workflowId)) {
+          workflowIds.push(workflowId);
+        }
+      }
+
+      const nextNodes = adjacency.get(nodeId) || [];
+      nextNodes.forEach((nextNodeId) => {
+        if (!visited.has(nextNodeId)) {
+          visitQueue.push(nextNodeId);
+        }
+      });
+    }
+
+    return workflowIds;
+  }
+
+  getExecutableWorkflowPlan(
+    agentId: string,
+    input: string,
+    workflowContext?: Record<string, unknown>,
+    preferredWorkflowIds: string[] = []
+  ): Array<{ workflowId: string; name: string; reason: string }> {
+    const db = this.getDBConnection();
+    const agent = this.getAgent(agentId);
+    if (!db || !agent) {
+      return [];
+    }
+
+    const linkedRows = db
+      .prepare(
+        `SELECT aw.workflow_id, w.name, w.description, w.category, w.tags, w.triggers, w.status
+         FROM agent_workflows aw
+         JOIN workflows w ON w.id = aw.workflow_id
+         WHERE aw.agent_id = ?
+         ORDER BY aw.created_at ASC`
+      )
+      .all(agentId) as Array<Record<string, unknown>>;
+
+    const linkedWorkflowMap = new Map(linkedRows.map((row) => [String(row.workflow_id), row]));
+    const preferredSet = new Set(preferredWorkflowIds.filter(Boolean));
+    const fromCanvas = this.getOrderedWorkflowIdsFromCanvas(agentId);
+    const orderedIds: string[] = [];
+    const pushUnique = (workflowId: string) => {
+      if (workflowId && !orderedIds.includes(workflowId)) {
+        orderedIds.push(workflowId);
+      }
+    };
+
+    preferredWorkflowIds.forEach(pushUnique);
+    fromCanvas.forEach(pushUnique);
+    linkedRows.forEach((row) => pushUnique(String(row.workflow_id)));
+
+    if (orderedIds.length === 0 && (agent as AgentDefinition & { workflow_id?: string }).workflow_id) {
+      pushUnique(String((agent as AgentDefinition & { workflow_id?: string }).workflow_id));
+    }
+
+    if (orderedIds.length === 0) {
+      const keywords = new Set(
+        this.tokenizeText(
+          input,
+          agent.name,
+          agent.description,
+          ...(agent.capabilities || []),
+          workflowContext ? JSON.stringify(workflowContext) : ''
+        )
+      );
+
+      const discovered = this.discoverWorkflows();
+      discovered
+        .map((workflow: any) => {
+          const workflowKeywords = new Set(
+            this.tokenizeText(
+              workflow.name,
+              workflow.description,
+              workflow.category,
+              ...(Array.isArray(workflow.tags) ? workflow.tags : []),
+              ...(Array.isArray(workflow.triggers) ? workflow.triggers : [])
+            )
+          );
+          let score = 0;
+          keywords.forEach((keyword) => {
+            if (workflowKeywords.has(keyword)) {
+              score += 1;
+            }
+          });
+          return { workflow, score };
+        })
+        .filter((item: { score: number }) => item.score > 0)
+        .sort((left: { score: number }, right: { score: number }) => right.score - left.score)
+        .slice(0, 3)
+        .forEach((item: { workflow: Record<string, unknown> }) => pushUnique(String(item.workflow.id)));
+    }
+
+    return orderedIds.map((workflowId) => {
+      const row =
+        linkedWorkflowMap.get(workflowId) ||
+        (db
+          .prepare('SELECT id as workflow_id, name, description, category FROM workflows WHERE id = ?')
+          .get(workflowId) as Record<string, unknown> | undefined);
+
+      return {
+        workflowId,
+        name: String(row?.name || workflowId),
+        reason: preferredSet.has(workflowId)
+          ? 'agent analysis requested this workflow'
+          : fromCanvas.includes(workflowId)
+            ? 'canvas execution path'
+            : linkedWorkflowMap.has(workflowId)
+              ? 'linked workflow'
+              : 'backing workflow fallback',
+      };
+    });
+  }
+
   // Phase 3.2: Workflow discovery for agents
   discoverWorkflows(options?: { category?: string; tags?: string[]; triggers?: string[] }): any[] {
     try {
@@ -137,6 +344,8 @@ export class AgentManager {
       
       return {
         success: result.success,
+        status: result.status,
+        waitingForApproval: result.waitingForApproval || false,
         workflowId,
         workflowName: workflow.name,
         runId,

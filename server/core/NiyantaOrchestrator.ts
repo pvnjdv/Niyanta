@@ -60,11 +60,145 @@ export class NiyantaOrchestrator {
       throw new Error(`Unknown agent: ${agentId}`);
     }
 
-    const result = await callGroqJSON<Record<string, unknown>>(
-      agent.systemPrompt,
-      JSON.stringify({ input, workflowContext: workflowContext || {} }, null, 2),
-      MODELS.DEFAULT
+    let workflowPlan = this.agentManager.getExecutableWorkflowPlan(
+      agentId,
+      input,
+      (workflowContext || {}) as Record<string, unknown>
     );
+    const { analysis, model } = await this.analyzeAgentInput(agent, input, workflowContext, workflowPlan);
+
+    const preferredWorkflowIds = Array.isArray(analysis.recommendedWorkflowIds)
+      ? (analysis.recommendedWorkflowIds as unknown[]).map((value) => String(value)).filter(Boolean)
+      : [];
+    if (preferredWorkflowIds.length > 0) {
+      workflowPlan = this.agentManager.getExecutableWorkflowPlan(
+        agentId,
+        input,
+        (workflowContext || {}) as Record<string, unknown>,
+        preferredWorkflowIds
+      );
+    }
+
+    let sharedContext: Partial<WorkflowContext> = this.mergeWorkflowContext(workflowContext || {}, {
+      metadata: {
+        ...(workflowContext?.metadata || {}),
+        input,
+        routedAt: new Date().toISOString(),
+        agentId,
+        agentName: agent.name,
+        workflowPlan,
+        agentAnalysis: analysis,
+      },
+    });
+
+    const workflowExecutions: Array<Record<string, unknown>> = [];
+
+    for (let index = 0; index < workflowPlan.length; index += 1) {
+      const plannedWorkflow = workflowPlan[index];
+      try {
+        const execution = await this.agentManager.invokeWorkflow(plannedWorkflow.workflowId, agentId, sharedContext);
+        workflowExecutions.push({
+          workflowId: execution.workflowId,
+          workflowName: execution.workflowName,
+          runId: execution.runId,
+          success: execution.success,
+          status: execution.status,
+          waitingForApproval: execution.waitingForApproval,
+          reason: plannedWorkflow.reason,
+          error: execution.error || null,
+        });
+
+        if (execution.context && typeof execution.context === 'object') {
+          sharedContext = this.mergeWorkflowContext(sharedContext, execution.context as Partial<WorkflowContext>);
+        }
+
+        if (execution.status === 'WAITING_APPROVAL' || !execution.success) {
+          break;
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Workflow execution failed';
+        workflowExecutions.push({
+          workflowId: plannedWorkflow.workflowId,
+          workflowName: plannedWorkflow.name,
+          success: false,
+          status: 'FAILED',
+          reason: plannedWorkflow.reason,
+          error: message,
+        });
+
+        if (index < workflowPlan.length - 1) {
+          this.auditLogger.log({
+            agentId,
+            eventType: 'AGENT_SELF_CORRECTION',
+            event: `${agent.name} skipped failed workflow ${plannedWorkflow.name} and continued to the next candidate`,
+            metadata: {
+              failedWorkflowId: plannedWorkflow.workflowId,
+              failedWorkflowName: plannedWorkflow.name,
+              error: message,
+              nextWorkflowId: workflowPlan[index + 1].workflowId,
+              nextWorkflowName: workflowPlan[index + 1].name,
+            },
+          });
+          continue;
+        }
+
+        break;
+      }
+    }
+
+    const latestExecution = workflowExecutions[workflowExecutions.length - 1];
+    const taskPayload = sharedContext.task && Object.keys(sharedContext.task).length > 0 ? [sharedContext.task] : [];
+    const notificationPayload = Array.isArray(sharedContext.metadata?.notifications)
+      ? (sharedContext.metadata?.notifications as unknown[])
+      : [];
+    const riskLevel = String(analysis.riskLevel || this.buildFallbackAnalysis(agent, input, workflowPlan).riskLevel || 'medium');
+    const needsHumanApproval =
+      Boolean(analysis.requiresHumanApproval) ||
+      latestExecution?.status === 'WAITING_APPROVAL' ||
+      riskLevel === 'high' ||
+      riskLevel === 'critical';
+    const decision = this.normalizeDecision(
+      analysis.decision,
+      latestExecution?.status === 'WAITING_APPROVAL'
+        ? 'PENDING_APPROVAL'
+        : latestExecution?.success === false
+          ? 'FAILED'
+          : 'PROCEED'
+    );
+    const whyChain = Array.isArray(analysis.whyChain) && analysis.whyChain.length > 0
+      ? analysis.whyChain
+      : [
+          `Input routed to ${agent.name}.`,
+          workflowPlan.length > 0
+            ? `Workflow plan created with ${workflowPlan.length} step${workflowPlan.length === 1 ? '' : 's'}.`
+            : 'No matching workflow plan was available.',
+          latestExecution?.status === 'WAITING_APPROVAL'
+            ? 'Execution paused for human approval.'
+            : latestExecution?.success === false
+              ? 'Execution failed after retries or escalation handling.'
+              : 'Execution completed without approval hold.',
+        ];
+    const result: Record<string, unknown> = {
+      summary:
+        typeof analysis.summary === 'string' && analysis.summary.trim().length > 0
+          ? analysis.summary
+          : `${agent.name} processed the request and evaluated ${workflowExecutions.length || workflowPlan.length} workflow step${(workflowExecutions.length || workflowPlan.length) === 1 ? '' : 's'}.`,
+      decision,
+      riskLevel,
+      requiresHumanApproval: needsHumanApproval,
+      escalate_to_human: needsHumanApproval,
+      workflowPlan,
+      workflowExecutions,
+      sharedContext,
+      tasks: taskPayload,
+      notifications: notificationPayload,
+      whyChain,
+      status: String(latestExecution?.status || (workflowPlan.length > 0 ? 'COMPLETED' : 'NO_WORKFLOW')),
+      nextWorkflow:
+        latestExecution && latestExecution.success !== false && latestExecution.status !== 'WAITING_APPROVAL'
+          ? workflowPlan[workflowExecutions.length]?.name || null
+          : null,
+    };
 
     const processingTime = Date.now() - started;
     this.updateMetrics(agentId, result, processingTime);
@@ -72,13 +206,116 @@ export class NiyantaOrchestrator {
       agentId,
       eventType: 'AGENT_RUN',
       event: `Executed ${agent.name}`,
-      decision: typeof result.decision === 'string' ? result.decision : undefined,
+      decision: typeof result.decision === 'string' ? String(result.decision) : undefined,
       inputPreview: input.slice(0, 300),
       processingTime,
-      metadata: { model: MODELS.DEFAULT },
+      metadata: {
+        model,
+        workflowPlan,
+        workflowExecutionCount: workflowExecutions.length,
+        status: result.status,
+      },
     });
 
-    return { result, processingTime, model: MODELS.DEFAULT };
+    return { result, processingTime, model };
+  }
+
+  private normalizeDecision(value: unknown, fallback: string): string {
+    const candidate = typeof value === 'string' ? value.trim() : '';
+    return candidate.length > 0 ? candidate.toUpperCase() : fallback;
+  }
+
+  private mergeWorkflowContext(
+    base: Partial<WorkflowContext>,
+    patch?: Partial<WorkflowContext>
+  ): Partial<WorkflowContext> {
+    if (!patch) {
+      return base;
+    }
+
+    return {
+      ...base,
+      ...patch,
+      document: { ...(base.document || {}), ...(patch.document || {}) },
+      invoice: { ...(base.invoice || {}), ...(patch.invoice || {}) },
+      employee: { ...(base.employee || {}), ...(patch.employee || {}) },
+      procurement: { ...(base.procurement || {}), ...(patch.procurement || {}) },
+      finance: { ...(base.finance || {}), ...(patch.finance || {}) },
+      task: { ...(base.task || {}), ...(patch.task || {}) },
+      metadata: { ...(base.metadata || {}), ...(patch.metadata || {}) },
+      logs: patch.logs || base.logs || [],
+      workflowState: {
+        ...(base.workflowState || { retries: {}, startedAt: new Date().toISOString(), status: 'PENDING' as const }),
+        ...(patch.workflowState || {}),
+        retries: {
+          ...((base.workflowState && base.workflowState.retries) || {}),
+          ...((patch.workflowState && patch.workflowState.retries) || {}),
+        },
+      },
+    };
+  }
+
+  private buildFallbackAnalysis(
+    agent: { name: string; description: string; capabilities: string[] },
+    input: string,
+    workflowPlan: Array<{ workflowId: string; name: string; reason: string }>
+  ): Record<string, unknown> {
+    const normalized = input.toLowerCase();
+    const numericMatches = Array.from(normalized.matchAll(/\b\d+(?:\.\d+)?\b/g)).map((match) => Number(match[0]));
+    const maxObservedValue = numericMatches.reduce((max, value) => Math.max(max, value), 0);
+    const criticalKeywords = ['critical', 'breach', 'fraud', 'legal', 'security', 'severe'];
+    const highKeywords = ['urgent', 'risk', 'exception', 'escalate', 'approval'];
+    const riskLevel = criticalKeywords.some((keyword) => normalized.includes(keyword)) || maxObservedValue >= 100000
+      ? 'critical'
+      : highKeywords.some((keyword) => normalized.includes(keyword)) || maxObservedValue >= 10000
+        ? 'high'
+        : maxObservedValue >= 5000
+          ? 'medium'
+          : 'low';
+
+    return {
+      summary: `${agent.name} analyzed the request using fallback heuristics and prepared ${workflowPlan.length} workflow candidate${workflowPlan.length === 1 ? '' : 's'}.`,
+      decision: riskLevel === 'critical' || riskLevel === 'high' ? 'ESCALATE' : workflowPlan.length > 0 ? 'PROCEED' : 'NO_WORKFLOW',
+      riskLevel,
+      requiresHumanApproval: riskLevel === 'critical' || riskLevel === 'high',
+      whyChain: [
+        `Matched request against ${agent.name} capabilities (${agent.capabilities.join(', ') || 'general reasoning'}).`,
+        workflowPlan.length > 0
+          ? `Selected ${workflowPlan.length} workflow candidate${workflowPlan.length === 1 ? '' : 's'} from linked and canvas-configured workflows.`
+          : 'No linked workflow matched, so only agent analysis was returned.',
+        `Risk scored as ${riskLevel} using content keywords and numeric thresholds.`,
+      ],
+      recommendedWorkflowIds: workflowPlan.map((item) => item.workflowId),
+    };
+  }
+
+  private async analyzeAgentInput(
+    agent: { name: string; description: string; systemPrompt: string; capabilities: string[] },
+    input: string,
+    workflowContext: Partial<WorkflowContext> | undefined,
+    workflowPlan: Array<{ workflowId: string; name: string; reason: string }>
+  ): Promise<{ analysis: Record<string, unknown>; model: string }> {
+    const fallback = this.buildFallbackAnalysis(agent, input, workflowPlan);
+    try {
+      const analysis = await callGroqJSON<Record<string, unknown>>(
+        `${agent.systemPrompt}\nReturn strict JSON with keys: summary, decision, riskLevel, requiresHumanApproval, whyChain, recommendedWorkflowIds. whyChain must be an array of short strings. recommendedWorkflowIds must be an array of workflow IDs from the provided candidates when applicable.`,
+        JSON.stringify(
+          {
+            input,
+            workflowContext: workflowContext || {},
+            availableWorkflows: workflowPlan,
+            capabilities: agent.capabilities,
+            agentDescription: agent.description,
+          },
+          null,
+          2
+        ),
+        MODELS.DEFAULT
+      );
+      return { analysis: { ...fallback, ...analysis }, model: MODELS.DEFAULT };
+    } catch {
+      return { analysis: fallback, model: 'heuristic-local' };
+    }
   }
 
   async processOrchestratorChat(

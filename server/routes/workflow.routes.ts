@@ -234,6 +234,8 @@ router.post('/:id/execute', async (req: Request, res: Response) => {
         success: true,
         workflowId: id,
         runId,
+        status: result.status,
+        waitingForApproval: result.waitingForApproval || false,
         context: result.context,
         timestamp: new Date().toISOString(),
       });
@@ -279,6 +281,8 @@ router.post('/:id/dry-run', async (req: Request, res: Response) => {
       workflowId: id,
       runId: fakeRunId,
       isDryRun: true,
+      status: result.status,
+      waitingForApproval: result.waitingForApproval || false,
       context: result.context,
       error: result.error,
       timestamp: new Date().toISOString(),
