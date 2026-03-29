@@ -24,7 +24,8 @@ export interface ExtractedFileAttachment {
   textContent?: string;
   pageCount?: number;
   sheetNames?: string[];
-  extractionStatus?: 'ok' | 'unsupported';
+  extractionStatus?: 'ok' | 'unsupported' | 'failed';
+  extractionError?: string;
 }
 
 export interface ChatMessage {

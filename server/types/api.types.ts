@@ -19,7 +19,8 @@ export interface NiyantaCommandAttachment {
   textContent?: string;
   pageCount?: number;
   sheetNames?: string[];
-  extractionStatus?: 'ok' | 'unsupported';
+  extractionStatus?: 'ok' | 'unsupported' | 'failed';
+  extractionError?: string;
 }
 
 export interface NiyantaCommandRequest {
@@ -27,6 +28,7 @@ export interface NiyantaCommandRequest {
   attachments?: NiyantaCommandAttachment[];
   conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>;
   agentResults?: Record<string, unknown>;
+  systemContext?: NiyantaSystemContext;
 }
 
 export interface NiyantaSystemContext {

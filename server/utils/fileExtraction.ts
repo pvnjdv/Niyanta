@@ -17,7 +17,8 @@ export interface ExtractedUploadFile {
   textContent: string;
   pageCount?: number;
   sheetNames?: string[];
-  extractionStatus: 'ok' | 'unsupported';
+  extractionStatus: 'ok' | 'unsupported' | 'failed';
+  extractionError?: string;
 }
 
 function normalizeText(input: string): string {
@@ -44,25 +45,84 @@ function buildExcerpt(text: string): string {
   return normalized.slice(0, 240);
 }
 
+function buildFailedExtraction(file: UploadedFileLike, error: unknown, fallbackMessage: string): ExtractedUploadFile {
+  const detail = error instanceof Error && error.message
+    ? error.message
+    : fallbackMessage;
+
+  return {
+    name: file.originalname,
+    size: file.size,
+    type: file.mimetype,
+    excerpt: buildExcerpt(`${fallbackMessage} ${detail}`),
+    textContent: '',
+    extractionStatus: 'failed',
+    extractionError: detail,
+  };
+}
+
 export async function extractUploadedFile(file: UploadedFileLike): Promise<ExtractedUploadFile> {
   const lowerName = file.originalname.toLowerCase();
 
   if (lowerName.endsWith('.pdf') || file.mimetype === 'application/pdf') {
-    const parsed = await pdfParse(file.buffer);
-    const textContent = (parsed.text || '').trim().slice(0, 14000);
-    return {
-      name: file.originalname,
-      size: file.size,
-      type: file.mimetype,
-      excerpt: buildExcerpt(textContent),
-      textContent,
-      pageCount: typeof parsed.numpages === 'number' ? parsed.numpages : undefined,
-      extractionStatus: 'ok',
-    };
+    try {
+      const parsed = await pdfParse(file.buffer);
+      const textContent = (parsed.text || '').trim().slice(0, 14000);
+      return {
+        name: file.originalname,
+        size: file.size,
+        type: file.mimetype,
+        excerpt: buildExcerpt(textContent),
+        textContent,
+        pageCount: typeof parsed.numpages === 'number' ? parsed.numpages : undefined,
+        extractionStatus: 'ok',
+      };
+    } catch (error) {
+      return buildFailedExtraction(file, error, 'PDF uploaded, but text extraction could not be completed.');
+    }
   }
 
   if (isSpreadsheet(lowerName, file.mimetype)) {
-    if (lowerName.endsWith('.csv') || file.mimetype === 'text/csv') {
+    try {
+      if (lowerName.endsWith('.csv') || file.mimetype === 'text/csv') {
+        const textContent = file.buffer.toString('utf8').slice(0, 14000);
+        return {
+          name: file.originalname,
+          size: file.size,
+          type: file.mimetype,
+          excerpt: buildExcerpt(textContent),
+          textContent,
+          extractionStatus: 'ok',
+        };
+      }
+
+      const workbook = XLSX.read(file.buffer, { type: 'buffer' });
+      const sheetNames = workbook.SheetNames;
+      const textContent = sheetNames
+        .map((sheetName) => {
+          const worksheet = workbook.Sheets[sheetName];
+          const csv = worksheet ? XLSX.utils.sheet_to_csv(worksheet) : '';
+          return `Sheet: ${sheetName}\n${csv}`;
+        })
+        .join('\n\n')
+        .slice(0, 14000);
+
+      return {
+        name: file.originalname,
+        size: file.size,
+        type: file.mimetype,
+        excerpt: buildExcerpt(textContent),
+        textContent,
+        sheetNames,
+        extractionStatus: 'ok',
+      };
+    } catch (error) {
+      return buildFailedExtraction(file, error, 'Spreadsheet uploaded, but text extraction could not be completed.');
+    }
+  }
+
+  if (isTextLike(lowerName, file.mimetype)) {
+    try {
       const textContent = file.buffer.toString('utf8').slice(0, 14000);
       return {
         name: file.originalname,
@@ -72,40 +132,9 @@ export async function extractUploadedFile(file: UploadedFileLike): Promise<Extra
         textContent,
         extractionStatus: 'ok',
       };
+    } catch (error) {
+      return buildFailedExtraction(file, error, 'Text file uploaded, but decoding failed.');
     }
-
-    const workbook = XLSX.read(file.buffer, { type: 'buffer' });
-    const sheetNames = workbook.SheetNames;
-    const textContent = sheetNames
-      .map((sheetName) => {
-        const worksheet = workbook.Sheets[sheetName];
-        const csv = worksheet ? XLSX.utils.sheet_to_csv(worksheet) : '';
-        return `Sheet: ${sheetName}\n${csv}`;
-      })
-      .join('\n\n')
-      .slice(0, 14000);
-
-    return {
-      name: file.originalname,
-      size: file.size,
-      type: file.mimetype,
-      excerpt: buildExcerpt(textContent),
-      textContent,
-      sheetNames,
-      extractionStatus: 'ok',
-    };
-  }
-
-  if (isTextLike(lowerName, file.mimetype)) {
-    const textContent = file.buffer.toString('utf8').slice(0, 14000);
-    return {
-      name: file.originalname,
-      size: file.size,
-      type: file.mimetype,
-      excerpt: buildExcerpt(textContent),
-      textContent,
-      extractionStatus: 'ok',
-    };
   }
 
   return {

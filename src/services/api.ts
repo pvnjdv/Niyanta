@@ -102,12 +102,13 @@ export async function executeNiyantaCommand(
   message: string,
   conversationHistory: Array<{ role: 'user' | 'assistant'; content: string }>,
   agentResults: Record<string, unknown>,
-  attachments: ExtractedFileAttachment[] = []
+  attachments: ExtractedFileAttachment[] = [],
+  systemContext?: Record<string, unknown>
 ): Promise<NiyantaCommandResponse> {
   const response = await fetch(`${BASE}/niyanta/command`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message, conversationHistory, agentResults, attachments }),
+    body: JSON.stringify({ message, conversationHistory, agentResults, attachments, systemContext }),
   });
 
   if (!response.ok) {
@@ -132,7 +133,12 @@ export async function extractNiyantaFiles(files: File[]): Promise<ExtractedFileA
   });
 
   if (!response.ok) {
-    throw new Error('Failed to extract file content');
+    let detail = 'Failed to extract file content';
+    try {
+      const err = await response.json() as { message?: string };
+      if (err.message) detail = err.message;
+    } catch { /* ignore */ }
+    throw new Error(detail);
   }
 
   const data = await response.json() as { files?: ExtractedFileAttachment[] };

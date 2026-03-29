@@ -169,7 +169,7 @@ router.post('/chat', async (req: Request, res: Response) => {
 });
 
 router.post('/command', async (req: Request, res: Response) => {
-  const { message, attachments, agentResults }: NiyantaCommandRequest = req.body;
+  const { message, attachments, agentResults, conversationHistory, systemContext }: NiyantaCommandRequest = req.body;
 
   if (!message || typeof message !== 'string') {
     return res.status(400).json({ error: 'ValidationError', message: 'message must be a non-empty string' });
@@ -179,7 +179,9 @@ router.post('/command', async (req: Request, res: Response) => {
     const response: NiyantaCommandResponse = await commandProcessor.execute({
       message,
       attachments: Array.isArray(attachments) ? attachments : [],
+      conversationHistory: Array.isArray(conversationHistory) ? conversationHistory : [],
       agentResults: agentResults || {},
+      systemContext: (systemContext || {}) as NiyantaSystemContext,
     });
     return res.status(200).json(response);
   } catch (error) {

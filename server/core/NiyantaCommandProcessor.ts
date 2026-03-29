@@ -1,7 +1,8 @@
 import { WorkflowEngine } from './WorkflowEngine';
 import { AuditLogger } from './AuditLogger';
 import { getDB } from '../db/database';
-import { NiyantaActivityItem, NiyantaReportCard } from '../types/api.types';
+import { NiyantaActivityItem, NiyantaReportCard, NiyantaSystemContext } from '../types/api.types';
+import { getOrchestrator } from './NiyantaOrchestrator';
 import { WorkflowContext, WorkflowEdge, WorkflowNodeInstance } from '../types/workflow.types';
 
 export interface CommandAttachment {
@@ -12,13 +13,16 @@ export interface CommandAttachment {
   textContent?: string;
   pageCount?: number;
   sheetNames?: string[];
-  extractionStatus?: 'ok' | 'unsupported';
+  extractionStatus?: 'ok' | 'unsupported' | 'failed';
+  extractionError?: string;
 }
 
 export interface CommandExecutionInput {
   message: string;
   attachments?: CommandAttachment[];
+  conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>;
   agentResults?: Record<string, unknown>;
+  systemContext?: NiyantaSystemContext;
 }
 
 export interface CommandExecutionResult {
@@ -65,6 +69,22 @@ type CommandWorkflowDefinition = {
   triggers: string[];
   nodes: WorkflowNodeInstance[];
   edges: WorkflowEdge[];
+};
+
+type ApprovalCommandAction = 'approve' | 'reject';
+
+type PendingApprovalRow = {
+  id: string;
+  workflow_run_id: string;
+  workflow_id: string;
+  workflow_name: string;
+  node_name?: string;
+  title: string;
+  description?: string;
+  context?: string;
+  assigned_to?: string;
+  priority?: string;
+  created_at?: string;
 };
 
 const TRUSTED_VENDORS = new Set([
@@ -341,6 +361,147 @@ function classifyCommand(message: string, attachments: CommandAttachment[]): Par
     matchedAgents: detectAgentsForScenario('generic'),
     combinedText,
   };
+}
+
+function parseJsonRecord(value: unknown): Record<string, unknown> {
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    return {};
+  }
+
+  try {
+    const parsed = JSON.parse(value) as Record<string, unknown>;
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function listPendingApprovals(limit: number = 20): PendingApprovalRow[] {
+  const db = getDB();
+  return db
+    .prepare('SELECT * FROM pending_approvals WHERE status = ? ORDER BY created_at DESC LIMIT ?')
+    .all('PENDING', limit) as PendingApprovalRow[];
+}
+
+function parseApprovalCommand(message: string): { action: ApprovalCommandAction; comment?: string } | null {
+  const normalized = normalizeText(message).toLowerCase();
+  if (!normalized) {
+    return null;
+  }
+
+  const approvePattern = /^(approve|approved|yes approve|approve latest|approve this|approve it|go ahead approve|continue with approval)\b/i;
+  const rejectPattern = /^(reject|rejected|decline|deny|reject latest|reject this|reject it|do not approve)\b/i;
+  const commentMatch = message.match(/(?:because|reason|comment|note)\s*[:=-]?\s*(.+)$/i)
+    || message.match(/(?:approve|reject|decline|deny)(?:\s+latest|\s+this|\s+it)?\s*[:=-]\s*(.+)$/i);
+
+  if (approvePattern.test(normalized)) {
+    return { action: 'approve', comment: commentMatch?.[1]?.trim() };
+  }
+
+  if (rejectPattern.test(normalized)) {
+    return { action: 'reject', comment: commentMatch?.[1]?.trim() };
+  }
+
+  return null;
+}
+
+function selectPendingApproval(message: string, approvals: PendingApprovalRow[]): PendingApprovalRow | null {
+  if (approvals.length === 0) {
+    return null;
+  }
+
+  const normalized = normalizeText(message).toLowerCase();
+  const invoiceNumber = parseInvoiceNumber(message);
+
+  if (invoiceNumber) {
+    const byInvoice = approvals.find((approval) => {
+      const context = parseJsonRecord(approval.context);
+      const invoice = (context.invoice || {}) as Record<string, unknown>;
+      const metadata = (context.metadata || {}) as Record<string, unknown>;
+      return String(invoice.invoiceNumber || metadata.invoiceNumber || '').toUpperCase() === invoiceNumber;
+    });
+
+    if (byInvoice) {
+      return byInvoice;
+    }
+  }
+
+  const byWorkflow = approvals.find((approval) => {
+    const title = String(approval.title || '').toLowerCase();
+    const workflowName = String(approval.workflow_name || '').toLowerCase();
+    const description = String(approval.description || '').toLowerCase();
+
+    if (normalized.includes('procurement')) {
+      return workflowName.includes('procurement') || title.includes('procurement') || description.includes('procurement');
+    }
+
+    if (normalized.includes('invoice')) {
+      return workflowName.includes('invoice') || title.includes('invoice') || description.includes('invoice');
+    }
+
+    if (normalized.includes('onboarding') || normalized.includes('employee')) {
+      return workflowName.includes('onboarding') || title.includes('employee') || description.includes('employee');
+    }
+
+    return false;
+  });
+
+  return byWorkflow || approvals[0];
+}
+
+function buildApprovalReminder(approvals: PendingApprovalRow[]): string | null {
+  if (approvals.length === 0) {
+    return null;
+  }
+
+  const latest = approvals[0];
+  const scope = approvals.length === 1
+    ? latest.title || latest.workflow_name
+    : `${approvals.length} approvals are waiting`;
+
+  return `Approval Required: ${scope}. Please approve from Approvals or type "approve latest" here. Type "reject latest: <reason>" to reject.`;
+}
+
+function buildLocalChatReply(message: string): string | null {
+  const normalized = normalizeText(message).toLowerCase();
+
+  if (/^(hi|hello|hey|good morning|good afternoon|good evening)\b/.test(normalized)) {
+    return [
+      'Hello.',
+      '',
+      'I can chat normally, run workflow scenarios, analyse uploaded files, and handle approval actions.',
+      '',
+      'Try one of these:',
+      'Chat: ask what is active or what I can do.',
+      'Command: process an invoice, create a procurement request, or onboard an employee.',
+      'Approval: type "approve latest" or "reject latest: <reason>".',
+    ].join('\n');
+  }
+
+  if (/(what can you do|help|capabilities|how can you help)/i.test(normalized)) {
+    return [
+      'I can handle both normal chat and agentic operations.',
+      '',
+      'Chat: answer workflow, audit, and operations questions in plain language.',
+      'Scenarios: invoice auto-approval, invoice escalation, procurement, HR onboarding, and document intake.',
+      'Files: accept uploads, extract text when possible, and route the document into the right workflow.',
+      'Approvals: guide you to Approvals or accept typed approval commands directly here.',
+    ].join('\n');
+  }
+
+  if (/^(thanks|thank you|ok thanks|great thanks)\b/.test(normalized)) {
+    return 'You are welcome. I can keep chatting, run a workflow, or clear a pending approval whenever you are ready.';
+  }
+
+  return null;
+}
+
+function isConversationalRequest(message: string, attachments: CommandAttachment[], parsed: ParsedCommand): boolean {
+  if (attachments.length > 0) {
+    return false;
+  }
+
+  return parsed.scenario === 'generic';
 }
 
 function buildWorkflowDefinitions(parsed: ParsedCommand): CommandWorkflowDefinition | null {
@@ -634,6 +795,7 @@ function countMeaningfulNodes(logs: WorkflowContext['logs']): number {
 
 function buildActivity(parsed: ParsedCommand, attachments: CommandAttachment[], workflowName: string | undefined, result: { status: string; context: WorkflowContext }, runId?: string): NiyantaActivityItem[] {
   const startedAt = new Date().toISOString();
+  const extractionIssues = attachments.filter((attachment) => attachment.extractionStatus === 'failed' || attachment.extractionStatus === 'unsupported');
   const items: NiyantaActivityItem[] = [
     {
       id: 'command-received',
@@ -658,6 +820,16 @@ function buildActivity(parsed: ParsedCommand, attachments: CommandAttachment[], 
       detail: `${attachments.length} attachment${attachments.length === 1 ? '' : 's'} prepared for OCR and analysis.`,
       tone: 'success',
       timestamp: new Date(Date.now() + 220).toISOString(),
+    });
+  }
+
+  if (extractionIssues.length > 0) {
+    items.push({
+      id: 'attachments-fallback',
+      label: 'Limited extraction',
+      detail: `${extractionIssues.length} attachment${extractionIssues.length === 1 ? '' : 's'} will rely on filename and operator context because text extraction was incomplete.`,
+      tone: 'warning',
+      timestamp: new Date(Date.now() + 260).toISOString(),
     });
   }
 
@@ -745,7 +917,7 @@ function buildReply(parsed: ParsedCommand, result: { status: string; context: Wo
   const vendorLine = parsed.vendor ? `Vendor: ${parsed.vendor}` : 'Vendor: Not detected';
   const amountLine = parsed.amount ? `Amount: ${formatCurrency(parsed.amount)}` : 'Amount: Not detected';
   const approvalLine = result.status === 'WAITING_APPROVAL'
-    ? 'Human approval is now required. Open Approvals Centre to approve or reject.'
+    ? 'Approval Required: Please approve from Approvals or type "approve latest" here. Type "reject latest: <reason>" to reject.'
     : result.status === 'FAILED'
       ? `Workflow execution failed${failureCount > 0 ? ` after ${failureCount} node error${failureCount === 1 ? '' : 's'}` : ''}. Review the latest run in Command Centre or Workflows.`
       : 'No human intervention is required for this run.';
@@ -766,6 +938,145 @@ function buildReply(parsed: ParsedCommand, result: { status: string; context: Wo
   ].filter(Boolean).join('\n');
 }
 
+function buildConversationActivity(message: string, pendingApprovals: PendingApprovalRow[]): NiyantaActivityItem[] {
+  const startedAt = Date.now();
+  const items: NiyantaActivityItem[] = [
+    {
+      id: 'conversation-received',
+      label: 'Conversation received',
+      detail: `Handled as a normal chat request: ${message.slice(0, 96)}${message.length > 96 ? '...' : ''}`,
+      tone: 'info',
+      timestamp: new Date(startedAt).toISOString(),
+    },
+    {
+      id: 'conversation-reply',
+      label: 'Reply composed',
+      detail: 'Niyanta answered without starting a workflow run.',
+      tone: 'success',
+      timestamp: new Date(startedAt + 160).toISOString(),
+    },
+  ];
+
+  if (pendingApprovals.length > 0) {
+    items.push({
+      id: 'conversation-approval-reminder',
+      label: 'Approval reminder',
+      detail: `${pendingApprovals.length} approval${pendingApprovals.length === 1 ? '' : 's'} still need action before paused workflows can continue.`,
+      tone: 'warning',
+      timestamp: new Date(startedAt + 320).toISOString(),
+    });
+  }
+
+  return items;
+}
+
+function buildApprovalCommandActivity(
+  action: ApprovalCommandAction,
+  approval: PendingApprovalRow,
+  result: { status: string; context: WorkflowContext }
+): NiyantaActivityItem[] {
+  const startedAt = Date.now();
+  const items: NiyantaActivityItem[] = [
+    {
+      id: 'approval-command-received',
+      label: 'Approval command received',
+      detail: `${action === 'approve' ? 'Approve' : 'Reject'} instruction received from Niyanta Command.`,
+      tone: 'info',
+      timestamp: new Date(startedAt).toISOString(),
+    },
+    {
+      id: 'approval-command-matched',
+      label: 'Approval matched',
+      detail: `${approval.title} in ${approval.workflow_name} was selected for resolution.`,
+      tone: 'success',
+      timestamp: new Date(startedAt + 140).toISOString(),
+    },
+  ];
+
+  (result.context.logs || []).slice(-4).forEach((log, index) => {
+    items.push({
+      id: `approval-command-log-${log.nodeId}-${index}`,
+      label: log.nodeName,
+      detail: log.message,
+      tone: toneFromStatus(log.status),
+      timestamp: log.timestamp,
+    });
+  });
+
+  items.push({
+    id: 'approval-command-finished',
+    label: action === 'approve' ? 'Workflow resumed' : 'Workflow rejected',
+    detail: action === 'approve'
+      ? (result.status === 'WAITING_APPROVAL'
+          ? 'The workflow resumed and is now waiting on another approval step.'
+          : result.status === 'COMPLETED'
+            ? 'The paused workflow continued successfully after approval.'
+            : 'The workflow resumed but still needs operator review.')
+      : 'The workflow was stopped after rejection.',
+    tone: action === 'approve' ? (result.status === 'FAILED' ? 'danger' : 'success') : 'warning',
+    timestamp: new Date(startedAt + 420).toISOString(),
+  });
+
+  return items.sort((left, right) => left.timestamp.localeCompare(right.timestamp));
+}
+
+function buildApprovalCommandReports(
+  action: ApprovalCommandAction,
+  approval: PendingApprovalRow,
+  result: { status: string; context: WorkflowContext }
+): NiyantaReportCard[] {
+  return [
+    {
+      id: 'approval-action',
+      title: 'Approval',
+      value: action === 'approve' ? 'APPROVED' : 'REJECTED',
+      detail: approval.title,
+      tone: action === 'approve' ? 'success' : 'warning',
+    },
+    {
+      id: 'approval-workflow',
+      title: 'Workflow',
+      value: approval.workflow_name,
+      detail: `Run ${approval.workflow_run_id.slice(0, 8)}`,
+      tone: 'info',
+    },
+    {
+      id: 'approval-status',
+      title: 'Run Status',
+      value: result.status,
+      detail: action === 'approve'
+        ? 'Execution resumed from the approval node.'
+        : 'Execution stopped after rejection.',
+      tone: result.status === 'FAILED' ? 'danger' : result.status === 'WAITING_APPROVAL' ? 'warning' : 'success',
+    },
+  ];
+}
+
+function buildApprovalCommandReply(
+  action: ApprovalCommandAction,
+  approval: PendingApprovalRow,
+  result: { status: string; context: WorkflowContext },
+  comment?: string
+): string {
+  const nextAction = action === 'approve'
+    ? (result.status === 'WAITING_APPROVAL'
+        ? 'Another approval is still pending. Review Approvals or type "approve latest" here again when ready.'
+        : result.status === 'COMPLETED'
+          ? 'The paused workflow has resumed and continued execution.'
+          : 'The workflow resumed but needs operator review because execution did not finish cleanly.')
+    : 'The workflow has been stopped after rejection.';
+
+  return [
+    'Input Type: Approval Command',
+    `Workflow: ${approval.workflow_name}`,
+    `Approval Action: ${action === 'approve' ? 'APPROVED' : 'REJECTED'}`,
+    `Request: ${approval.title}`,
+    comment ? `Comment: ${comment}` : null,
+    `Run Status: ${result.status}`,
+    `Next Action: ${nextAction}`,
+  ].filter(Boolean).join('\n');
+}
+
 export class NiyantaCommandProcessor {
   private workflowEngine: WorkflowEngine;
   private auditLogger: AuditLogger;
@@ -775,11 +1086,140 @@ export class NiyantaCommandProcessor {
     this.auditLogger = new AuditLogger();
   }
 
+  private async handleConversationalRequest(
+    input: CommandExecutionInput,
+    pendingApprovals: PendingApprovalRow[]
+  ): Promise<CommandExecutionResult> {
+    const now = new Date().toISOString();
+    const localReply = buildLocalChatReply(input.message);
+    const orchestrator = getOrchestrator();
+    const conversationalReply = localReply || await orchestrator.processOrchestratorChat(
+      input.message,
+      Array.isArray(input.conversationHistory) ? input.conversationHistory : [],
+      input.agentResults || {},
+      (input.systemContext || {}) as Record<string, unknown>
+    );
+    const approvalReminder = buildApprovalReminder(pendingApprovals);
+    const reply = approvalReminder
+      ? `${conversationalReply}\n\n${approvalReminder}\nApproval Note: You can continue chatting here, but paused workflows resume only after approval.`
+      : conversationalReply;
+
+    this.auditLogger.log({
+      agentId: 'niyanta_command',
+      eventType: 'NIYANTA_COMMAND_CHAT',
+      event: 'Niyanta Command handled a conversational request',
+      inputPreview: input.message.slice(0, 300),
+      metadata: {
+        approvalReminder: Boolean(approvalReminder),
+        pendingApprovalCount: pendingApprovals.length,
+      },
+    });
+
+    return {
+      reply,
+      timestamp: now,
+      activity: buildConversationActivity(input.message, pendingApprovals),
+      reports: [],
+      matchedAgents: [],
+      status: 'COMPLETED',
+      decision: 'CHAT',
+      inputType: 'Conversation',
+    };
+  }
+
+  private async handleApprovalCommand(
+    message: string,
+    approvalCommand: { action: ApprovalCommandAction; comment?: string },
+    pendingApprovals: PendingApprovalRow[]
+  ): Promise<CommandExecutionResult> {
+    const now = new Date().toISOString();
+    const approval = selectPendingApproval(message, pendingApprovals);
+
+    if (!approval) {
+      return {
+        reply: [
+          'Input Type: Approval Command',
+          'Approval Status: No pending approvals are waiting right now.',
+          'Next Action: Continue with a normal command, or open Approvals to verify the queue.',
+        ].join('\n'),
+        timestamp: now,
+        activity: [
+          {
+            id: 'approval-none',
+            label: 'No pending approval',
+            detail: 'Niyanta did not find any waiting approval request to resolve.',
+            tone: 'warning',
+            timestamp: now,
+          },
+        ],
+        reports: [],
+        matchedAgents: [],
+        status: 'COMPLETED',
+        decision: 'NO_PENDING_APPROVAL',
+        inputType: 'Approval Command',
+      };
+    }
+
+    const approved = approvalCommand.action === 'approve';
+    const comment = approvalCommand.comment || (approved ? 'Approved from Niyanta Command' : 'Rejected from Niyanta Command');
+    const db = getDB();
+
+    db.prepare(
+      `UPDATE pending_approvals
+       SET status = ?, resolved_at = ?, resolved_by = ?, decision_comment = ?, decision_data = ?
+       WHERE id = ?`
+    ).run(
+      approved ? 'APPROVED' : 'REJECTED',
+      now,
+      'niyanta_command',
+      comment,
+      null,
+      approval.id
+    );
+
+    const resolution = await this.workflowEngine.resolveApproval(String(approval.workflow_run_id), {
+      approved,
+      actor: 'niyanta_command',
+      comment,
+      data: {},
+    });
+
+    this.auditLogger.log({
+      agentId: 'niyanta_command',
+      eventType: approved ? 'NIYANTA_COMMAND_APPROVAL_APPROVED' : 'NIYANTA_COMMAND_APPROVAL_REJECTED',
+      event: `${approved ? 'Approved' : 'Rejected'} ${approval.title} from Niyanta Command`,
+      decision: approved ? 'APPROVED' : 'REJECTED',
+      metadata: {
+        approvalId: approval.id,
+        workflowRunId: approval.workflow_run_id,
+        workflowId: approval.workflow_id,
+        workflowName: approval.workflow_name,
+        comment,
+        resultingStatus: resolution.status,
+      },
+    });
+
+    return {
+      reply: buildApprovalCommandReply(approvalCommand.action, approval, resolution, comment),
+      timestamp: now,
+      activity: buildApprovalCommandActivity(approvalCommand.action, approval, resolution),
+      reports: buildApprovalCommandReports(approvalCommand.action, approval, resolution),
+      matchedAgents: [],
+      workflowId: approval.workflow_id,
+      runId: approval.workflow_run_id,
+      status: resolution.status as 'COMPLETED' | 'WAITING_APPROVAL' | 'FAILED',
+      decision: approved ? 'APPROVED' : 'REJECTED',
+      inputType: 'Approval Command',
+    };
+  }
+
   async execute(input: CommandExecutionInput): Promise<CommandExecutionResult> {
     const attachments = Array.isArray(input.attachments) ? input.attachments : [];
     const agentResults = input.agentResults || {};
     const parsed = classifyCommand(input.message, attachments);
     const now = new Date().toISOString();
+    const pendingApprovals = listPendingApprovals();
+    const approvalCommand = parseApprovalCommand(input.message);
 
     this.auditLogger.log({
       agentId: 'niyanta_command',
@@ -793,6 +1233,14 @@ export class NiyantaCommandProcessor {
         matchedAgents: parsed.matchedAgents.map((agent) => agent.agentId),
       },
     });
+
+    if (approvalCommand && (pendingApprovals.length > 0 || parsed.scenario === 'generic')) {
+      return this.handleApprovalCommand(input.message, approvalCommand, pendingApprovals);
+    }
+
+    if (isConversationalRequest(input.message, attachments, parsed)) {
+      return this.handleConversationalRequest(input, pendingApprovals);
+    }
 
     let runId: string | undefined;
     let workflowStatus: 'COMPLETED' | 'WAITING_APPROVAL' | 'FAILED' = 'COMPLETED';
