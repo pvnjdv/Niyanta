@@ -156,7 +156,7 @@ export const ApprovalsScreen: React.FC = () => {
           'radial-gradient(circle at 12% 0%, var(--cc-glow-a), transparent 40%), radial-gradient(circle at 88% 0%, var(--cc-glow-b), transparent 34%)',
       }}
     >
-      <div style={{ ...panelStyle, padding: 16, marginBottom: 12 }}>
+      <div style={{ marginBottom: 12, padding: '4px 2px 0' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <div>
             <div style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 700 }}>Approvals Centre</div>
