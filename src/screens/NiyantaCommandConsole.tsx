@@ -1,36 +1,16 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Agent, AgentState } from '../types/agent';
+import { ChatMessage, NiyantaActivityItem } from '../types/message';
+import { NiyantaSystemContext, sendNiyantaMessage } from '../services/api';
+import { readLocalStorage, writeLocalStorage } from '../utils/localStorage';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-
-type MsgType = 'info' | 'success' | 'warning' | 'error' | 'running';
-
-interface CommandMessage {
-  id: string;
-  timestamp: number;
-  status: string;
-  action: string;
-  suggestion?: string;
-  type: MsgType;
-  metadata?: {
-    node?: string;
-    agent?: string;
-    workflow?: string;
-    timeTaken?: number;
-    confidence?: number;
-  };
-}
-
-interface DemoStep {
-  delay: number;
-  message: Omit<CommandMessage, 'id' | 'timestamp'>;
-}
 
 interface NiyantaCommandConsoleProps {
   agents?: Agent[];
   agentStates?: Record<string, AgentState>;
-  workflows?: Array<{ id?: string; name?: string; status?: string; category?: string }>;
+  workflows?: Array<{ id?: string; name?: string; status?: string; category?: string; updated_at?: string }>;
   metrics?: Record<string, unknown>;
   systemSnapshot: {
     activeAgents: number;
@@ -38,91 +18,45 @@ interface NiyantaCommandConsoleProps {
     auditCount: number;
     decisionCount: number;
   };
+  onExecuteAgent?: (agentId: string, input: string) => Promise<void>;
 }
 
-// ─── Demo Flows ───────────────────────────────────────────────────────────────
+// ─── Agent routing hints ──────────────────────────────────────────────────────
 
-const DEMO_FLOWS: Record<string, DemoStep[]> = {
-  invoice: [
-    { delay: 0,    message: { status: 'Input Received',          action: 'Parsing invoice document — detecting format and structure.',          suggestion: 'Routing to Invoice Processing Agent',  type: 'info',    metadata: { workflow: 'Invoice Processing' } } },
-    { delay: 900,  message: { status: 'Invoice Agent Activated', action: 'Spawning specialist agent and loading domain rules.',                  suggestion: 'Monitoring workflow initialisation',    type: 'running', metadata: { agent: 'Finance Operations Agent', workflow: 'Invoice Processing' } } },
-    { delay: 2000, message: { status: 'OCR Node Completed',      action: 'Extracted 14 fields — vendor, amount, dates, PO reference.',          suggestion: 'Proceeding to validation layer',        type: 'success', metadata: { node: 'OCR Extraction', timeTaken: 1.2, workflow: 'Invoice Processing' } } },
-    { delay: 3100, message: { status: 'Validation Passed',       action: 'All mandatory fields present. PO cross-reference matched.',            suggestion: 'Forwarding to decision engine',         type: 'success', metadata: { node: 'Field Validator', timeTaken: 0.4, workflow: 'Invoice Processing' } } },
-    { delay: 4200, message: { status: 'Compliance Check',        action: 'Vendor on approved list. GST number verified against registry.',       suggestion: 'Compliance layer cleared',             type: 'success', metadata: { node: 'Compliance Gate', agent: 'Compliance Agent', timeTaken: 0.8 } } },
-    { delay: 5400, message: { status: 'Decision Rendered',       action: 'Invoice APPROVED — amount ₹48,500 within auto-approval threshold.',   suggestion: 'Trigger payment workflow or review',    type: 'success', metadata: { node: 'Decision Engine', confidence: 0.94, timeTaken: 0.3 } } },
-    { delay: 6200, message: { status: 'Workflow Completed',      action: '5 nodes executed. Audit trail written. Notification queued.',          suggestion: 'View audit log · Open payment workflow', type: 'success', metadata: { workflow: 'Invoice Processing', timeTaken: 5.6 } } },
-  ],
-  compliance: [
-    { delay: 0,    message: { status: 'Compliance Scan Started', action: 'Loading regulatory ruleset — GDPR, SOC2, ISO 27001.',                  suggestion: 'Scanning all active workflows',         type: 'info',    metadata: { workflow: 'Compliance Audit' } } },
-    { delay: 800,  message: { status: 'Compliance Agent Active', action: 'Analysing 12 workflows and 8 active data pipelines.',                  suggestion: 'Deep scan in progress',                 type: 'running', metadata: { agent: 'Compliance Agent', workflow: 'Compliance Audit' } } },
-    { delay: 2000, message: { status: 'Data Handling Check',     action: 'PII fields encrypted at rest. Access logs intact.',                    suggestion: 'Proceeding to access control audit',    type: 'success', metadata: { node: 'Data Privacy Gate', timeTaken: 1.1 } } },
-    { delay: 3200, message: { status: 'Access Control Audit',    action: 'Role permissions within policy. No privilege escalation detected.',    suggestion: 'Reviewing retention policies',          type: 'success', metadata: { node: 'Access Auditor', timeTaken: 0.9 } } },
-    { delay: 4300, message: { status: 'Retention Policy Flag',   action: '3 data records exceed 90-day retention limit — action required.',     suggestion: 'Review records or trigger auto-purge',  type: 'warning', metadata: { node: 'Retention Check', timeTaken: 0.5 } } },
-    { delay: 5500, message: { status: 'Compliance Score',        action: 'Overall score: 94/100. 1 warning raised. No critical violations.',     suggestion: 'Download compliance report',            type: 'success', metadata: { workflow: 'Compliance Audit', confidence: 0.94, timeTaken: 4.7 } } },
-  ],
-  hr: [
-    { delay: 0,    message: { status: 'Onboarding Initiated',    action: 'New employee record detected. Loading onboarding workflow.',           suggestion: 'Routing to HR Operations Agent',        type: 'info',    metadata: { workflow: 'HR Onboarding' } } },
-    { delay: 900,  message: { status: 'HR Agent Activated',      action: 'Preparing 7-stage onboarding pipeline for new hire.',                 suggestion: 'Provisioning access and accounts',      type: 'running', metadata: { agent: 'HR Operations Agent', workflow: 'HR Onboarding' } } },
-    { delay: 2000, message: { status: 'Identity Verified',       action: 'ID documents validated. Background check cleared.',                   suggestion: 'Proceeding to system access setup',     type: 'success', metadata: { node: 'Identity Gate', timeTaken: 1.4 } } },
-    { delay: 3100, message: { status: 'Access Provisioned',      action: 'Email, Slack, and toolchain accounts created and activated.',         suggestion: 'Sending welcome communication',         type: 'success', metadata: { node: 'Access Provisioning', timeTaken: 0.8 } } },
-    { delay: 4200, message: { status: 'Training Assigned',       action: '4 mandatory training modules assigned with 14-day completion target.', suggestion: 'Manager notification sent',             type: 'success', metadata: { node: 'Learning Path', timeTaken: 0.2 } } },
-    { delay: 5300, message: { status: 'Onboarding Complete',     action: 'All 7 stages completed. Employee is production-ready.',               suggestion: 'View employee profile · Close ticket',  type: 'success', metadata: { workflow: 'HR Onboarding', timeTaken: 4.9, confidence: 1.0 } } },
-  ],
-  default: [
-    { delay: 0,    message: { status: 'Request Received',        action: 'Analysing input and determining optimal agent routing.',               suggestion: 'Dispatching to best-fit agent',         type: 'info' } },
-    { delay: 900,  message: { status: 'Agent Dispatched',        action: 'Workflow engine initialised. Loading execution context.',              suggestion: 'Monitoring node execution',             type: 'running', metadata: { agent: 'Niyanta Orchestrator' } } },
-    { delay: 2000, message: { status: 'Node 1 Complete',         action: 'Input normalisation and feature extraction done.',                     suggestion: 'Advancing to processing layer',         type: 'success', metadata: { node: 'Preprocessor', timeTaken: 0.9 } } },
-    { delay: 3200, message: { status: 'Node 2 Complete',         action: 'Business rules evaluated — no conflicts detected.',                    suggestion: 'Escalating to decision engine',         type: 'success', metadata: { node: 'Rules Engine', timeTaken: 0.6 } } },
-    { delay: 4400, message: { status: 'Decision Output',         action: 'Task completed successfully with high confidence.',                    suggestion: 'Review result or trigger next workflow', type: 'success', metadata: { confidence: 0.89, timeTaken: 1.1 } } },
-    { delay: 5400, message: { status: 'Execution Complete',      action: 'All nodes executed cleanly. Audit event persisted.',                  suggestion: 'View audit trail · Export report',      type: 'success' } },
-  ],
-};
+const AGENT_KEYWORDS: Array<{ keywords: string[]; agentId: string; label: string }> = [
+  { keywords: ['invoice', 'payment', 'finance', 'vendor', 'procurement', 'purchase'], agentId: 'finance-operations', label: 'Finance Operations Agent' },
+  { keywords: ['compliance', 'gdpr', 'soc', 'audit', 'policy', 'regulation'], agentId: 'compliance', label: 'Compliance Agent' },
+  { keywords: ['hr', 'onboard', 'employee', 'recruit', 'hire', 'training'], agentId: 'hr-operations', label: 'HR Operations Agent' },
+  { keywords: ['it', 'security', 'access', 'incident', 'infrastructure', 'system'], agentId: 'it-operations', label: 'IT Operations Agent' },
+  { keywords: ['meeting', 'calendar', 'agenda', 'minutes', 'schedule'], agentId: 'meeting-intelligence', label: 'Meeting Intelligence Agent' },
+  { keywords: ['monitor', 'health', 'alert', 'uptime', 'performance'], agentId: 'monitoring', label: 'Monitoring Agent' },
+  { keywords: ['workflow', 'automation', 'process', 'orchestrat'], agentId: 'workflow-intelligence', label: 'Workflow Intelligence Agent' },
+];
 
-function detectFlow(input: string): string {
+function detectAgents(input: string): Array<{ agentId: string; label: string }> {
   const lc = input.toLowerCase();
-  if (lc.includes('invoice') || lc.includes('payment') || lc.includes('finance') || lc.includes('vendor')) return 'invoice';
-  if (lc.includes('compliance') || lc.includes('gdpr') || lc.includes('audit') || lc.includes('soc')) return 'compliance';
-  if (lc.includes('hr') || lc.includes('onboard') || lc.includes('employee') || lc.includes('recruit')) return 'hr';
-  return 'default';
+  return AGENT_KEYWORDS.filter(({ keywords }) => keywords.some(k => lc.includes(k)));
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+const QUICK_PROMPTS = [
+  { label: 'System health summary', icon: '◉', text: 'Give me a full system health summary — active agents, workflow status, and any critical signals.' },
+  { label: 'Process an invoice', icon: '⊘', text: 'Process a new invoice from Zenith Supplies for ₹48,500. Validate, check compliance, and render a decision.' },
+  { label: 'Run compliance check', icon: '◈', text: 'Run a compliance audit on the current workflows and check for GDPR or policy violations.' },
+  { label: 'Onboard new employee', icon: '◎', text: 'Start HR onboarding for a new employee — provision accounts, assign training, and notify the manager.' },
+  { label: 'Pending approvals', icon: '⇢', text: 'List all pending approvals with amounts, owners, priority, and recommended actions.' },
+  { label: 'Cross-workflow risks', icon: '⚠', text: 'Identify cross-workflow dependencies and surface any risks in the current operation pipeline.' },
+];
 
-const TYPE_ICON: Record<MsgType, string> = {
-  info:    '◉',
-  running: '⏳',
-  success: '✔',
-  warning: '⚠',
-  error:   '✖',
-};
+const STORAGE_KEY = 'niyanta-command-chat';
 
-const TYPE_COLOR: Record<MsgType, string> = {
+// ─── Tone colours ─────────────────────────────────────────────────────────────
+
+const TONE_COLOR: Record<string, string> = {
   info:    'var(--status-info)',
-  running: '#a78bfa',
   success: 'var(--status-success)',
   warning: 'var(--status-warning)',
-  error:   'var(--status-danger)',
+  danger:  'var(--status-danger)',
 };
-
-const TYPE_BG: Record<MsgType, string> = {
-  info:    'rgba(6,182,212,0.04)',
-  running: 'rgba(167,139,250,0.06)',
-  success: 'rgba(16,185,129,0.04)',
-  warning: 'rgba(245,158,11,0.06)',
-  error:   'rgba(239,68,68,0.06)',
-};
-
-const TYPE_BORDER: Record<MsgType, string> = {
-  info:    'rgba(6,182,212,0.2)',
-  running: 'rgba(167,139,250,0.3)',
-  success: 'rgba(16,185,129,0.2)',
-  warning: 'rgba(245,158,11,0.25)',
-  error:   'rgba(239,68,68,0.25)',
-};
-
-function formatTs(ms: number): string {
-  return new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
-}
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -132,323 +66,269 @@ const NiyantaCommandConsole: React.FC<NiyantaCommandConsoleProps> = ({
   workflows = [],
   metrics = {},
   systemSnapshot,
+  onExecuteAgent,
 }) => {
   const navigate = useNavigate();
-  const [messages, setMessages] = useState<CommandMessage[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>(() => readLocalStorage<ChatMessage[]>(STORAGE_KEY, []));
   const [input, setInput] = useState('');
-  const [isRunning, setIsRunning] = useState(false);
-  const [isPaused, setIsPaused] = useState(false);
-  const [typingLabel, setTypingLabel] = useState<string | null>(null);
-  const [filterType, setFilterType] = useState<MsgType | 'all'>('all');
-  const [activeWorkflow, setActiveWorkflow] = useState<string | null>(null);
-  const [uploadedFile, setUploadedFile] = useState<string | null>(null);
+  const [isSending, setIsSending] = useState(false);
+  const [liveActivity, setLiveActivity] = useState<NiyantaActivityItem[]>([]);
+  const [runningAgents, setRunningAgents] = useState<string[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const timerRefs = useRef<ReturnType<typeof setTimeout>[]>([]);
-  const pausedRef = useRef(false);
 
   const m = metrics as Record<string, unknown>;
   const toNum = (v: unknown, fb = 0) => { const n = Number(v); return Number.isFinite(n) ? n : fb; };
   const failedToday = toNum(m.failedToday, 0);
-  const criticalAlerts = toNum(m.criticalAlerts, 0);
   const pendingApprovals = toNum(m.pendingApprovals, 0);
-  const activeWfs = workflows.filter(w => w.status === 'active');
-  const activeAgentList = agents.filter(a => agentStates[a.id]?.status === 'processing' || agentStates[a.id]?.status === 'complete');
+  const criticalAlerts = toNum(m.criticalAlerts, 0);
+  const activeWfs = workflows.filter(w => w.status === 'active').slice(0, 6);
+  const agentList = agents.slice(0, 10).map(a => ({
+    id: a.id, name: a.name,
+    status: agentStates[a.id]?.status || 'idle',
+  }));
+
+  useEffect(() => {
+    writeLocalStorage(STORAGE_KEY, messages);
+  }, [messages]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, typingLabel]);
+  }, [messages, liveActivity]);
 
-  const clearTimers = () => {
-    timerRefs.current.forEach(clearTimeout);
-    timerRefs.current = [];
-  };
+  const buildSystemContext = useCallback((): NiyantaSystemContext => ({
+    generatedAt: new Date().toISOString(),
+    agents: agents.map(a => ({
+      id: a.id, name: a.name, capabilities: a.capabilities,
+      status: agentStates[a.id]?.status || 'idle',
+    })),
+    workflows: workflows.slice(0, 24).map(w => ({
+      id: w.id, name: w.name, category: w.category, status: w.status,
+    })),
+    metrics,
+    auditTrail: [],
+    reports: Object.entries(agentStates)
+      .filter(([, s]) => s.result)
+      .map(([agentId, s]) => ({
+        agentId,
+        summary: String((s.result as Record<string, unknown>)?.summary || ''),
+        decision: (s.result as Record<string, unknown>)?.decision || null,
+      })),
+  }), [agents, agentStates, workflows, metrics]);
 
-  const runDemo = useCallback((flowKey: string, workflowLabel: string) => {
-    clearTimers();
-    setIsRunning(true);
-    setIsPaused(false);
-    pausedRef.current = false;
-    setActiveWorkflow(workflowLabel);
-    setMessages([]);
-    setTypingLabel(null);
-
-    const steps = DEMO_FLOWS[flowKey];
-
-    steps.forEach((step, idx) => {
-      const labelDelay = Math.max(0, step.delay - 400);
-      const nextStep = steps[idx + 1];
-
-      const labelTimer = setTimeout(() => {
-        if (!pausedRef.current) {
-          setTypingLabel(nextStep ? `${TYPE_ICON[nextStep.message.type as MsgType]} Processing next step…` : null);
-        }
-      }, labelDelay);
-
-      const msgTimer = setTimeout(() => {
-        if (!pausedRef.current) {
-          setMessages(prev => [
-            ...prev,
-            {
-              id: crypto.randomUUID(),
-              timestamp: Date.now(),
-              ...step.message,
-            },
-          ]);
-          if (!nextStep) {
-            setTypingLabel(null);
-            setIsRunning(false);
-          }
-        }
-      }, step.delay);
-
-      timerRefs.current.push(labelTimer, msgTimer);
-    });
+  const buildActivitySteps = useCallback((
+    msg: string,
+    matchedAgents: Array<{ agentId: string; label: string }>
+  ): NiyantaActivityItem[] => {
+    const now = Date.now();
+    const steps: NiyantaActivityItem[] = [
+      { id: 'intake', label: 'Command received', detail: `Parsing: ${msg.slice(0, 80)}${msg.length > 80 ? '…' : ''}`, tone: 'info', timestamp: new Date(now).toISOString() },
+    ];
+    if (matchedAgents.length > 0) {
+      steps.push({ id: 'route', label: 'Agents identified', detail: matchedAgents.map(a => a.label).join(', '), tone: 'info', timestamp: new Date(now + 150).toISOString() });
+      matchedAgents.forEach((a, i) => {
+        steps.push({ id: `agent-${a.agentId}`, label: `${a.label} executing`, detail: 'Routing task and collecting result.', tone: 'success', timestamp: new Date(now + 300 + i * 100).toISOString() });
+      });
+    }
+    steps.push({ id: 'compose', label: 'Niyanta composing response', detail: 'Synthesising agent results with control-plane context.', tone: 'success', timestamp: new Date(now + 500).toISOString() });
+    return steps;
   }, []);
 
-  const handleSubmit = () => {
-    const text = input.trim() || (uploadedFile ? `Analyse file: ${uploadedFile}` : '');
-    if (!text || isRunning) return;
-    const flowKey = detectFlow(text);
-    const label = flowKey === 'invoice' ? 'Invoice Processing'
-      : flowKey === 'compliance' ? 'Compliance Audit'
-        : flowKey === 'hr' ? 'HR Onboarding'
-          : 'General Execution';
+  const handleSend = useCallback(async (preset?: string) => {
+    const text = (preset ?? input).trim();
+    if (!text || isSending) return;
+
     setInput('');
-    setUploadedFile(null);
-    runDemo(flowKey, label);
-  };
+    setIsSending(true);
+    setLiveActivity([]);
+
+    const timestamp = new Date().toISOString();
+    setMessages(prev => [...prev, { role: 'user', content: text, timestamp }]);
+
+    const matchedAgents = detectAgents(text);
+    const pendingSteps = buildActivitySteps(text, matchedAgents);
+
+    const timers = pendingSteps.map((step, idx) =>
+      window.setTimeout(() => {
+        setLiveActivity(prev => prev.some(p => p.id === step.id) ? prev : [...prev, step]);
+      }, idx * 250)
+    );
+
+    try {
+      if (matchedAgents.length > 0 && onExecuteAgent) {
+        const ids = matchedAgents.map(a => a.agentId);
+        setRunningAgents(ids);
+        Promise.all(matchedAgents.map(a => onExecuteAgent(a.agentId, text).catch(() => null)))
+          .finally(() => setRunningAgents([]));
+      }
+
+      const systemContext = buildSystemContext();
+      const agentResults = Object.fromEntries(
+        Object.entries(agentStates).filter(([, s]) => s.result).map(([k, s]) => [k, s.result])
+      ) as Record<string, unknown>;
+
+      const history = messages.map(m => ({ role: m.role, content: m.content }));
+      const response = await sendNiyantaMessage(text, history, agentResults, systemContext);
+
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: response.reply,
+        timestamp: response.timestamp,
+        activity: response.activity,
+      }]);
+      setLiveActivity(response.activity && response.activity.length > 0 ? response.activity : pendingSteps);
+    } catch (err) {
+      const failTs = new Date().toISOString();
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: err instanceof Error ? err.message : 'Niyanta failed to respond. Check server connection.',
+        timestamp: failTs,
+      }]);
+      setLiveActivity([...pendingSteps, {
+        id: 'error',
+        label: 'Response failed',
+        detail: err instanceof Error ? err.message : 'Unknown error',
+        tone: 'danger',
+        timestamp: failTs,
+      }]);
+    } finally {
+      timers.forEach(clearTimeout);
+      setIsSending(false);
+    }
+  }, [input, isSending, messages, agentStates, buildSystemContext, buildActivitySteps, onExecuteAgent]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmit(); }
-  };
-
-  const handlePause = () => {
-    pausedRef.current = !pausedRef.current;
-    setIsPaused(p => !p);
-  };
-
-  const handleRetry = () => {
-    if (!activeWorkflow) return;
-    const flowKey = Object.entries({ invoice: 'Invoice Processing', compliance: 'Compliance Audit', hr: 'HR Onboarding' }).find(([, v]) => v === activeWorkflow)?.[0] || 'default';
-    runDemo(flowKey, activeWorkflow);
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
   };
 
   const handleClear = () => {
-    clearTimers();
     setMessages([]);
-    setIsRunning(false);
-    setIsPaused(false);
-    setTypingLabel(null);
-    setActiveWorkflow(null);
+    setLiveActivity([]);
   };
 
-  const filteredMessages = filterType === 'all' ? messages : messages.filter(m => m.type === filterType);
+  // ─── Render helpers ───────────────────────────────────────────────────────
 
-  // ─── Render Message Block ──────────────────────────────────────────────────
+  const renderActivityLine = (item: NiyantaActivityItem, idx: number) => (
+    <div key={item.id + item.timestamp} style={{
+      display: 'flex', alignItems: 'baseline', gap: 7,
+      animation: 'slideIn 200ms ease both',
+      animationDelay: `${idx * 50}ms`,
+    }}>
+      <span style={{ fontSize: 9, color: TONE_COLOR[item.tone] ?? 'var(--text-muted)', flexShrink: 0 }}>›</span>
+      <span style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+        <span style={{ fontWeight: 600, color: TONE_COLOR[item.tone] ?? 'var(--text-muted)' }}>{item.label}</span>
+        {item.detail ? <span style={{ color: 'var(--text-muted)' }}> — {item.detail}</span> : null}
+      </span>
+      <span style={{ marginLeft: 'auto', fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', whiteSpace: 'nowrap', flexShrink: 0 }}>
+        {new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+      </span>
+    </div>
+  );
 
-  const renderMessage = (msg: CommandMessage, idx: number) => {
-    const color = TYPE_COLOR[msg.type];
-    const isRunningMsg = msg.type === 'running';
-    const suggestionParts = msg.suggestion?.split(' · ') || [];
-
-    return (
-      <div
-        key={msg.id}
-        style={{
-          display: 'grid',
-          gap: 2,
-          marginBottom: 8,
-          animation: 'slideIn 200ms ease both',
-          animationDelay: `${Math.min(idx * 30, 200)}ms`,
-          paddingLeft: 12,
-          borderLeft: `2px solid ${color}22`,
-        }}
-      >
-        {/* Status line */}
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-          <span style={{
-            fontSize: 10,
-            color,
-            flexShrink: 0,
-            display: 'inline-block',
-            animation: isRunningMsg ? 'spin 1.4s linear infinite' : undefined,
+  const renderMessage = (msg: ChatMessage, idx: number) => {
+    if (msg.role === 'user') {
+      return (
+        <div key={`${msg.timestamp}-${idx}`} style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <div style={{
+            maxWidth: '80%', padding: '10px 14px', borderRadius: 12,
+            background: 'linear-gradient(135deg, rgba(6,182,212,0.2), rgba(59,130,246,0.15))',
+            border: '1px solid rgba(6,182,212,0.25)',
+            color: 'var(--text-primary)', fontSize: 13, lineHeight: 1.65, whiteSpace: 'pre-wrap',
+            animation: 'slideIn 200ms ease both',
           }}>
-            {TYPE_ICON[msg.type]}
-          </span>
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, color, textTransform: 'uppercase', letterSpacing: '0.07em' }}>
-            {msg.status}
-          </span>
-          {msg.metadata?.agent && (
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--status-info)', padding: '1px 5px', borderRadius: 3, border: '1px solid var(--cc-info-border)', background: 'var(--cc-info-bg)' }}>
-              {msg.metadata.agent}
-            </span>
-          )}
-          {msg.metadata?.node && (
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)' }}>
-              [{msg.metadata.node}]
-            </span>
-          )}
-          <span style={{ marginLeft: 'auto', fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
-            {msg.metadata?.timeTaken !== undefined && <span>{msg.metadata.timeTaken}s</span>}
-            {msg.metadata?.confidence !== undefined && <span style={{ color: TYPE_COLOR.success }}>{Math.round(msg.metadata.confidence * 100)}%</span>}
-            <span>{formatTs(msg.timestamp)}</span>
-          </span>
-        </div>
-
-        {/* Action text */}
-        <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6, paddingLeft: 18 }}>
-          {msg.action}
-        </div>
-
-        {/* Suggestion / next actions */}
-        {msg.suggestion && suggestionParts.length > 1 && (
-          <div style={{ paddingLeft: 18, display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 2 }}>
-            {suggestionParts.map((part, i) => (
-              <button
-                key={i}
-                onClick={() => {
-                  if (part.toLowerCase().includes('audit')) navigate('/audit');
-                  else if (part.toLowerCase().includes('workflow')) navigate('/workflows');
-                  else if (part.toLowerCase().includes('payment')) navigate('/approvals');
-                }}
-                style={{
-                  height: 22, padding: '0 9px', borderRadius: 4,
-                  border: `1px solid ${color}44`,
-                  background: 'transparent', color, fontSize: 10,
-                  fontFamily: 'var(--font-mono)', cursor: 'pointer',
-                  letterSpacing: '0.04em',
-                }}
-                onMouseEnter={e => { e.currentTarget.style.background = `${color}11`; }}
-                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
-              >
-                {part}
-              </button>
-            ))}
+            {msg.content}
           </div>
-        )}
-        {msg.suggestion && suggestionParts.length === 1 && (
-          <div style={{ paddingLeft: 18, fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic', lineHeight: 1.5 }}>
-            → {msg.suggestion}
+        </div>
+      );
+    }
+
+    const isError = msg.content.startsWith('Niyanta failed') || msg.content.includes('chat failed');
+    return (
+      <div key={`${msg.timestamp}-${idx}`} style={{ display: 'grid', gap: 6, animation: 'slideIn 240ms ease both' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+          <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: isError ? 'var(--status-danger)' : 'var(--status-info)' }}>
+            {isError ? '⚠ Error' : '◎ Niyanta'}
+          </span>
+          <span style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
+            {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          </span>
+        </div>
+        <div style={{
+          color: isError ? 'var(--status-danger)' : 'var(--text-primary)',
+          fontSize: 13, lineHeight: 1.75, whiteSpace: 'pre-wrap', paddingLeft: 2,
+        }}>
+          {msg.content}
+        </div>
+        {msg.activity && msg.activity.length > 0 && (
+          <div style={{ borderLeft: '1px solid var(--border)', paddingLeft: 10, marginTop: 2, display: 'grid', gap: 3 }}>
+            {msg.activity.map((a, i) => renderActivityLine(a, i))}
           </div>
         )}
       </div>
     );
   };
 
-  // ─── System State Panel ────────────────────────────────────────────────────
+  // ─── Panels ───────────────────────────────────────────────────────────────
 
-  const renderSystemPanel = () => (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, height: '100%', overflow: 'hidden' }}>
+  const panelLabel: React.CSSProperties = {
+    fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)',
+    textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 8,
+  };
 
-      {/* Stats */}
+  const renderLeftPanel = () => (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, height: '100%', overflow: 'hidden' }}>
       <div>
-        <div style={panelLabel}>System State</div>
+        <div style={panelLabel}>System</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
           {[
-            { k: 'Agents',      v: systemSnapshot.activeAgents, color: systemSnapshot.activeAgents > 0 ? TYPE_COLOR.success : 'var(--text-muted)' },
-            { k: 'Workflows',   v: systemSnapshot.workflowCount, color: TYPE_COLOR.info },
-            { k: 'Errors',      v: failedToday, color: failedToday > 0 ? TYPE_COLOR.error : 'var(--text-muted)' },
-            { k: 'Approvals',   v: pendingApprovals, color: pendingApprovals > 0 ? TYPE_COLOR.warning : 'var(--text-muted)' },
+            { k: 'Agents',    v: systemSnapshot.activeAgents,  color: systemSnapshot.activeAgents > 0 ? 'var(--status-success)' : 'var(--text-muted)' },
+            { k: 'Workflows', v: systemSnapshot.workflowCount, color: 'var(--status-info)' },
+            { k: 'Errors',    v: failedToday,     color: failedToday > 0 ? 'var(--status-danger)' : 'var(--text-muted)' },
+            { k: 'Approvals', v: pendingApprovals, color: pendingApprovals > 0 ? 'var(--status-warning)' : 'var(--text-muted)' },
           ].map(s => (
-            <div key={s.k} style={{ border: '1px solid var(--border)', borderRadius: 6, padding: '8px 10px', background: 'var(--bg-input)' }}>
+            <div key={s.k} style={{ border: '1px solid var(--border)', borderRadius: 7, padding: '8px 10px', background: 'var(--bg-input)' }}>
               <div style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{s.k}</div>
               <div style={{ fontSize: 20, fontWeight: 700, color: s.color, lineHeight: 1.2, marginTop: 2 }}>{s.v}</div>
             </div>
           ))}
         </div>
         {criticalAlerts > 0 && (
-          <div style={{ marginTop: 6, padding: '7px 10px', borderRadius: 6, border: `1px solid ${TYPE_BORDER.error}`, background: TYPE_BG.error, fontSize: 11, color: TYPE_COLOR.error }}>
-            ✖ {criticalAlerts} critical alert{criticalAlerts > 1 ? 's' : ''} require attention
+          <div style={{ marginTop: 6, padding: '7px 10px', borderRadius: 6, border: '1px solid rgba(239,68,68,0.25)', background: 'rgba(239,68,68,0.06)', fontSize: 11, color: 'var(--status-danger)' }}>
+            ⚠ {criticalAlerts} critical alert{criticalAlerts > 1 ? 's' : ''} active
           </div>
         )}
       </div>
 
-      {/* Active Workflows */}
-      {activeWfs.length > 0 && (
-        <div>
-          <div style={panelLabel}>Active Workflows</div>
-          <div style={{ display: 'grid', gap: 5 }}>
-            {activeWfs.slice(0, 5).map((wf, i) => (
-              <div key={wf.id || i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', borderRadius: 5, border: `1px solid ${TYPE_BORDER.success}`, background: TYPE_BG.success }}>
-                <span style={{ width: 6, height: 6, borderRadius: 999, background: TYPE_COLOR.success, flexShrink: 0 }} />
-                <span style={{ fontSize: 11, color: 'var(--text-primary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{wf.name || 'Untitled'}</span>
-                <span style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', textTransform: 'uppercase' }}>{wf.category || 'ops'}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Live Agents */}
-      {activeAgentList.length > 0 && (
-        <div>
-          <div style={panelLabel}>Live Agents</div>
-          <div style={{ display: 'grid', gap: 5 }}>
-            {activeAgentList.slice(0, 6).map(a => {
-              const st = agentStates[a.id];
-              const dotColor = st?.status === 'processing' ? TYPE_COLOR.running : TYPE_COLOR.success;
-              return (
-                <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', borderRadius: 5, border: '1px solid var(--border)', background: 'var(--bg-input)' }}>
-                  <span style={{ width: 6, height: 6, borderRadius: 999, background: dotColor, flexShrink: 0, boxShadow: st?.status === 'processing' ? `0 0 6px ${dotColor}` : 'none' }} />
-                  <span style={{ fontSize: 11, color: 'var(--text-secondary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</span>
-                  <span style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: dotColor, textTransform: 'uppercase' }}>{st?.status}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Quick Start */}
       <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        <div style={panelLabel}>Quick Runs</div>
-        <div style={{ display: 'grid', gap: 5 }}>
-          {[
-            { label: 'Invoice Processing', key: 'invoice', icon: '⊘' },
-            { label: 'Compliance Audit',   key: 'compliance', icon: '◈' },
-            { label: 'HR Onboarding',      key: 'hr', icon: '◎' },
-          ].map(q => (
-            <button
-              key={q.key}
-              onClick={() => { if (!isRunning) runDemo(q.key, q.label); }}
-              disabled={isRunning}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 8,
-                padding: '8px 10px', borderRadius: 5, border: '1px solid var(--border)',
-                background: 'var(--cc-surface-1)', color: isRunning ? 'var(--text-muted)' : 'var(--text-secondary)',
-                fontSize: 12, cursor: isRunning ? 'not-allowed' : 'pointer',
-                textAlign: 'left', width: '100%',
-              }}
-              onMouseEnter={e => { if (!isRunning) e.currentTarget.style.background = 'var(--bg-tile-hover)'; }}
+        <div style={panelLabel}>Quick Commands</div>
+        <div style={{ display: 'grid', gap: 4, overflowY: 'auto' }}>
+          {QUICK_PROMPTS.map(q => (
+            <button key={q.label} onClick={() => handleSend(q.text)} disabled={isSending} style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              padding: '8px 10px', borderRadius: 7, border: '1px solid var(--border)',
+              background: 'var(--cc-surface-1)', color: isSending ? 'var(--text-muted)' : 'var(--text-secondary)',
+              fontSize: 11, cursor: isSending ? 'not-allowed' : 'pointer', textAlign: 'left', width: '100%',
+              transition: 'background 120ms',
+            }}
+              onMouseEnter={e => { if (!isSending) e.currentTarget.style.background = 'var(--bg-tile-hover)'; }}
               onMouseLeave={e => { e.currentTarget.style.background = 'var(--cc-surface-1)'; }}
             >
-              <span style={{ color: TYPE_COLOR.info, fontSize: 13 }}>{q.icon}</span>
+              <span style={{ color: 'var(--status-info)', fontSize: 12, flexShrink: 0 }}>{q.icon}</span>
               {q.label}
             </button>
           ))}
         </div>
       </div>
 
-      {/* Navigation shortcuts */}
       <div>
         <div style={panelLabel}>Navigate</div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5 }}>
-          {[
-            { label: 'Audit',     path: '/audit' },
-            { label: 'Approvals', path: '/approvals' },
-            { label: 'Agents',    path: '/agents' },
-            { label: 'Workflows', path: '/workflows' },
-          ].map(n => (
-            <button
-              key={n.path}
-              onClick={() => navigate(n.path)}
-              style={{
-                height: 28, borderRadius: 4, border: '1px solid var(--border)',
-                background: 'transparent', color: 'var(--text-muted)',
-                fontSize: 11, fontFamily: 'var(--font-mono)', cursor: 'pointer',
-                textTransform: 'uppercase', letterSpacing: '0.06em',
-              }}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
+          {[{ label: 'Audit', path: '/audit' }, { label: 'Approvals', path: '/approvals' }, { label: 'Agents', path: '/agents' }, { label: 'Workflows', path: '/workflows' }].map(n => (
+            <button key={n.path} onClick={() => navigate(n.path)} style={{
+              height: 28, borderRadius: 5, border: '1px solid var(--border)',
+              background: 'transparent', color: 'var(--text-muted)',
+              fontSize: 10, fontFamily: 'var(--font-mono)', cursor: 'pointer',
+              textTransform: 'uppercase', letterSpacing: '0.06em',
+            }}
               onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-primary)'; e.currentTarget.style.background = 'var(--bg-input)'; }}
               onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'transparent'; }}
             >
@@ -460,353 +340,197 @@ const NiyantaCommandConsole: React.FC<NiyantaCommandConsoleProps> = ({
     </div>
   );
 
-  const panelLabel: React.CSSProperties = {
-    fontSize: 9,
-    fontFamily: 'var(--font-mono)',
-    color: 'var(--text-muted)',
-    textTransform: 'uppercase',
-    letterSpacing: '0.1em',
-    marginBottom: 8,
-  };
+  const renderRightPanel = () => (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, height: '100%', overflow: 'hidden' }}>
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+        <div style={panelLabel}>Live Tape</div>
+        <div style={{ flex: 1, overflowY: 'auto', display: 'grid', gap: 4, alignContent: 'start' }}>
+          {liveActivity.length > 0
+            ? liveActivity.map((a, i) => renderActivityLine(a, i))
+            : <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.6 }}>Activity appears here as commands execute.</div>
+          }
+        </div>
+      </div>
 
-  const FILTER_TYPES: Array<MsgType | 'all'> = ['all', 'running', 'success', 'warning', 'error', 'info'];
+      {agentList.length > 0 && (
+        <div>
+          <div style={panelLabel}>Agent Status</div>
+          <div style={{ display: 'grid', gap: 4 }}>
+            {agentList.map(a => {
+              const isActive = runningAgents.includes(a.id);
+              const dotColor = (isActive || a.status === 'processing') ? 'var(--status-info)'
+                : a.status === 'complete' ? 'var(--status-success)'
+                : a.status === 'error' ? 'var(--status-danger)'
+                : 'var(--text-muted)';
+              return (
+                <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 8, height: 26, padding: '0 8px', borderRadius: 5, border: '1px solid var(--border)', background: 'var(--bg-input)' }}>
+                  <span style={{ width: 6, height: 6, borderRadius: 999, background: dotColor, flexShrink: 0, boxShadow: (isActive || a.status === 'processing') ? `0 0 5px ${dotColor}` : 'none' }} />
+                  <span style={{ fontSize: 11, color: 'var(--text-secondary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</span>
+                  <span style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: dotColor, textTransform: 'uppercase' }}>{isActive ? 'running' : a.status}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
-  // ── Stats bar for console header ──
-  const completedCount = messages.filter(m => m.type === 'success').length;
-  const warningCount   = messages.filter(m => m.type === 'warning').length;
-  const errorCount     = messages.filter(m => m.type === 'error').length;
+      {activeWfs.length > 0 && (
+        <div>
+          <div style={panelLabel}>Active Workflows</div>
+          <div style={{ display: 'grid', gap: 4 }}>
+            {activeWfs.map((wf, i) => (
+              <div key={wf.id || i} style={{ display: 'flex', alignItems: 'center', gap: 8, height: 26, padding: '0 8px', borderRadius: 5, border: '1px solid rgba(16,185,129,0.2)', background: 'rgba(16,185,129,0.04)' }}>
+                <span style={{ width: 5, height: 5, borderRadius: 999, background: 'var(--status-success)', flexShrink: 0 }} />
+                <span style={{ fontSize: 11, color: 'var(--text-primary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{wf.name || 'Untitled'}</span>
+                <span style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', textTransform: 'uppercase' }}>{wf.category || 'ops'}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  // ─── Main render ──────────────────────────────────────────────────────────
 
   return (
     <>
       <style>{`
-        @keyframes slideIn {
-          from { opacity: 0; transform: translateY(5px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to   { opacity: 1; }
-        }
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to   { transform: rotate(360deg); }
-        }
-        @keyframes blink {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.2; }
-        }
-        .cmd-input:focus { border-color: var(--status-info) !important; outline: none; }
+        @keyframes slideIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes fadeIn  { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes pulse   { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+        .cmd-input:focus   { border-color: var(--status-info) !important; outline: none; }
       `}</style>
 
       <div style={{
-        height: '100%',
-        display: 'grid',
-        gridTemplateColumns: 'minmax(0, 1fr) 260px',
-        gridTemplateRows: '100%',
-        background: 'var(--bg-base)',
-        overflow: 'hidden',
+        height: '100%', display: 'grid',
+        gridTemplateColumns: '260px minmax(0, 1fr) 260px',
+        background: 'var(--bg-base)', overflow: 'hidden',
       }}>
 
-        {/* ── LEFT: Console ── */}
-        <div style={{
-          display: 'flex',
-          flexDirection: 'column',
-          height: '100%',
-          overflow: 'hidden',
-          borderRight: '1px solid var(--border)',
-        }}>
+        {/* LEFT */}
+        <aside style={{ borderRight: '1px solid var(--border)', padding: '16px 14px', overflowY: 'auto', background: 'linear-gradient(180deg, var(--cc-panel-top), var(--cc-panel-bottom))' }}>
+          {renderLeftPanel()}
+        </aside>
 
-          {/* Console Header */}
+        {/* CENTER */}
+        <section style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+
+          {/* Header */}
           <div style={{
-            flexShrink: 0,
-            padding: '14px 20px',
-            borderBottom: '1px solid var(--border)',
-            background: 'linear-gradient(180deg, rgba(6,182,212,0.06) 0%, transparent 100%)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 16,
+            flexShrink: 0, padding: '14px 20px', borderBottom: '1px solid var(--border)',
+            background: 'linear-gradient(180deg, rgba(6,182,212,0.06), transparent)',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16,
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{
+                width: 8, height: 8, borderRadius: 999, flexShrink: 0,
+                background: isSending ? 'var(--status-info)' : messages.length > 0 ? 'var(--status-success)' : 'var(--text-muted)',
+                boxShadow: isSending ? '0 0 8px var(--status-info)' : 'none',
+                animation: isSending ? 'pulse 1.2s ease infinite' : 'none',
+              }} />
               <div>
-                <div style={{
-                  fontFamily: 'var(--font-display)',
-                  fontSize: 18,
-                  fontWeight: 700,
-                  letterSpacing: '0.06em',
-                  color: 'var(--text-primary)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                }}>
-                  <span style={{
-                    width: 8, height: 8, borderRadius: 999,
-                    background: isRunning && !isPaused ? TYPE_COLOR.running : messages.length > 0 ? TYPE_COLOR.success : 'var(--text-muted)',
-                    boxShadow: isRunning && !isPaused ? `0 0 8px ${TYPE_COLOR.running}` : 'none',
-                    animation: isRunning && !isPaused ? 'blink 1.2s ease infinite' : 'none',
-                    flexShrink: 0,
-                  }} />
-                  NIYANTA COMMAND CONSOLE
+                <div style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 700, letterSpacing: '0.05em', color: 'var(--text-primary)', textTransform: 'uppercase' }}>
+                  Niyanta Command
                 </div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginTop: 2 }}>
-                  {activeWorkflow
-                    ? `▸ ${activeWorkflow} ${isPaused ? '· PAUSED' : isRunning ? '· EXECUTING' : '· COMPLETE'}`
-                    : 'Awaiting command input'}
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginTop: 1 }}>
+                  {isSending ? 'Executing command…' : messages.length > 0 ? `${messages.filter(m => m.role === 'assistant').length} response${messages.filter(m => m.role === 'assistant').length !== 1 ? 's' : ''}` : 'Awaiting command'}
                 </div>
               </div>
             </div>
-
-            {/* Stats + Controls */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              {messages.length > 0 && (
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: TYPE_COLOR.success, padding: '3px 8px', borderRadius: 4, border: `1px solid ${TYPE_BORDER.success}`, background: TYPE_BG.success }}>✔ {completedCount}</span>
-                  {warningCount > 0 && <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: TYPE_COLOR.warning, padding: '3px 8px', borderRadius: 4, border: `1px solid ${TYPE_BORDER.warning}`, background: TYPE_BG.warning }}>⚠ {warningCount}</span>}
-                  {errorCount > 0 && <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: TYPE_COLOR.error, padding: '3px 8px', borderRadius: 4, border: `1px solid ${TYPE_BORDER.error}`, background: TYPE_BG.error }}>✖ {errorCount}</span>}
-                </div>
-              )}
-              {isRunning && (
-                <button
-                  onClick={handlePause}
-                  style={{ height: 28, padding: '0 12px', borderRadius: 4, border: `1px solid ${TYPE_BORDER.warning}`, background: TYPE_BG.warning, color: TYPE_COLOR.warning, fontFamily: 'var(--font-mono)', fontSize: 10, cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.07em' }}
-                >
-                  {isPaused ? '▶ Resume' : '⏸ Pause'}
-                </button>
-              )}
-              {messages.length > 0 && !isRunning && (
-                <button
-                  onClick={handleRetry}
-                  style={{ height: 28, padding: '0 12px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-input)', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)', fontSize: 10, cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.07em' }}
-                >
-                  ↺ Retry
-                </button>
-              )}
-              {messages.length > 0 && (
-                <button
-                  onClick={handleClear}
-                  style={{ height: 28, padding: '0 12px', borderRadius: 4, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: 10, cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.07em' }}
-                >
-                  ✕ Clear
-                </button>
-              )}
-            </div>
+            {messages.length > 0 && !isSending && (
+              <button onClick={handleClear} style={{
+                height: 28, padding: '0 12px', borderRadius: 5, border: '1px solid var(--border)',
+                background: 'transparent', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)',
+                fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.07em', cursor: 'pointer',
+              }}>✕ Clear</button>
+            )}
           </div>
 
-          {/* Filter bar */}
-          {messages.length > 0 && (
-            <div style={{
-              flexShrink: 0,
-              display: 'flex',
-              gap: 4,
-              padding: '8px 20px',
-              borderBottom: '1px solid var(--border)',
-              background: 'var(--bg-dock)',
-            }}>
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', alignSelf: 'center', marginRight: 4 }}>Filter:</span>
-              {FILTER_TYPES.map(ft => (
-                <button
-                  key={ft}
-                  onClick={() => setFilterType(ft)}
-                  style={{
-                    height: 22, padding: '0 9px', borderRadius: 3, fontSize: 9,
-                    fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.07em',
-                    cursor: 'pointer',
-                    border: filterType === ft
-                      ? `1px solid ${ft === 'all' ? 'var(--border)' : TYPE_BORDER[ft]}`
-                      : '1px solid transparent',
-                    background: filterType === ft
-                      ? ft === 'all' ? 'var(--bg-input)' : TYPE_BG[ft]
-                      : 'transparent',
-                    color: filterType === ft
-                      ? ft === 'all' ? 'var(--text-secondary)' : TYPE_COLOR[ft]
-                      : 'var(--text-muted)',
-                  }}
-                >
-                  {ft === 'all' ? `All (${messages.length})` : ft}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* Message Stream */}
-          <div style={{
-            flex: 1,
-            overflowY: 'auto',
-            padding: '16px 20px',
-          }}>
-            {messages.length === 0 && !isRunning ? (
-              <div style={{
-                height: '100%',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 20,
-                color: 'var(--text-muted)',
-              }}>
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 48, opacity: 0.15, marginBottom: 16, lineHeight: 1 }}>◉</div>
-                  <div style={{ fontFamily: 'var(--font-display)', fontSize: 16, color: 'var(--text-secondary)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 8 }}>
-                    Niyanta Command Console
+          {/* Messages */}
+          <div style={{ flex: 1, overflowY: 'auto', padding: '20px', display: 'grid', gap: 16, alignContent: 'start' }}>
+            {messages.length === 0 && !isSending ? (
+              <div style={{ minHeight: 300, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', color: 'var(--text-muted)', gap: 16 }}>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 40, opacity: 0.12, lineHeight: 1 }}>◉</div>
+                <div>
+                  <div style={{ fontFamily: 'var(--font-display)', fontSize: 18, color: 'var(--text-secondary)', letterSpacing: '0.06em', marginBottom: 6 }}>Niyanta Command Intelligence</div>
+                  <div style={{ fontSize: 12, lineHeight: 1.7, maxWidth: 420 }}>
+                    Type any operational command or pick a quick prompt.<br />
+                    Niyanta will analyse your system, route to the right agents, and respond with a full report.
                   </div>
-                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, marginBottom: 20, lineHeight: 1.7 }}>
-                    Type a task below or click a Quick Run to start execution.<br />
-                    The system will walk through each step in real time.
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, maxWidth: 480, margin: '0 auto', textAlign: 'left' }}>
-                    {[
-                      { t: '"Process invoice from Zenith Supplies"', icon: '⊘' },
-                      { t: '"Run compliance check for current workflows"', icon: '◈' },
-                      { t: '"Onboard new employee John Smith"', icon: '◎' },
-                      { t: '"Validate HR policy documentation"', icon: '⇢' },
-                    ].map(ex => (
-                      <button
-                        key={ex.t}
-                        onClick={() => { setInput(ex.t.replace(/"/g, '')); }}
-                        style={{
-                          padding: '10px 12px',
-                          borderRadius: 5,
-                          border: '1px solid var(--border)',
-                          background: 'var(--cc-surface-1)',
-                          color: 'var(--text-muted)',
-                          fontSize: 11,
-                          textAlign: 'left',
-                          cursor: 'pointer',
-                          lineHeight: 1.5,
-                        }}
-                        onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-secondary)'; e.currentTarget.style.background = 'var(--bg-input)'; }}
-                        onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'var(--cc-surface-1)'; }}
-                      >
-                        <span style={{ color: TYPE_COLOR.info, marginRight: 6 }}>{ex.icon}</span>{ex.t}
-                      </button>
-                    ))}
-                  </div>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, maxWidth: 500, width: '100%', textAlign: 'left' }}>
+                  {QUICK_PROMPTS.slice(0, 4).map(q => (
+                    <button key={q.label} onClick={() => handleSend(q.text)} style={{
+                      padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)',
+                      background: 'var(--cc-surface-1)', color: 'var(--text-muted)', fontSize: 11,
+                      textAlign: 'left', cursor: 'pointer', lineHeight: 1.5,
+                    }}
+                      onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-secondary)'; e.currentTarget.style.background = 'var(--bg-input)'; }}
+                      onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'var(--cc-surface-1)'; }}
+                    >
+                      <span style={{ color: 'var(--status-info)', marginRight: 6 }}>{q.icon}</span>{q.label}
+                    </button>
+                  ))}
                 </div>
               </div>
             ) : (
-              <>
-                {filteredMessages.map((msg, idx) => renderMessage(msg, idx))}
+              messages.map((msg, i) => renderMessage(msg, i))
+            )}
 
-                {/* Typing indicator */}
-                {typingLabel && (
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    padding: '2px 0 2px 12px',
-                    borderLeft: `2px solid ${TYPE_COLOR.running}44`,
-                    animation: 'fadeIn 150ms ease',
-                  }}>
-                    <span style={{ color: TYPE_COLOR.running, fontSize: 10, animation: 'blink 0.8s ease infinite' }}>⏳</span>
-                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: TYPE_COLOR.running }}>{typingLabel}</span>
-                  </div>
-                )}
-              </>
+            {isSending && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, animation: 'fadeIn 200ms ease' }}>
+                <span style={{ color: 'var(--status-info)', fontSize: 12, animation: 'pulse 1.2s infinite', fontFamily: 'var(--font-mono)' }}>◎</span>
+                <span style={{ fontSize: 12, color: 'var(--status-info)', fontFamily: 'var(--font-mono)' }}>
+                  {liveActivity.length > 0 ? `${liveActivity[liveActivity.length - 1].label}…` : 'Niyanta is thinking…'}
+                </span>
+              </div>
             )}
             <div ref={bottomRef} />
           </div>
 
           {/* Input */}
-          <div style={{
-            flexShrink: 0,
-            borderTop: '1px solid var(--border)',
-            padding: '12px 20px',
-            background: 'var(--bg-dock)',
-            display: 'grid',
-            gap: 10,
-          }}>
-            {uploadedFile && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', borderRadius: 5, border: `1px solid ${TYPE_BORDER.info}`, background: TYPE_BG.info }}>
-                <span style={{ color: TYPE_COLOR.info, fontSize: 11, fontFamily: 'var(--font-mono)' }}>⤴ {uploadedFile}</span>
-                <button onClick={() => setUploadedFile(null)} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 11 }}>✕</button>
-              </div>
-            )}
-
-            {/* Control bar */}
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>CONTROLS:</span>
-              {[
-                { label: 'Pause Workflow',     action: handlePause,           active: isRunning },
-                { label: 'Retry Node',         action: handleRetry,           active: messages.length > 0 && !isRunning },
-                { label: 'Override Decision',  action: () => navigate('/approvals'), active: true },
-              ].map(btn => (
-                <button
-                  key={btn.label}
-                  onClick={btn.action}
-                  disabled={!btn.active}
-                  style={{
-                    height: 24, padding: '0 10px', borderRadius: 3,
-                    border: '1px solid var(--border)',
-                    background: 'transparent',
-                    color: btn.active ? 'var(--text-secondary)' : 'var(--text-muted)',
-                    fontFamily: 'var(--font-mono)', fontSize: 9,
-                    textTransform: 'uppercase', letterSpacing: '0.07em',
-                    cursor: btn.active ? 'pointer' : 'not-allowed',
-                  }}
-                  onMouseEnter={e => { if (btn.active) { e.currentTarget.style.background = 'var(--bg-input)'; e.currentTarget.style.color = 'var(--text-primary)'; } }}
-                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = btn.active ? 'var(--text-secondary)' : 'var(--text-muted)'; }}
-                >
-                  {btn.label}
-                </button>
-              ))}
-              <input ref={fileInputRef} type="file" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) setUploadedFile(f.name); e.target.value = ''; }} />
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                style={{ marginLeft: 'auto', height: 24, padding: '0 10px', borderRadius: 3, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.07em', cursor: 'pointer' }}
-              >
-                ⤴ Attach File
-              </button>
-            </div>
-
-            {/* Text input */}
+          <div style={{ flexShrink: 0, borderTop: '1px solid var(--border)', padding: '12px 20px', background: 'var(--bg-dock)' }}>
             <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
               <textarea
                 className="cmd-input"
                 value={input}
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Enter task, workflow command, or describe what to execute..."
+                placeholder="Enter a command — run agents, inspect risks, query compliance, generate reports…"
                 rows={2}
-                disabled={isRunning && !isPaused}
+                disabled={isSending}
                 style={{
-                  flex: 1, minHeight: 50, maxHeight: 100,
-                  padding: '10px 14px', borderRadius: 5,
-                  border: '1px solid var(--border)',
-                  background: 'var(--bg-input)',
-                  color: 'var(--text-primary)',
-                  fontSize: 13, lineHeight: 1.5, resize: 'none',
-                  fontFamily: 'var(--font-body)',
-                  opacity: isRunning && !isPaused ? 0.5 : 1,
+                  flex: 1, minHeight: 52, maxHeight: 120, padding: '10px 14px', borderRadius: 10,
+                  border: '1px solid var(--border)', background: 'var(--bg-input)', color: 'var(--text-primary)',
+                  fontSize: 13, lineHeight: 1.5, resize: 'none', fontFamily: 'var(--font-body)',
+                  opacity: isSending ? 0.5 : 1,
                 }}
               />
               <button
-                onClick={handleSubmit}
-                disabled={isRunning && !isPaused}
+                onClick={() => handleSend()}
+                disabled={isSending || !input.trim()}
                 style={{
-                  height: 50, padding: '0 20px', borderRadius: 5,
-                  border: `1px solid ${input.trim() || uploadedFile ? TYPE_BORDER.info : 'var(--border)'}`,
-                  background: input.trim() || uploadedFile ? 'linear-gradient(135deg, rgba(6,182,212,0.2), rgba(59,130,246,0.15))' : 'var(--bg-input)',
-                  color: input.trim() || uploadedFile ? TYPE_COLOR.info : 'var(--text-muted)',
+                  height: 52, padding: '0 22px', borderRadius: 10,
+                  border: `1px solid ${input.trim() ? 'rgba(6,182,212,0.4)' : 'var(--border)'}`,
+                  background: input.trim() ? 'linear-gradient(135deg, rgba(6,182,212,0.22), rgba(59,130,246,0.18))' : 'var(--bg-input)',
+                  color: input.trim() ? 'var(--status-info)' : 'var(--text-muted)',
                   fontFamily: 'var(--font-mono)', fontSize: 11,
-                  textTransform: 'uppercase', letterSpacing: '0.09em',
-                  cursor: isRunning && !isPaused ? 'not-allowed' : 'pointer',
+                  textTransform: 'uppercase', letterSpacing: '0.08em',
+                  cursor: input.trim() && !isSending ? 'pointer' : 'not-allowed',
                   flexShrink: 0,
                 }}
               >
-                {isRunning && !isPaused ? 'Running…' : '▶ Execute'}
+                {isSending ? 'Sending…' : 'Send'}
               </button>
             </div>
           </div>
-        </div>
+        </section>
 
-        {/* ── RIGHT: System Panel ── */}
-        <div style={{
-          padding: '16px 14px',
-          overflowY: 'auto',
-          background: 'var(--bg-dock)',
-        }}>
-          {renderSystemPanel()}
-        </div>
+        {/* RIGHT */}
+        <aside style={{ borderLeft: '1px solid var(--border)', padding: '16px 14px', overflowY: 'auto', background: 'linear-gradient(180deg, var(--cc-panel-top), var(--cc-panel-bottom))' }}>
+          {renderRightPanel()}
+        </aside>
       </div>
     </>
   );

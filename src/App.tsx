@@ -265,6 +265,7 @@ const AppContent: React.FC = () => {
                 workflows={workflows}
                 metrics={metrics}
                 systemSnapshot={niyantaSnapshot}
+                onExecuteAgent={executeAgent}
               />
             }
           />
