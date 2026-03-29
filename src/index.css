@@ -412,6 +412,10 @@ button, [class*="animate"] {
   cursor: not-allowed;
 }
 
+.sidebar-niyanta-button {
+  width: 100%;
+}
+
 [data-theme="dark"] {
   --niyanta-border: rgba(255,255,255,0.45);
   --niyanta-halo: rgba(255,255,255,0.25);

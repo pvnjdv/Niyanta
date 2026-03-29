@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import AnimatedThemeToggle from '../shared/AnimatedThemeToggle';
+import GradientButton from '../shared/GradientButton';
 
 interface NavigationSidebarProps {
   onOpenNiyantaChat?: () => void;
@@ -320,30 +321,15 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
       >
         {/* AI Panel toggle */}
         {onToggleAIPanel && (
-          <button
+          <GradientButton
             onClick={onToggleAIPanel}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              height: 36,
-              padding: collapsed ? '0 12px' : '0 12px',
-              borderRadius: 4,
-              border: '1px solid var(--border)',
-              cursor: 'pointer',
-              background: 'var(--bg-tile)',
-              color: 'var(--text-primary)',
-              fontFamily: 'var(--font-mono)',
-              fontSize: 11,
-              letterSpacing: '0.06em',
-              justifyContent: collapsed ? 'center' : 'flex-start',
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-            }}
+            width={collapsed ? '36px' : '100%'}
+            height="36px"
+            className="sidebar-niyanta-button"
           >
-            <span style={{ fontSize: 14, flexShrink: 0 }}>AI</span>
+            <span style={{ color: 'var(--status-info)', fontSize: 12 }}>◎</span>
             {!collapsed && <span>Niyanta AI</span>}
-          </button>
+          </GradientButton>
         )}
 
         {/* User */}
