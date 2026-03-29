@@ -6,6 +6,22 @@ import { AuditLogger } from './AuditLogger';
 import { AgentManager } from './AgentManager';
 import { MetricsResponse } from '../types/api.types';
 import { getDB } from '../db/database';
+import { AgentCanvasSummary } from '../utils/agentCanvas';
+
+type CanvasPlanningContext = {
+  blocks: Array<{
+    id: string;
+    blockType: 'workflow' | 'node';
+    refId: string;
+    name: string;
+    category: string;
+    inputInfo: string;
+    nextStepIds: string[];
+    branch: boolean;
+  }>;
+  summary: AgentCanvasSummary;
+  decisionPoints: Array<{ id: string; name: string; options: Array<{ id: string; name: string }> }>;
+};
 
 export class NiyantaOrchestrator {
   private auditLogger: AuditLogger;
@@ -382,10 +398,7 @@ export class NiyantaOrchestrator {
     agent: { name: string; description: string; capabilities: string[] },
     input: string,
     workflowPlan: Array<{ workflowId: string; name: string; reason: string }>,
-    canvasPlanningContext?: {
-      blocks: Array<{ id: string; blockType: 'workflow' | 'node'; name: string }>;
-      summary: { branchPoints: number; approvalBlocks: number; retryBlocks: number };
-    }
+    canvasPlanningContext?: Pick<CanvasPlanningContext, 'blocks' | 'summary'>
   ): Record<string, unknown> {
     const normalized = input.toLowerCase();
     const numericMatches = Array.from(normalized.matchAll(/\b\d+(?:\.\d+)?\b/g)).map((match) => Number(match[0]));
@@ -444,20 +457,7 @@ export class NiyantaOrchestrator {
     input: string,
     workflowContext: Partial<WorkflowContext> | undefined,
     workflowPlan: Array<{ workflowId: string; name: string; reason: string }>,
-    canvasPlanningContext: {
-      blocks: Array<{
-        id: string;
-        blockType: 'workflow' | 'node';
-        refId: string;
-        name: string;
-        category: string;
-        inputInfo: string;
-        nextStepIds: string[];
-        branch: boolean;
-      }>;
-      summary: Record<string, unknown>;
-      decisionPoints: Array<{ id: string; name: string; options: Array<{ id: string; name: string }> }>;
-    }
+    canvasPlanningContext: CanvasPlanningContext
   ): Promise<{ analysis: Record<string, unknown>; model: string }> {
     const fallback = this.buildFallbackAnalysis(agent, input, workflowPlan, canvasPlanningContext);
     try {

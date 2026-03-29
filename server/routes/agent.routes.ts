@@ -319,10 +319,13 @@ router.delete('/:id', (req: Request, res: Response) => {
     const { getDB } = require('../db/database');
     const db = getDB();
 
-    // Check if agent is a protected template
-    const agentRow = db.prepare('SELECT is_template FROM agents WHERE id = ?').get(id) as { is_template: number } | undefined;
+    // Check if agent is a protected seeded agent
+    const agentRow = db.prepare('SELECT is_template, is_default FROM agents WHERE id = ?').get(id) as { is_template: number; is_default: number } | undefined;
     if (agentRow?.is_template) {
       return res.status(403).json({ error: 'Forbidden', message: 'Cannot delete template agents' });
+    }
+    if (agentRow?.is_default) {
+      return res.status(403).json({ error: 'Forbidden', message: 'Cannot delete default agents' });
     }
 
     const orchestrator = getOrchestrator();

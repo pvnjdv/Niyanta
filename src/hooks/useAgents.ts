@@ -1,14 +1,26 @@
 import { useState, useCallback, useEffect } from 'react';
 import { v4 as uuid } from 'uuid';
 import { AGENTS, AGENT_LIST } from '../constants/agents';
+import { resolveAgentSampleKey } from '../constants/agentCatalog';
 import { SAMPLES } from '../constants/samples';
 import { Agent, AgentState, Message } from '../types/agent';
 import { runAgent, fetchAgents, RunAgentResponse } from '../services/api';
 
 type AgentStates = Record<string, AgentState>;
 
+function createEmptyAgentState(): AgentState {
+  return {
+    status: 'idle',
+    messages: [],
+    result: null,
+    taskCount: 0,
+    lastActivity: null,
+    processingTime: null,
+  };
+}
+
 const initialState: AgentStates = Object.fromEntries(
-  Object.keys(AGENTS).map((id) => [id, { status: 'idle', messages: [], result: null, taskCount: 0, lastActivity: null, processingTime: null }])
+  Object.keys(AGENTS).map((id) => [id, createEmptyAgentState()])
 );
 
 function apiAgentToFrontend(a: Record<string, unknown>): Agent {
@@ -19,7 +31,7 @@ function apiAgentToFrontend(a: Record<string, unknown>): Agent {
     subtitle: (a.subtitle || a.description || '') as string,
     icon: (a.icon || id.slice(0, 2).toUpperCase()) as string,
     color: (a.color || '#888888') as string,
-    glow: `rgba(128,128,128,0.2)`,
+    glow: (a.glow || `rgba(128,128,128,0.2)`) as string,
     description: (a.description || '') as string,
     capabilities: Array.isArray(a.capabilities) ? a.capabilities as string[] : [],
     status: 'idle',
@@ -43,7 +55,7 @@ export function useAgents() {
           const next = { ...prev };
           for (const a of mapped) {
             if (!next[a.id]) {
-              next[a.id] = { status: 'idle', messages: [], result: null, taskCount: 0, lastActivity: null, processingTime: null };
+              next[a.id] = createEmptyAgentState();
             }
           }
           return next;
@@ -64,16 +76,23 @@ export function useAgents() {
   const addMessage = useCallback((agentId: string, message: Message) => {
     setAgentStates((prev) => ({
       ...prev,
-      [agentId]: { ...prev[agentId], messages: [...prev[agentId].messages, message], lastActivity: message.timestamp },
+      [agentId]: {
+        ...(prev[agentId] || createEmptyAgentState()),
+        messages: [...((prev[agentId]?.messages) || []), message],
+        lastActivity: message.timestamp,
+      },
     }));
   }, []);
 
   const executeAgent = useCallback(async (agentId: string, inputText?: string): Promise<RunAgentResponse | null> => {
-    const input = inputText && inputText.trim() ? inputText : SAMPLES[agentId] || '';
+    const input = inputText && inputText.trim() ? inputText : SAMPLES[resolveAgentSampleKey(agentId)] || '';
 
     addMessage(agentId, { id: uuid(), type: 'user', content: input, timestamp: new Date().toISOString() });
 
-    setAgentStates((prev) => ({ ...prev, [agentId]: { ...prev[agentId], status: 'processing' } }));
+    setAgentStates((prev) => ({
+      ...prev,
+      [agentId]: { ...(prev[agentId] || createEmptyAgentState()), status: 'processing' },
+    }));
 
     try {
       const response = await runAgent(agentId, input);
@@ -90,10 +109,10 @@ export function useAgents() {
       setAgentStates((prev) => ({
         ...prev,
         [agentId]: {
-          ...prev[agentId],
+          ...(prev[agentId] || createEmptyAgentState()),
           status: 'complete',
           result: response.result,
-          taskCount: Array.isArray(response.result.tasks) ? response.result.tasks.length : prev[agentId].taskCount,
+          taskCount: Array.isArray(response.result.tasks) ? response.result.tasks.length : prev[agentId]?.taskCount || 0,
           processingTime: response.processingTime,
         },
       }));
@@ -105,16 +124,20 @@ export function useAgents() {
         content: error instanceof Error ? error.message : 'Agent execution failed',
         timestamp: new Date().toISOString(),
       });
-      setAgentStates((prev) => ({ ...prev, [agentId]: { ...prev[agentId], status: 'error' } }));
+      setAgentStates((prev) => ({
+        ...prev,
+        [agentId]: { ...(prev[agentId] || createEmptyAgentState()), status: 'error' },
+      }));
       return null;
     }
   }, [addMessage]);
 
   const runAllAgents = useCallback(async () => {
-    for (let i = 0; i < agents.length; i += 1) {
-      const agent = agents[i];
-      setRunAllProgress(`Running ${agent.name} (${i + 1}/${agents.length})`);
-      await executeAgent(agent.id, SAMPLES[agent.id]);
+    const runnableAgents = agents.filter((agent) => !agent.isTemplate);
+    for (let i = 0; i < runnableAgents.length; i += 1) {
+      const agent = runnableAgents[i];
+      setRunAllProgress(`Running ${agent.name} (${i + 1}/${runnableAgents.length})`);
+      await executeAgent(agent.id, SAMPLES[resolveAgentSampleKey(agent.id)]);
     }
     setRunAllProgress(null);
   }, [agents, executeAgent]);

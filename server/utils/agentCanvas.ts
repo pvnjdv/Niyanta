@@ -143,9 +143,9 @@ export function parseCanvasEdges(layout: Array<Record<string, unknown>>): AgentC
 
 export function buildAgentCanvasGraph(canvasLayout: unknown): AgentCanvasGraph {
   const layout = normalizeCanvasLayout(canvasLayout);
-  const blocks = layout
+  const blocks: AgentCanvasBlock[] = layout
     .filter((item) => String(item.refId || '') !== EDGE_META_ID)
-    .map((item) => ({
+    .map((item): AgentCanvasBlock => ({
       id: canonicalBlockId(item),
       blockType: item.blockType === 'node' ? 'node' : 'workflow',
       refId: String(item.refId || ''),

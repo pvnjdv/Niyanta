@@ -8,6 +8,7 @@ import { useMetrics } from './hooks/useMetrics';
 import { useWorkflows } from './hooks/useWorkflows';
 import { useTheme } from './hooks/useTheme';
 import { fetchCrossWorkflowInsights } from './services/api';
+import { getDefaultAgentCopyId } from './constants/agentCatalog';
 
 import NavigationSidebar from './components/layout/NavigationSidebar';
 import NiyantaAIPanel from './components/chat/NiyantaAIPanel';
@@ -29,6 +30,7 @@ const AppContent: React.FC = () => {
   const { messages, isSending, sendMessage, startNewChat, historySessions, restoreFromHistory, deleteHistorySession } = useNiyantaChat();
   const { metrics } = useMetrics();
   const { workflows, saveWorkflow } = useWorkflows();
+  const runtimeAgents = agents.filter((agent) => !agent.isTemplate);
 
   const [aiPanelOpen, setAiPanelOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -41,7 +43,7 @@ const AppContent: React.FC = () => {
   useEffect(() => {
     if (insights.length === 0) return;
     insights.forEach((insight) => {
-      addMessage('meeting', { id: uuid(), type: 'insight', content: insight, timestamp: new Date().toISOString() });
+      addMessage(getDefaultAgentCopyId('meeting'), { id: uuid(), type: 'insight', content: insight, timestamp: new Date().toISOString() });
     });
     setInsights([]);
   }, [insights, addMessage]);
@@ -118,7 +120,7 @@ const AppContent: React.FC = () => {
             path="/"
             element={
               <CommandCenter
-                agents={agents}
+                agents={runtimeAgents}
                 agentStates={agentStates}
                 metrics={metrics}
                 workflows={workflows}
@@ -181,7 +183,7 @@ const AppContent: React.FC = () => {
             path="/agents/:agentId/run"
             element={
               <AgentChatScreen
-                agents={agents}
+                agents={runtimeAgents}
                 agentStates={agentStates}
                 onExecuteAgent={executeAgent}
               />
@@ -203,9 +205,9 @@ const AppContent: React.FC = () => {
           <Route path="/monitor" element={<OperationsMonitor />} />
           <Route path="/audit" element={<AuditCompliance auditEntries={entries} />} />
           <Route path="/approvals" element={<ApprovalsScreen />} />
-          <Route path="/services" element={<ServicesStatus agents={agents} agentStates={agentStates} />} />
+          <Route path="/services" element={<ServicesStatus agents={runtimeAgents} agentStates={agentStates} />} />
           <Route path="/notifications" element={<div style={{ padding: 32 }}><h2>Notifications</h2><p style={{ color: 'var(--text-secondary)' }}>No new notifications.</p></div>} />
-          <Route path="/settings" element={<SettingsScreen agents={agents} agentStates={agentStates} />} />
+          <Route path="/settings" element={<SettingsScreen agents={runtimeAgents} agentStates={agentStates} />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>

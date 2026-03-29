@@ -73,6 +73,68 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
   const filtered = agents.filter(
     a => !a.isTemplate && a.name.toLowerCase().includes(search.toLowerCase())
   );
+  const canvasDiagnostics = React.useMemo(() => {
+    const validNodeIds = new Set<string>(['__start__', '__end__', ...canvasNodes.map((node) => node.id)]);
+    const adjacency = new Map<string, string[]>();
+    const incoming = new Map<string, number>();
+    const outgoing = new Map<string, number>();
+    const validEdges = agentEdges.filter((edge) => validNodeIds.has(edge.from) && validNodeIds.has(edge.to));
+
+    validEdges.forEach((edge) => {
+      adjacency.set(edge.from, [...(adjacency.get(edge.from) || []), edge.to]);
+      outgoing.set(edge.from, (outgoing.get(edge.from) || 0) + 1);
+      incoming.set(edge.to, (incoming.get(edge.to) || 0) + 1);
+    });
+
+    const reachable = new Set<string>();
+    const queue = ['__start__'];
+    while (queue.length > 0) {
+      const current = queue.shift();
+      if (!current || reachable.has(current)) {
+        continue;
+      }
+      reachable.add(current);
+      (adjacency.get(current) || []).forEach((next) => {
+        if (!reachable.has(next)) {
+          queue.push(next);
+        }
+      });
+    }
+
+    const workflowBlocks = canvasNodes.filter((node) => node.blockType === 'workflow').length;
+    const nodeBlocks = canvasNodes.length - workflowBlocks;
+    const disconnectedNodes = canvasNodes.filter((node) => !reachable.has(node.id));
+    const deadEndNodes = canvasNodes.filter((node) => (outgoing.get(node.id) || 0) === 0);
+    const branchPoints = Array.from(outgoing.entries()).filter(([nodeId, count]) => nodeId !== '__start__' && count > 1).length;
+    const hasStartConnection = validEdges.some((edge) => edge.from === '__start__');
+    const hasEndConnection = validEdges.some((edge) => edge.to === '__end__');
+    const reachesOutput = reachable.has('__end__');
+    const hasWorkflowBlock = workflowBlocks > 0;
+
+    const issues = [
+      !hasWorkflowBlock ? 'Add at least one workflow block.' : null,
+      !hasStartConnection ? 'Connect the Input anchor to your graph.' : null,
+      !hasEndConnection ? 'Connect a block to the Niyanta output anchor.' : null,
+      hasStartConnection && hasEndConnection && !reachesOutput ? 'Create one continuous path from Input to Niyanta output.' : null,
+      disconnectedNodes.length > 0 ? `${disconnectedNodes.length} block${disconnectedNodes.length === 1 ? '' : 's'} are disconnected from the main path.` : null,
+      hasWorkflowBlock && deadEndNodes.length > 0 ? `${deadEndNodes.length} block${deadEndNodes.length === 1 ? '' : 's'} terminate without an outgoing edge.` : null,
+    ].filter(Boolean) as string[];
+
+    return {
+      workflowBlocks,
+      nodeBlocks,
+      branchPoints,
+      disconnectedCount: disconnectedNodes.length,
+      deadEndCount: deadEndNodes.length,
+      hasStartConnection,
+      hasEndConnection,
+      reachesOutput,
+      isSavable: issues.length === 0,
+      primaryMessage: issues[0] || 'Canvas graph is connected and ready to save.',
+      issues,
+    };
+  }, [canvasNodes, agentEdges]);
+  const canSaveAgent = agentName.trim().length > 0 && canvasDiagnostics.isSavable && !isSaving;
 
   // Pre-fill canvas when editing an existing agent (from three-dot Edit)
   useEffect(() => {
@@ -364,6 +426,10 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
 
   const handleSaveAgent = async () => {
     if (!agentName.trim()) return;
+    if (!canvasDiagnostics.isSavable) {
+      alert(canvasDiagnostics.primaryMessage);
+      return;
+    }
     setIsSaving(true);
     const payload = {
       name: agentName.trim(),
@@ -720,13 +786,13 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
 
           <div style={{ width: 1, height: 24, background: 'var(--border)' }} />
 
-          <button onClick={handleSaveAgent} disabled={!agentName.trim() || isSaving} style={{
+          <button onClick={handleSaveAgent} disabled={!canSaveAgent} style={{
             height: 32, padding: '0 16px', borderRadius: 4, fontWeight: 600,
             fontFamily: 'var(--font-mono)', fontSize: 12,
-            background: agentName.trim() ? 'var(--accent-dim)' : 'var(--bg-tile)',
+            background: canSaveAgent ? 'var(--accent-dim)' : 'var(--bg-tile)',
             border: '1px solid var(--accent-border)',
-            color: agentName.trim() ? 'var(--accent)' : 'var(--text-muted)',
-            cursor: agentName.trim() ? 'pointer' : 'not-allowed',
+            color: canSaveAgent ? 'var(--accent)' : 'var(--text-muted)',
+            cursor: canSaveAgent ? 'pointer' : 'not-allowed',
           }}>{isSaving ? 'SAVING...' : editingAgentId ? 'SAVE CHANGES' : 'SAVE AGENT'}</button>
         </div>
 
@@ -1192,6 +1258,39 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
                 textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 12,
               }}>PIPELINE BLOCKS ({canvasNodes.length})</div>
 
+                <div style={{
+                  marginBottom: 12,
+                  padding: '12px',
+                  borderRadius: 8,
+                  background: canvasDiagnostics.isSavable ? 'rgba(16,185,129,0.08)' : 'rgba(245,158,11,0.08)',
+                  border: `1px solid ${canvasDiagnostics.isSavable ? 'rgba(16,185,129,0.22)' : 'rgba(245,158,11,0.22)'}`,
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 8 }}>
+                    <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: canvasDiagnostics.isSavable ? '#10B981' : '#F59E0B' }}>
+                      {canvasDiagnostics.isSavable ? 'GRAPH READY' : 'GRAPH NEEDS ATTENTION'}
+                    </div>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                      {[
+                        `${canvasDiagnostics.workflowBlocks} workflow`,
+                        `${canvasDiagnostics.nodeBlocks} node`,
+                        `${canvasDiagnostics.branchPoints} branch`,
+                      ].map((label) => (
+                        <span key={label} style={{
+                          padding: '2px 6px',
+                          borderRadius: 999,
+                          border: '1px solid var(--border)',
+                          fontSize: 9,
+                          color: 'var(--text-muted)',
+                          fontFamily: 'var(--font-mono)',
+                        }}>{label}</span>
+                      ))}
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                    {canvasDiagnostics.primaryMessage}
+                  </div>
+                </div>
+
               {canvasNodes.length === 0 ? (
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', padding: '16px 0' }}>
                   No blocks added yet
@@ -1390,7 +1489,8 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
           }}>
             {filtered.map(agent => {
               const state = agentStates[agent.id];
-              const canDelete = !agent.isTemplate;
+              const canEdit = !agent.isTemplate && !agent.isDefault;
+              const canDelete = !agent.isTemplate && !agent.isDefault;
               const showMenu = openMenuId === agent.id;
               const statusColor = state?.status === 'complete' ? '#10B981'
                 : state?.status === 'error' ? '#DC2626' : '#D97706';
@@ -1466,7 +1566,7 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
                           onClick={(e) => e.stopPropagation()}
                         >
                           {/* Edit */}
-                          {!agent.isTemplate && (
+                          {canEdit && (
                             <button
                               onClick={(e) => {
                                 e.stopPropagation(); setOpenMenuId(null);
@@ -1480,18 +1580,20 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
                             </button>
                           )}
                           {/* Rename */}
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation(); setOpenMenuId(null);
-                              setRenamingAgent({ id: agent.id, name: agent.name });
-                              setRenameValue(agent.name);
-                            }}
-                            style={{ width: '100%', padding: '8px 12px', textAlign: 'left', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-body)' }}
-                            onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-tile-hover)'}
-                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                          >
-                            <span style={{ fontSize: 11 }}>✎</span> Rename
-                          </button>
+                          {canEdit && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation(); setOpenMenuId(null);
+                                setRenamingAgent({ id: agent.id, name: agent.name });
+                                setRenameValue(agent.name);
+                              }}
+                              style={{ width: '100%', padding: '8px 12px', textAlign: 'left', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-body)' }}
+                              onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-tile-hover)'}
+                              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                            >
+                              <span style={{ fontSize: 11 }}>✎</span> Rename
+                            </button>
+                          )}
 
                           {/* Maintenance */}
                           <button
@@ -1580,7 +1682,8 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
         if (!da) return null;
         const ds = agentStates[da.id];
         const statusColor = ds?.status === 'complete' ? '#10B981' : ds?.status === 'error' ? '#DC2626' : ds?.status === 'processing' ? '#D97706' : 'var(--text-muted)';
-        const canDeleteDetail = !da.isTemplate;
+        const canEditDetail = !da.isTemplate && !da.isDefault;
+        const canDeleteDetail = !da.isTemplate && !da.isDefault;
 
         return (
           <>
@@ -1736,20 +1839,22 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
                     fontFamily: 'var(--font-mono)', fontWeight: 700, letterSpacing: '0.04em',
                   }}
                 >▶ RUN AGENT</button>
-                <button
-                  onClick={() => {
-                    setDetailAgentId(null);
-                    navigate('/agents/new', { state: { editAgent: da, editAgentId: da.id } });
-                  }}
-                  style={{
-                    height: 38, padding: '0 16px', borderRadius: 4,
-                    background: 'transparent', border: '1px solid var(--border)',
-                    color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 12,
-                    fontFamily: 'var(--font-mono)',
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.borderColor = da.color; e.currentTarget.style.color = da.color; }}
-                  onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
-                >EDIT</button>
+                {canEditDetail && (
+                  <button
+                    onClick={() => {
+                      setDetailAgentId(null);
+                      navigate('/agents/new', { state: { editAgent: da, editAgentId: da.id } });
+                    }}
+                    style={{
+                      height: 38, padding: '0 16px', borderRadius: 4,
+                      background: 'transparent', border: '1px solid var(--border)',
+                      color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 12,
+                      fontFamily: 'var(--font-mono)',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = da.color; e.currentTarget.style.color = da.color; }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
+                  >EDIT</button>
+                )}
                 {canDeleteDetail && (
                   <button
                     onClick={() => { setDetailAgentId(null); handleDeleteAgent(da.id, da.name); }}

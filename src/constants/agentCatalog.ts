@@ -255,3 +255,86 @@ export function buildAgentCanvasLayout(
     },
   ];
 }
+
+export function buildAgentWorkflowSeed(
+  blueprint: AgentBlueprint,
+  agentId: string
+): {
+  workflowId: string;
+  name: string;
+  description: string;
+  category: string;
+  tags: string[];
+  triggers: string[];
+  nodes: Array<Record<string, unknown>>;
+  edges: Array<Record<string, unknown>>;
+} {
+  const workflowId = `wf_agent_${agentId}`;
+  const triggerId = `${agentId}_trigger`;
+  const decisionId = `${agentId}_decision`;
+  const llmId = `${agentId}_analysis`;
+  const auditId = `${agentId}_audit`;
+
+  return {
+    workflowId,
+    name: `${blueprint.name} Agent Workflow`,
+    description: `Workflow backing the ${blueprint.name} agent`,
+    category: 'AI Agent',
+    tags: ['agent', blueprint.id, ...blueprint.capabilities.slice(0, 2)],
+    triggers: ['manual', `${blueprint.id}_request`],
+    nodes: [
+      {
+        instanceId: triggerId,
+        nodeType: 'manual_trigger',
+        name: 'Input Trigger',
+        config: {},
+        position: { x: 80, y: 200 },
+        retryConfig: { maxRetries: 1, timeout: 30, failurePolicy: 'fail' },
+      },
+      {
+        instanceId: decisionId,
+        nodeType: 'decision',
+        name: 'Decision Router',
+        config: {
+          mode: 'agent',
+          criteria: ['risk', 'confidence', 'approval_required'],
+        },
+        position: { x: 320, y: 200 },
+        retryConfig: { maxRetries: 1, timeout: 20, failurePolicy: 'retry' },
+      },
+      {
+        instanceId: llmId,
+        nodeType: 'llm_analysis',
+        name: `${blueprint.name} Analysis`,
+        config: { prompt: blueprint.systemPrompt },
+        position: { x: 600, y: 200 },
+        retryConfig: { maxRetries: 2, timeout: 45, failurePolicy: 'retry' },
+      },
+      {
+        instanceId: auditId,
+        nodeType: 'audit_log',
+        name: 'Audit Result',
+        config: { action: `${blueprint.id}-agent-run` },
+        position: { x: 860, y: 200 },
+        retryConfig: { maxRetries: 1, timeout: 20, failurePolicy: 'continue' },
+      },
+    ],
+    edges: [
+      {
+        id: `edge-${workflowId}-trigger`,
+        fromNodeId: triggerId,
+        toNodeId: decisionId,
+      },
+      {
+        id: `edge-${workflowId}-decision`,
+        fromNodeId: decisionId,
+        toNodeId: llmId,
+      },
+      {
+        id: `edge-${workflowId}-audit`,
+        fromNodeId: llmId,
+        toNodeId: auditId,
+      },
+    ],
+  };
+}

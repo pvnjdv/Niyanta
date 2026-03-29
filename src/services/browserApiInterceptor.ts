@@ -1,5 +1,10 @@
 import { v4 as uuid } from 'uuid';
-import { AGENT_LIST } from '../constants/agents';
+import {
+  DEFAULT_AGENT_BLUEPRINTS,
+  buildAgentCanvasLayout,
+  buildAgentWorkflowSeed,
+  getDefaultAgentCopyId,
+} from '../constants/agentCatalog';
 import { BROWSER_WORKFLOW_TEMPLATES, instantiateBrowserTemplate } from '../constants/browserTemplates';
 import { readLocalStorage, writeLocalStorage } from '../utils/localStorage';
 import { isBrowserStorageMode } from './storageMode';
@@ -197,25 +202,83 @@ function formatDurationLabel(minutes: number | null): string {
   return `${Math.round(minutes)}m`;
 }
 
+function createBrowserWorkflowRecord(
+  workflowSeed: ReturnType<typeof buildAgentWorkflowSeed>,
+  now: string,
+  isDefault = 1,
+  isAgent = 1
+): BrowserWorkflowRecord {
+  return {
+    id: workflowSeed.workflowId,
+    name: workflowSeed.name,
+    description: workflowSeed.description,
+    nodes: JSON.stringify(workflowSeed.nodes),
+    edges: JSON.stringify(workflowSeed.edges),
+    status: 'active',
+    category: workflowSeed.category,
+    tags: JSON.stringify(workflowSeed.tags),
+    triggers: JSON.stringify(workflowSeed.triggers),
+    allow_agent_invocation: 1,
+    is_default: isDefault,
+    is_agent: isAgent,
+    created_at: now,
+    updated_at: now,
+  };
+}
+
+function createBrowserAgentRecord(
+  blueprint: (typeof DEFAULT_AGENT_BLUEPRINTS)[number],
+  agentId: string,
+  workflowId: string,
+  now: string,
+  options: { isTemplate: boolean; isDefault: boolean }
+): BrowserAgentRecord {
+  return {
+    id: agentId,
+    agent_id: agentId,
+    name: blueprint.name,
+    subtitle: blueprint.subtitle,
+    icon: blueprint.icon,
+    color: blueprint.color,
+    glow: blueprint.glow,
+    description: blueprint.description,
+    capabilities: blueprint.capabilities,
+    status: 'active',
+    system_prompt: blueprint.systemPrompt,
+    workflow_id: workflowId,
+    is_template: options.isTemplate ? 1 : 0,
+    is_default: options.isDefault ? 1 : 0,
+    canvas_layout: buildAgentCanvasLayout(blueprint, workflowId),
+    created_at: now,
+  };
+}
+
 function buildDefaultStore(): BrowserStoreShape {
   const now = new Date().toISOString();
-  const agents: BrowserAgentRecord[] = AGENT_LIST.map((agent) => ({
-    id: agent.id,
-    agent_id: agent.id,
-    name: agent.name,
-    subtitle: agent.subtitle,
-    icon: agent.icon,
-    color: agent.color,
-    glow: agent.glow,
-    description: agent.description,
-    capabilities: agent.capabilities,
-    status: 'active',
-    system_prompt: `You are ${agent.name}. ${agent.description}`,
-    is_template: 1,
-    is_default: 1,
-    canvas_layout: [],
-    created_at: now,
-  }));
+  const seededAgentPairs = DEFAULT_AGENT_BLUEPRINTS.flatMap((blueprint) => {
+    const templateWorkflow = buildAgentWorkflowSeed(blueprint, blueprint.id);
+    const defaultAgentId = getDefaultAgentCopyId(blueprint.id);
+    const defaultWorkflow = buildAgentWorkflowSeed(blueprint, defaultAgentId);
+
+    return [
+      {
+        agent: createBrowserAgentRecord(blueprint, blueprint.id, templateWorkflow.workflowId, now, {
+          isTemplate: true,
+          isDefault: false,
+        }),
+        workflow: createBrowserWorkflowRecord(templateWorkflow, now),
+      },
+      {
+        agent: createBrowserAgentRecord(blueprint, defaultAgentId, defaultWorkflow.workflowId, now, {
+          isTemplate: false,
+          isDefault: true,
+        }),
+        workflow: createBrowserWorkflowRecord(defaultWorkflow, now),
+      },
+    ];
+  });
+
+  const agents: BrowserAgentRecord[] = seededAgentPairs.map((entry) => entry.agent);
 
   const templateMap = new Map(BROWSER_WORKFLOW_TEMPLATES.map((template) => [template.id, template]));
   const workflowSeeds = [
@@ -225,7 +288,7 @@ function buildDefaultStore(): BrowserStoreShape {
     { id: 'wf-browser-security', templateId: 'security-incident-response', name: 'Security Incident Response' },
   ];
 
-  const workflows: BrowserWorkflowRecord[] = workflowSeeds.map((seed) => {
+  const demoWorkflows: BrowserWorkflowRecord[] = workflowSeeds.map((seed) => {
     const template = templateMap.get(seed.templateId)!;
     const workflow = instantiateBrowserTemplate(template, seed.name);
     return {
@@ -246,7 +309,20 @@ function buildDefaultStore(): BrowserStoreShape {
     };
   });
 
+  const workflows: BrowserWorkflowRecord[] = [
+    ...seededAgentPairs.map((entry) => entry.workflow),
+    ...demoWorkflows,
+  ];
+
   const workflowById = new Map(workflows.map((workflow) => [workflow.id, workflow]));
+  const defaultInvoiceId = getDefaultAgentCopyId('invoice');
+  const defaultMeetingId = getDefaultAgentCopyId('meeting');
+  const defaultHROpsId = getDefaultAgentCopyId('hr_ops');
+  const defaultSecurityId = getDefaultAgentCopyId('security');
+  const defaultFinanceOpsId = getDefaultAgentCopyId('finance_ops');
+  const defaultComplianceId = getDefaultAgentCopyId('compliance');
+  const defaultITOpsId = getDefaultAgentCopyId('it_ops');
+  const defaultWorkflowId = getDefaultAgentCopyId('workflow');
   const nodesFor = (workflowId: string) => parseJsonArray<Record<string, unknown>>(workflowById.get(workflowId)?.nodes || '[]');
   const invoiceNodes = nodesFor('wf-browser-invoice');
   const meetingNodes = nodesFor('wf-browser-meeting');
@@ -278,7 +354,7 @@ function buildDefaultStore(): BrowserStoreShape {
           status: 'waiting_approval',
         },
         metadata: {
-          agentId: 'security',
+          agentId: defaultSecurityId,
           agentName: 'Security Monitor',
           input: 'Critical EDR alert detected on finance workstation.',
           notifications: ['Security containment waiting for approval.'],
@@ -308,7 +384,7 @@ function buildDefaultStore(): BrowserStoreShape {
           status: 'blocked',
         },
         metadata: {
-          agentId: 'hr_ops',
+          agentId: defaultHROpsId,
           agentName: 'HR Operations',
           input: 'Onboard new employee with finance systems access.',
           error: 'Identity provider provisioning failed for one dependent system.',
@@ -339,7 +415,7 @@ function buildDefaultStore(): BrowserStoreShape {
           status: 'completed',
         },
         metadata: {
-          agentId: 'meeting',
+          agentId: defaultMeetingId,
           agentName: 'Meeting Intelligence',
           input: 'Analyze the weekly operating review transcript.',
           notifications: ['Meeting summary delivered to operations channel.'],
@@ -369,7 +445,7 @@ function buildDefaultStore(): BrowserStoreShape {
           status: 'completed',
         },
         metadata: {
-          agentId: 'invoice',
+          agentId: defaultInvoiceId,
           agentName: 'Invoice Processor',
           input: 'Process invoice INV-2024-441 for CloudSphere LLC.',
           notifications: ['Invoice approved and queued for payment.'],
@@ -474,7 +550,7 @@ function buildDefaultStore(): BrowserStoreShape {
   const auditEntries: BrowserAuditEntry[] = [
     {
       id: uuid(),
-      agent_id: 'security',
+      agent_id: defaultSecurityId,
       event_type: 'APPROVAL_REQUESTED',
       event: 'Security containment is waiting for human approval.',
       decision: 'PENDING_APPROVAL',
@@ -485,7 +561,7 @@ function buildDefaultStore(): BrowserStoreShape {
     },
     {
       id: uuid(),
-      agent_id: 'security',
+      agent_id: defaultSecurityId,
       event_type: 'AGENT_RUN',
       event: 'Executed Security Monitor',
       decision: 'ESCALATE',
@@ -496,7 +572,7 @@ function buildDefaultStore(): BrowserStoreShape {
     },
     {
       id: uuid(),
-      agent_id: 'hr_ops',
+      agent_id: defaultHROpsId,
       event_type: 'WORKFLOW_FAILED',
       event: 'Employee onboarding automation failed during access provisioning.',
       decision: 'FLAG',
@@ -507,7 +583,7 @@ function buildDefaultStore(): BrowserStoreShape {
     },
     {
       id: uuid(),
-      agent_id: 'meeting',
+      agent_id: defaultMeetingId,
       event_type: 'AGENT_RUN',
       event: 'Executed Meeting Intelligence',
       decision: 'PROCEED',
@@ -518,7 +594,7 @@ function buildDefaultStore(): BrowserStoreShape {
     },
     {
       id: uuid(),
-      agent_id: 'invoice',
+      agent_id: defaultInvoiceId,
       event_type: 'APPROVAL_APPROVED',
       event: 'Invoice approval completed and payment processing continued.',
       decision: 'APPROVED',
@@ -529,7 +605,7 @@ function buildDefaultStore(): BrowserStoreShape {
     },
     {
       id: uuid(),
-      agent_id: 'invoice',
+      agent_id: defaultInvoiceId,
       event_type: 'AGENT_RUN',
       event: 'Executed Invoice Processor',
       decision: 'PROCEED',
@@ -541,15 +617,22 @@ function buildDefaultStore(): BrowserStoreShape {
   ];
 
   const agentWorkflowLinks = [
-    { agent_id: 'invoice', workflow_id: 'wf-browser-invoice', can_trigger: 1, can_modify: 0, created_at: now },
-    { agent_id: 'finance_ops', workflow_id: 'wf-browser-invoice', can_trigger: 1, can_modify: 0, created_at: now },
-    { agent_id: 'meeting', workflow_id: 'wf-browser-meeting', can_trigger: 1, can_modify: 0, created_at: now },
-    { agent_id: 'workflow', workflow_id: 'wf-browser-meeting', can_trigger: 1, can_modify: 0, created_at: now },
-    { agent_id: 'hr_ops', workflow_id: 'wf-browser-onboarding', can_trigger: 1, can_modify: 0, created_at: now },
-    { agent_id: 'compliance', workflow_id: 'wf-browser-onboarding', can_trigger: 1, can_modify: 0, created_at: now },
-    { agent_id: 'security', workflow_id: 'wf-browser-security', can_trigger: 1, can_modify: 0, created_at: now },
-    { agent_id: 'it_ops', workflow_id: 'wf-browser-security', can_trigger: 1, can_modify: 0, created_at: now },
-    { agent_id: 'workflow', workflow_id: 'wf-browser-security', can_trigger: 1, can_modify: 0, created_at: now },
+    ...seededAgentPairs.map((entry) => ({
+      agent_id: entry.agent.id,
+      workflow_id: entry.workflow.id,
+      can_trigger: 1,
+      can_modify: entry.agent.is_template ? 1 : 0,
+      created_at: now,
+    })),
+    { agent_id: defaultInvoiceId, workflow_id: 'wf-browser-invoice', can_trigger: 1, can_modify: 0, created_at: now },
+    { agent_id: defaultFinanceOpsId, workflow_id: 'wf-browser-invoice', can_trigger: 1, can_modify: 0, created_at: now },
+    { agent_id: defaultMeetingId, workflow_id: 'wf-browser-meeting', can_trigger: 1, can_modify: 0, created_at: now },
+    { agent_id: defaultWorkflowId, workflow_id: 'wf-browser-meeting', can_trigger: 1, can_modify: 0, created_at: now },
+    { agent_id: defaultHROpsId, workflow_id: 'wf-browser-onboarding', can_trigger: 1, can_modify: 0, created_at: now },
+    { agent_id: defaultComplianceId, workflow_id: 'wf-browser-onboarding', can_trigger: 1, can_modify: 0, created_at: now },
+    { agent_id: defaultSecurityId, workflow_id: 'wf-browser-security', can_trigger: 1, can_modify: 0, created_at: now },
+    { agent_id: defaultITOpsId, workflow_id: 'wf-browser-security', can_trigger: 1, can_modify: 0, created_at: now },
+    { agent_id: defaultWorkflowId, workflow_id: 'wf-browser-security', can_trigger: 1, can_modify: 0, created_at: now },
   ];
 
   return {
@@ -569,16 +652,38 @@ function readStore(): BrowserStoreShape {
   const seeded = buildDefaultStore();
   const store = readLocalStorage<BrowserStoreShape>(STORE_KEY, seeded);
   const shouldHydrateDemoData = !Array.isArray(store.workflows) || store.workflows.length === 0;
+  const shouldHydrateAgents =
+    !Array.isArray(store.agents) ||
+    store.agents.length < seeded.agents.length ||
+    !store.agents.some((agent) => agent.is_default === 1 && String(agent.id || '').startsWith('def_')) ||
+    store.agents.some((agent) => agent.is_default === 1 && agent.is_template === 1);
+  const seededAgentWorkflowIds = new Set(
+    seeded.workflows.filter((workflow) => workflow.is_agent === 1).map((workflow) => workflow.id)
+  );
+  const seededAgentIds = new Set(seeded.agents.map((agent) => agent.id));
+  const mergedWorkflows = shouldHydrateDemoData
+    ? seeded.workflows
+    : [
+        ...seeded.workflows.filter((workflow) => workflow.is_agent === 1),
+        ...(store.workflows || []).filter((workflow) => !seededAgentWorkflowIds.has(workflow.id)),
+      ];
+  const mergedAgentWorkflowLinks = shouldHydrateDemoData
+    ? seeded.agentWorkflowLinks
+    : [
+        ...seeded.agentWorkflowLinks,
+        ...(store.agentWorkflowLinks || []).filter((link) => !seededAgentIds.has(link.agent_id)),
+      ];
 
   return {
     ...seeded,
     ...store,
-    workflows: shouldHydrateDemoData ? seeded.workflows : store.workflows,
+    agents: shouldHydrateAgents ? seeded.agents : store.agents,
+    workflows: shouldHydrateAgents ? mergedWorkflows : shouldHydrateDemoData ? seeded.workflows : store.workflows,
     approvals: shouldHydrateDemoData ? seeded.approvals : store.approvals,
     auditEntries: shouldHydrateDemoData ? seeded.auditEntries : store.auditEntries,
     runs: shouldHydrateDemoData ? seeded.runs : store.runs,
     workflowLogs: shouldHydrateDemoData ? seeded.workflowLogs : (store.workflowLogs || seeded.workflowLogs),
-    agentWorkflowLinks: shouldHydrateDemoData ? seeded.agentWorkflowLinks : store.agentWorkflowLinks,
+    agentWorkflowLinks: shouldHydrateAgents ? mergedAgentWorkflowLinks : shouldHydrateDemoData ? seeded.agentWorkflowLinks : store.agentWorkflowLinks,
     templates: BROWSER_WORKFLOW_TEMPLATES,
   };
 }
@@ -628,6 +733,7 @@ function parseBody(init?: RequestInit): JsonRecord {
 }
 
 function buildMetrics(store: BrowserStoreShape): JsonRecord {
+  const runtimeAgents = store.agents.filter((agent) => agent.is_template !== 1);
   const runs = [...store.runs].sort((left, right) => Date.parse(String(right.started_at)) - Date.parse(String(left.started_at)));
   const approvals = [...store.approvals].sort((left, right) => Date.parse(String(right.created_at)) - Date.parse(String(left.created_at)));
   const now = Date.now();
@@ -783,9 +889,10 @@ function buildMetrics(store: BrowserStoreShape): JsonRecord {
     totalTasksCreated,
     totalDecisionsMade: store.auditEntries.filter((entry) => String(entry.decision || '').trim().length > 0).length,
     avgProcessingTimeMs: completedDurationCount > 0 ? Math.round(totalDurationMs / completedDurationCount) : 0,
-    activeAgents: store.agents.filter((agent) => agent.status === 'active').length,
-    agentsActive: store.agents.filter((agent) => agent.status === 'active').length,
+    activeAgents: runtimeAgents.filter((agent) => agent.status === 'active').length,
+    agentsActive: runtimeAgents.filter((agent) => agent.status === 'active').length,
     workflows: store.workflows.length,
+    templates: store.agents.filter((agent) => agent.is_template === 1).length,
     pendingApprovals,
     failedToday: runs.filter((run) => String(run.status) === 'FAILED' && new Date(String(run.started_at)).getTime() >= startOfDay.getTime()).length,
     criticalAlerts: alerts.filter((alert) => alert.level === 'critical').length,
@@ -810,6 +917,7 @@ function buildMetrics(store: BrowserStoreShape): JsonRecord {
 
 function buildHealth(store: BrowserStoreShape): JsonRecord {
   const metrics = buildMetrics(store);
+  const runtimeAgents = store.agents.filter((agent) => agent.is_template !== 1);
   const workflowStatusBreakdown = (metrics.workflowStatusBreakdown || {}) as Record<string, number>;
   const pendingApprovals = Number(metrics.pendingApprovals || 0);
   const oldestRunStart = store.runs.reduce<number | null>((oldest, run) => {
@@ -863,7 +971,8 @@ function buildHealth(store: BrowserStoreShape): JsonRecord {
     ],
     workflowStatusBreakdown,
     pendingApprovals,
-    agents: store.agents.length,
+    agents: runtimeAgents.length,
+    templates: store.agents.filter((agent) => agent.is_template === 1).length,
     workflows: store.workflows.length,
     approvals: pendingApprovals,
     timestamp: new Date().toISOString(),
@@ -1174,6 +1283,71 @@ function validateAgentCanvasLayout(canvasLayout: unknown) {
   };
 }
 
+function buildCanvasPlan(agent: BrowserAgentRecord) {
+  const canvasLayout = normalizeCanvasLayout(agent.canvas_layout);
+  const canvasNodes = canvasLayout.filter((item) => item.refId !== '__edges__');
+  const nodesById = new Map(canvasNodes.map((item) => [String(item.id || item.refId || ''), item]));
+  const adjacency = new Map<string, string[]>();
+
+  parseCanvasEdges(canvasLayout).forEach((edge) => {
+    const targets = adjacency.get(edge.from) || [];
+    targets.push(edge.to);
+    adjacency.set(edge.from, targets);
+  });
+
+  const orderedNodeIds: string[] = [];
+  const visited = new Set<string>();
+  const queue = ['__start__'];
+
+  while (queue.length > 0) {
+    const nodeId = queue.shift();
+    if (!nodeId || visited.has(nodeId)) {
+      continue;
+    }
+    visited.add(nodeId);
+    orderedNodeIds.push(nodeId);
+    (adjacency.get(nodeId) || []).forEach((nextNodeId) => {
+      if (!visited.has(nextNodeId)) {
+        queue.push(nextNodeId);
+      }
+    });
+  }
+
+  return orderedNodeIds
+    .filter((nodeId) => !['__start__', '__end__'].includes(nodeId))
+    .map((nodeId, index) => {
+      const node = nodesById.get(nodeId);
+      return {
+        step: index + 1,
+        nodeId,
+        name: String(node?.name || node?.refId || nodeId),
+        blockType: String(node?.blockType || 'node'),
+        refId: String(node?.refId || nodeId),
+        category: String(node?.category || 'General'),
+      };
+    });
+}
+
+function buildCanvasSummary(agent: BrowserAgentRecord) {
+  const canvasLayout = normalizeCanvasLayout(agent.canvas_layout);
+  const canvasNodes = canvasLayout.filter((item) => item.refId !== '__edges__');
+  const edges = parseCanvasEdges(canvasLayout);
+  const outgoing = new Map<string, number>();
+
+  edges.forEach((edge) => {
+    outgoing.set(edge.from, (outgoing.get(edge.from) || 0) + 1);
+  });
+
+  return {
+    totalBlocks: canvasNodes.length,
+    workflowBlocks: canvasNodes.filter((item) => item.blockType === 'workflow' && !['__start__', '__end__'].includes(String(item.refId || ''))).length,
+    nodeBlocks: canvasNodes.filter((item) => item.blockType !== 'workflow').length,
+    branchPoints: Array.from(outgoing.values()).filter((count) => count > 1).length,
+    decisionBlocks: canvasNodes.filter((item) => String(item.name || item.refId || '').toLowerCase().includes('decision')).length,
+    approvalBlocks: canvasNodes.filter((item) => String(item.name || item.refId || '').toLowerCase().includes('approval')).length,
+  };
+}
+
 function buildWorkflowPlan(store: BrowserStoreShape, agent: BrowserAgentRecord) {
   const canvasLayout = normalizeCanvasLayout(agent.canvas_layout);
   const canvasWorkflowIds = canvasLayout.length > 0 ? extractWorkflowIdsFromCanvas(canvasLayout) : [];
@@ -1204,7 +1378,8 @@ function buildWorkflowPlan(store: BrowserStoreShape, agent: BrowserAgentRecord) 
 function buildBrowserAnalysis(
   agent: BrowserAgentRecord,
   input: string,
-  workflowPlan: Array<{ workflowId: string; name: string; reason: string }>
+  workflowPlan: Array<{ workflowId: string; name: string; reason: string }>,
+  canvasSummary: ReturnType<typeof buildCanvasSummary>
 ) {
   const normalizedInput = input.toLowerCase();
   const riskLevel = normalizedInput.includes('critical') || normalizedInput.includes('security')
@@ -1215,17 +1390,34 @@ function buildBrowserAnalysis(
         ? 'medium'
         : 'low';
   const requiresHumanApproval = riskLevel === 'critical' || riskLevel === 'high';
+  const confidence = riskLevel === 'critical' ? 0.82 : riskLevel === 'high' ? 0.86 : riskLevel === 'medium' ? 0.91 : 0.95;
+  const autonomyMode = requiresHumanApproval ? 'controlled' : 'autonomous';
+  const reason = workflowPlan.length > 0
+    ? `Canvas planning selected ${workflowPlan.length} runnable workflow path${workflowPlan.length === 1 ? '' : 's'} for ${agent.name}.`
+    : `${agent.name} has no runnable workflow linked in browser mode.`;
+  const failureHandlingPlan = requiresHumanApproval
+    ? ['Pause on approval checkpoints.', 'Escalate to human reviewer on high-risk signals.', 'Record every decision in the audit log.']
+    : ['Retry transient workflow failures once.', 'Log failures with recovery context.', 'Escalate only if no path completes successfully.'];
 
   return {
     summary: `${agent.name} analyzed the request in browser mode and prepared ${workflowPlan.length} workflow step${workflowPlan.length === 1 ? '' : 's'}.`,
+    reason,
     decision: requiresHumanApproval ? 'ESCALATE' : workflowPlan.length > 0 ? 'PROCEED' : 'NO_WORKFLOW',
+    confidence,
     riskLevel,
+    autonomyMode,
     requiresHumanApproval,
+    recommendedWorkflowIds: workflowPlan.map((item) => item.workflowId),
+    failureHandlingPlan,
+    canvasSummary,
     whyChain: [
       `Input routed locally to ${agent.name}.`,
       workflowPlan.length > 0
         ? `Selected ${workflowPlan.length} workflow candidate${workflowPlan.length === 1 ? '' : 's'} from linked and canvas-configured workflows.`
         : 'No linked workflow was available for this agent.',
+      canvasSummary.branchPoints > 0
+        ? `Canvas includes ${canvasSummary.branchPoints} branch point${canvasSummary.branchPoints === 1 ? '' : 's'} for modular routing.`
+        : 'Canvas path is linear and fully connected.',
       requiresHumanApproval
         ? 'Risk signal requires approval-aware execution in browser mode.'
         : 'Risk signal remained within automated handling thresholds.',
@@ -1320,7 +1512,9 @@ function executeAgentLocally(store: BrowserStoreShape, agentId: string, input: s
 
   const timestamp = new Date().toISOString();
   const workflowPlan = buildWorkflowPlan(store, agent);
-  const analysis = buildBrowserAnalysis(agent, input, workflowPlan);
+  const canvasPlan = buildCanvasPlan(agent);
+  const canvasSummary = buildCanvasSummary(agent);
+  const analysis = buildBrowserAnalysis(agent, input, workflowPlan, canvasSummary);
   let sharedContext: JsonRecord = {
     ...(workflowContext || {}),
     task: {
@@ -1336,11 +1530,26 @@ function executeAgentLocally(store: BrowserStoreShape, agentId: string, input: s
       agentId: agent.id,
       agentName: agent.name,
       workflowPlan,
+      canvasPlan,
+      canvasSummary,
       agentAnalysis: analysis,
       notifications: [],
     },
   };
   const workflowExecutions: Array<Record<string, unknown>> = [];
+
+  addAuditEntry(store, 'AGENT_DECISION_PLAN', `Planned execution for ${agent.name}`, agent.id, {
+    decision: String(analysis.decision || 'PROCEED'),
+    inputPreview: input.trim().slice(0, 300),
+    metadata: {
+      workflowPlan,
+      canvasPlan,
+      canvasSummary,
+      confidence: analysis.confidence,
+      autonomyMode: analysis.autonomyMode,
+      failureHandlingPlan: analysis.failureHandlingPlan,
+    },
+  });
 
   for (let index = 0; index < workflowPlan.length; index += 1) {
     const plannedWorkflow = workflowPlan[index];
@@ -1348,6 +1557,12 @@ function executeAgentLocally(store: BrowserStoreShape, agentId: string, input: s
     if (!workflow) {
       continue;
     }
+
+    addAuditEntry(store, 'AGENT_WORKFLOW_START', `Starting workflow ${workflow.name}`, agent.id, {
+      decision: String(analysis.decision || 'PROCEED'),
+      inputPreview: input.trim().slice(0, 300),
+      metadata: { workflowId: workflow.id, reason: plannedWorkflow.reason },
+    });
 
     const execution = executeWorkflowLocally(store, workflow, sharedContext, false);
     workflowExecutions.push({
@@ -1370,6 +1585,20 @@ function executeAgentLocally(store: BrowserStoreShape, agentId: string, input: s
       },
     };
 
+    addAuditEntry(
+      store,
+      execution.status === 'WAITING_APPROVAL' ? 'AGENT_WORKFLOW_WAITING_APPROVAL' : 'AGENT_WORKFLOW_COMPLETED',
+      execution.status === 'WAITING_APPROVAL'
+        ? `Workflow ${workflow.name} is waiting for approval`
+        : `Workflow ${workflow.name} completed`,
+      agent.id,
+      {
+        decision: execution.status === 'WAITING_APPROVAL' ? 'PENDING_APPROVAL' : String(analysis.decision || 'PROCEED'),
+        inputPreview: input.trim().slice(0, 300),
+        metadata: { workflowId: workflow.id, status: execution.status },
+      }
+    );
+
     if (execution.status === 'WAITING_APPROVAL' || !execution.success) {
       break;
     }
@@ -1381,10 +1610,17 @@ function executeAgentLocally(store: BrowserStoreShape, agentId: string, input: s
     : [];
   const result = {
     summary: analysis.summary,
+    reason: analysis.reason,
     decision: latestExecution?.status === 'WAITING_APPROVAL' ? 'PENDING_APPROVAL' : analysis.decision,
+    confidence: analysis.confidence,
     riskLevel: analysis.riskLevel,
+    autonomyMode: latestExecution?.status === 'WAITING_APPROVAL' ? 'controlled' : analysis.autonomyMode,
     requiresHumanApproval: analysis.requiresHumanApproval || latestExecution?.status === 'WAITING_APPROVAL',
     escalate_to_human: analysis.requiresHumanApproval || latestExecution?.status === 'WAITING_APPROVAL',
+    failureHandlingPlan: analysis.failureHandlingPlan,
+    canvasPlan,
+    canvasSummary,
+    recommendedWorkflowIds: analysis.recommendedWorkflowIds,
     workflowPlan,
     workflowExecutions,
     sharedContext,
@@ -1405,8 +1641,11 @@ function executeAgentLocally(store: BrowserStoreShape, agentId: string, input: s
     processingTimeMs: processingTime,
     metadata: {
       workflowPlan,
+      canvasPlan,
       workflowExecutionCount: workflowExecutions.length,
       status: result.status,
+      confidence: result.confidence,
+      autonomyMode: result.autonomyMode,
     },
   });
   writeStore(store);
@@ -1655,6 +1894,9 @@ function handleAgents(url: URL, method: string, store: BrowserStoreShape, init?:
     if (method === 'DELETE') {
       if (store.agents[agentIndex].is_template) {
         return responseJson({ success: false, message: 'Cannot delete template agents' }, 403);
+      }
+      if (store.agents[agentIndex].is_default) {
+        return responseJson({ success: false, message: 'Cannot delete default agents' }, 403);
       }
       const deleted = store.agents.splice(agentIndex, 1)[0];
       store.agentWorkflowLinks = store.agentWorkflowLinks.filter((link) => link.agent_id !== agentId);

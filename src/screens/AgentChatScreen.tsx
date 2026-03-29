@@ -28,6 +28,10 @@ function buildExecutionSteps(result: Record<string, unknown>): ProcessingStep[] 
   const executions = Array.isArray(result.workflowExecutions)
     ? (result.workflowExecutions as Array<Record<string, unknown>>)
     : [];
+  const canvasPlan = Array.isArray(result.canvasPlan) ? (result.canvasPlan as Array<Record<string, unknown>>) : [];
+  const canvasSummary = result.canvasSummary && typeof result.canvasSummary === 'object'
+    ? (result.canvasSummary as Record<string, unknown>)
+    : null;
   const whyChain = Array.isArray(result.whyChain) ? (result.whyChain as Array<unknown>) : [];
 
   const steps: ProcessingStep[] = [];
@@ -36,10 +40,21 @@ function buildExecutionSteps(result: Record<string, unknown>): ProcessingStep[] 
     label: 'Routing & Planning',
     detail:
       plan.length > 0
-        ? `Selected ${plan.length} workflow step${plan.length === 1 ? '' : 's'} for execution.`
+        ? `Selected ${plan.length} workflow step${plan.length === 1 ? '' : 's'} for execution${result.confidence ? ` at ${Math.round(Number(result.confidence) * 100)}% confidence` : ''}.`
         : 'No matching workflow plan was found for this request.',
     status: 'done',
   });
+
+  if (canvasPlan.length > 0) {
+    steps.push({
+      id: 'canvas',
+      label: 'Canvas Route',
+      detail: canvasSummary
+        ? `${canvasPlan.length} connected canvas step${canvasPlan.length === 1 ? '' : 's'} across ${Number(canvasSummary.workflowBlocks || 0)} workflow block${Number(canvasSummary.workflowBlocks || 0) === 1 ? '' : 's'}.`
+        : `${canvasPlan.length} connected canvas step${canvasPlan.length === 1 ? '' : 's'} prepared for execution.`,
+      status: 'done',
+    });
+  }
 
   executions.forEach((execution, index) => {
     const status = String(execution.status || 'completed').toUpperCase();
@@ -78,16 +93,32 @@ function buildAgentReply(result: Record<string, unknown>): string {
   if (result.decision) {
     lines.push(`Decision: ${String(result.decision)}`);
   }
+  if (result.reason) {
+    lines.push(`Reason: ${String(result.reason)}`);
+  }
   if (result.status) {
     lines.push(`Status: ${String(result.status)}`);
   }
   if (result.riskLevel) {
     lines.push(`Risk: ${String(result.riskLevel)}`);
   }
+  if (result.confidence !== undefined) {
+    lines.push(`Confidence: ${Math.round(Number(result.confidence) * 100)}%`);
+  }
+  if (result.autonomyMode) {
+    lines.push(`Autonomy: ${String(result.autonomyMode)}`);
+  }
 
   const plan = Array.isArray(result.workflowPlan) ? (result.workflowPlan as Array<Record<string, unknown>>) : [];
   if (plan.length > 0) {
     lines.push(`Workflows: ${plan.map((item) => String(item.name || item.workflowId)).join(', ')}`);
+  }
+
+  const failureHandlingPlan = Array.isArray(result.failureHandlingPlan)
+    ? (result.failureHandlingPlan as Array<unknown>).map((item) => String(item)).filter(Boolean)
+    : [];
+  if (failureHandlingPlan.length > 0) {
+    lines.push(`Failure Plan: ${failureHandlingPlan.join(' | ')}`);
   }
 
   return lines.join('\n') || JSON.stringify(result, null, 2);

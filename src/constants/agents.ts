@@ -1,16 +1,8 @@
 import { Agent } from '../types/agent';
+import { createDefaultAgentList } from './agentCatalog';
 
-export const AGENTS: Record<string, Agent> = {
-  meeting: { id: 'meeting', name: 'Meeting Intelligence', subtitle: 'Transcript to action', icon: 'MI', color: '#666666', glow: 'rgba(102,102,102,0.2)', description: 'Extracts decisions, owners, risks, and next steps from meetings.', capabilities: ['summary', 'tasks', 'decisions', 'risks'], status: 'idle' },
-  invoice: { id: 'invoice', name: 'Invoice Processor', subtitle: 'AP approval intelligence', icon: 'IP', color: '#888888', glow: 'rgba(136,136,136,0.2)', description: 'Validates invoices and issues approve/flag/reject decisions.', capabilities: ['validation', 'anomaly detection', 'decision'], status: 'idle' },
-  document: { id: 'document', name: 'Document Intelligence', subtitle: 'Document understanding', icon: 'DI', color: '#AAAAAA', glow: 'rgba(170,170,170,0.2)', description: 'Classifies documents and extracts structured fields.', capabilities: ['classification', 'field extraction', 'validation'], status: 'idle' },
-  finance_ops: { id: 'finance_ops', name: 'Finance Operations', subtitle: 'Budget & expense intelligence', icon: 'FO', color: '#059669', glow: 'rgba(5,150,105,0.2)', description: 'Analyzes financial data, monitors budgets, and detects expense anomalies.', capabilities: ['budget analysis', 'expense tracking', 'anomaly detection', 'forecasting'], status: 'idle' },
-  hr_ops: { id: 'hr_ops', name: 'HR Operations', subtitle: 'People & workforce intelligence', icon: 'HR', color: '#EC4899', glow: 'rgba(236,72,153,0.2)', description: 'Manages HR workflows including onboarding, leave requests, and compliance.', capabilities: ['onboarding', 'leave management', 'compliance', 'performance tracking'], status: 'idle' },
-  it_ops: { id: 'it_ops', name: 'IT Operations', subtitle: 'Access & incident management', icon: 'IT', color: '#3B82F6', glow: 'rgba(59,130,246,0.2)', description: 'Processes access requests, incidents, and asset workflows with priority and SLA.', capabilities: ['access requests', 'incident management', 'asset tracking', 'SLA monitoring'], status: 'idle' },
-  compliance: { id: 'compliance', name: 'Compliance', subtitle: 'Policy & regulatory intelligence', icon: 'CO', color: '#F59E0B', glow: 'rgba(245,158,11,0.2)', description: 'Evaluates policy violations, regulatory risks, and compliance gaps.', capabilities: ['policy evaluation', 'regulatory checks', 'risk scoring', 'violation detection'], status: 'idle' },
-  security: { id: 'security', name: 'Security Monitor', subtitle: 'Threat & incident response', icon: 'SM', color: '#EF4444', glow: 'rgba(239,68,68,0.2)', description: 'Classifies security incidents and defines immediate response actions.', capabilities: ['incident classification', 'threat assessment', 'response planning', 'escalation'], status: 'idle' },
-  procurement: { id: 'procurement', name: 'Procurement', subtitle: 'Purchase & vendor intelligence', icon: 'PR', color: '#8B5CF6', glow: 'rgba(139,92,246,0.2)', description: 'Applies thresholds and quote requirements to build approval chains.', capabilities: ['purchase approval', 'vendor evaluation', 'policy checks', 'compliance flags'], status: 'idle' },
-  workflow: { id: 'workflow', name: 'Workflow Intelligence', subtitle: 'Optimization & routing', icon: 'WI', color: '#06B6D4', glow: 'rgba(6,182,212,0.2)', description: 'Analyzes workflows and suggests optimization and routing improvements.', capabilities: ['workflow analysis', 'optimization', 'routing recommendations', 'risk assessment'], status: 'idle' },
-};
+export const AGENT_LIST: Agent[] = createDefaultAgentList();
 
-export const AGENT_LIST = Object.values(AGENTS);
+export const AGENTS: Record<string, Agent> = Object.fromEntries(
+  AGENT_LIST.map((agent) => [agent.id, agent])
+);
