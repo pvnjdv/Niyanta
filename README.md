@@ -1,345 +1,252 @@
-# NIYANTA AI v2.0
+# Niyanta AI
 
-नियंता — The One Who Controls and Governs
+Niyanta AI is an enterprise workflow orchestration platform built with React, Express, TypeScript, SQLite, and Groq-backed agents. It combines a node-based workflow engine, a central orchestrator, reusable agent workflows, local persistence, and human approval gates.
 
-**Autonomous Enterprise Workflow Orchestration Platform**
+## What This Repository Contains
 
-A complete, offline-first platform for automating complex enterprise workflows using AI agents and a modular node-based execution engine.
+- React frontend in `src/` for workflow design, chat, approvals, audit views, and operational monitoring.
+- Express backend in `server/` for orchestration, workflow execution, agent routing, APIs, and persistence.
+- Local SQLite database with auto-initialized schema for workflows, runs, approvals, audit logs, agent messages, and ports.
+- Groq model integration for agent reasoning and AI workflow nodes.
+- Two persistence modes for the frontend: server-backed local persistence and browser-only demo persistence.
 
----
+## Snapshot
 
-## 🎯 Overview
+| Area | Current implementation |
+| --- | --- |
+| Default agent blueprints | 10 |
+| Registered workflow node definitions | 47 |
+| API route groups | 10 |
+| Main backend entry point | `server/index.ts` |
+| Frontend dev server | `react-scripts start` on port 3000 |
+| Backend dev server | Express on port 3001 by default |
+| Local persistence | SQLite + filesystem storage |
+| External dependency | Groq API for model inference |
 
-Niyanta AI is a **central operations manager** that:
-- Coordinates 10 specialized AI agents across departments
-- Orchestrates workflows using a graph-based node execution engine
-- Runs **fully offline** with local SQLite database and file storage
-- Provides real-time audit logging and SLA monitoring
-- Executes human-in-the-loop approval workflows
+## Architecture
 
-### Key Capabilities
-- **Node-Based Workflows**: Drag-and-drop workflow builder with 40+ node types
-- **10 AI Agents**: Specialized agents for Finance, HR, Procurement, Security, Compliance, Document Processing, Monitoring, Workflow Intelligence, IT Operations, and Meeting Intelligence
-- **Intelligent Orchestration**: Cross-workflow dependency detection and escalation
-- **Enterprise-Grade**: Retry logic, SLA monitoring, bottleneck detection, comprehensive audit logging
-- **Offline-First**: 100% local execution, zero external dependencies (except Groq API for LLM)
-
----
-
-## 📋 Prerequisites
-
-- **Node.js** 18+
-- **npm** 9+
-- **Groq API Key** (free at https://console.groq.com)
-
----
-
-## 🚀 Quick Start
-
-### 1. Setup
-
-```bash
-cd niyanta
-cp .env.example .env
+```mermaid
+flowchart TD
+  UI[React UI\nsrc/] --> API[Express API\nserver/index.ts]
+  API --> ROUTES[Route layer\nagent, niyanta, workflow, approvals, audit, metrics, health, port, templates, versions]
+  ROUTES --> NCP[NiyantaCommandProcessor]
+  ROUTES --> ORCH[NiyantaOrchestrator]
+  ORCH --> AM[AgentManager]
+  AM --> AGENTS[10 default agent blueprints\nseeded as reusable workflows]
+  ORCH --> WE[WorkflowEngine]
+  WE --> NX[NodeExecutor]
+  NX --> NODES[47 node types\ntrigger, ai, decision, action, data, monitoring, audit, utility]
+  AGENTS --> GROQ[Groq API]
+  WE --> DB[(SQLite)]
+  ORCH --> AUDIT[(audit_logs)]
+  API --> STORAGE[(storage path)]
 ```
 
-Edit `.env` and set:
-```
-GROQ_API_KEY=your_api_key_here
-DB_PATH=./niyanta.db
-STORAGE_PATH=./storage
-PORT=3001
-NODE_ENV=development
-```
+### Core runtime flow
 
-### 2. Install & Run
+1. The frontend sends commands, workflow operations, or approvals to `/api/*` routes.
+2. The backend validates input, applies rate limits to agent-heavy endpoints, and initializes DB/storage on boot.
+3. `NiyantaCommandProcessor` parses natural-language commands and decides whether the request should go to an agent directly or into a workflow.
+4. `NiyantaOrchestrator` selects agents, records audit events, maintains orchestration metrics, and merges workflow context.
+5. `WorkflowEngine` creates workflow runs, walks the execution graph, persists run state, and records node-level execution logs.
+6. `executeNode` dispatches each node type to trigger, AI, decision, action, data, monitoring, or utility behavior.
+7. `AuditLogger` writes decision and execution metadata to `audit_logs` for traceability.
+
+### Main components
+
+| Component | Responsibility |
+| --- | --- |
+| `server/index.ts` | Bootstraps Express, storage path, DB, orchestrator, middleware, and route modules |
+| `server/core/NiyantaCommandProcessor.ts` | Converts user commands into structured execution inputs |
+| `server/core/NiyantaOrchestrator.ts` | Central coordinator for agent routing, planning, metrics, and audit logging |
+| `server/core/WorkflowEngine.ts` | Creates runs, executes graphs, manages workflow state transitions |
+| `server/core/AgentManager.ts` | Loads agents, links agent workflows, resolves canvas execution plans |
+| `server/core/NodeRegistry.ts` | Registers 47 workflow node definitions and schemas |
+| `server/nodes/nodeExecutor.ts` | Runtime dispatcher for concrete node execution |
+| `server/db/database.ts` | Opens SQLite, initializes schema, applies lightweight migrations, seeds default content |
+| `server/utils/groqClient.ts` | Groq model client and JSON-safe response parsing |
+
+### Architecture notes
+
+- The active backend entry point is `server/index.ts`. The root-level `server.ts` file is an older prototype and is not used by `npm run dev`.
+- Default agents are seeded from `server/config/agentBlueprints.ts`, and each blueprint gets a backing workflow definition in SQLite.
+- The orchestrator tracks approval waits, failures, and decision plans in audit logs rather than relying on transient in-memory state alone.
+- Workflow runs persist to `workflow_runs`, while detailed node execution snapshots persist to `workflow_logs`.
+
+## Built-in Agents
+
+The default seeded agents are:
+
+| Agent ID | Name | Primary role |
+| --- | --- | --- |
+| `meeting` | Meeting Intelligence | Transcript summarization, actions, decisions, risks |
+| `invoice` | Invoice Processor | Invoice validation, anomaly checks, routing decisions |
+| `document` | Document Intelligence | Document classification and field extraction |
+| `finance_ops` | Finance Operations | Budget and expense analysis |
+| `hr_ops` | HR Operations | Onboarding, leave, and policy workflows |
+| `it_ops` | IT Operations | Access requests, incidents, and asset workflows |
+| `compliance` | Compliance | Regulatory and policy evaluation |
+| `security` | Security Monitor | Incident classification and response planning |
+| `procurement` | Procurement | Purchase approvals and vendor policy checks |
+| `workflow` | Workflow Intelligence | Workflow analysis, routing, and optimization |
+
+## Setup
+
+### Prerequisites
+
+- Node.js 18+
+- npm 9+
+- A Groq API key
+
+### 1. Install dependencies
 
 ```bash
 npm install
+```
+
+### 2. Create your environment file
+
+```bash
+cp .env.example .env
+```
+
+Recommended baseline `.env`:
+
+```env
+GROQ_API_KEY=your_groq_api_key_here
+PORT=3001
+NODE_ENV=development
+DB_PATH=./niyanta.db
+STORAGE_PATH=./storage
+REACT_APP_STORAGE_MODE=server
+RATE_LIMIT_WINDOW_MS=60000
+RATE_LIMIT_MAX=60
+GROQ_MODEL=llama-3.3-70b-versatile
+GROQ_REASONING_MODEL=llama-3.3-70b-versatile
+GROQ_FAST_MODEL=llama-3.1-8b-instant
+```
+
+### 3. Understand the environment variables
+
+| Variable | Required | Default | Purpose |
+| --- | --- | --- | --- |
+| `GROQ_API_KEY` | Yes | none | Enables Groq-backed agent and AI-node execution |
+| `PORT` | No | `3001` | Backend HTTP port |
+| `NODE_ENV` | No | `development` | Express runtime mode |
+| `DB_PATH` | No | `./niyanta.db` | SQLite database path |
+| `STORAGE_PATH` | No | `./storage` | Local file storage directory |
+| `REACT_APP_STORAGE_MODE` | No | `server` | `server` for local backend persistence, `browser` for browser-only demo state |
+| `RATE_LIMIT_WINDOW_MS` | No | `60000` | Agent endpoint rate-limit window |
+| `RATE_LIMIT_MAX` | No | `60` | Max requests per window for rate-limited routes |
+| `GROQ_MODEL` | No | `llama-3.3-70b-versatile` | Default model for standard tasks |
+| `GROQ_REASONING_MODEL` | No | `llama-3.3-70b-versatile` | Reasoning-heavy model selection |
+| `GROQ_FAST_MODEL` | No | `llama-3.1-8b-instant` | Lower-latency model selection |
+
+### 4. Run the application
+
+```bash
 npm run dev
 ```
 
 This starts:
-- **Frontend**: http://localhost:3000 (React app)
-- **Backend**: http://localhost:3001 (Express API)
-- **Database**: `./niyanta.db` (auto-created)
-- **Storage**: `./storage/` (auto-created)
 
-### 3. Test
+- Frontend: `http://localhost:3000`
+- Backend: `http://localhost:3001`
+- Database: auto-created at `DB_PATH`
+- File storage: auto-created at `STORAGE_PATH`
 
-Once the server is running, in another terminal:
+### 5. Verify the installation
+
+Health check:
+
+```bash
+curl http://localhost:3001/api/health
+```
+
+End-to-end smoke test:
 
 ```bash
 node test-workflow-execution.js
 ```
 
-This runs comprehensive integration tests covering:
-- Server health
-- Agent registration
-- Workflow CRUD operations
-- Workflow execution with nodes
-- Run history and metrics
-- Orchestrator chat
+That script checks health, agent listing, workflow CRUD, workflow execution, run history, workflow metrics, and orchestrator chat.
 
----
+### 6. Build for production
 
-## 🏗️ Architecture
-
-### System Layers
-
-```
-User Interface (React)
-    ↓
-Workflow Builder (drag-and-drop)
-    ↓
-Niyanta AI Orchestrator (central brain)
-    ↓
-Agents (10 specialized workers)
-    ↓
-Node Execution Engine (individual tasks)
-    ↓
-Local Database & Filesystem
-```
-
-### Core Modules
-
-| Module | Purpose |
-|--------|---------|
-| **WorkflowEngine** | Manages workflow creation, execution, and state |
-| **NiyantaOrchestrator** | Central coordinator, routes tasks to agents |
-| **NodeRegistry** | Defines all 40+ node types and their schemas |
-| **NodeExecutor** | Executes individual nodes with result persistence |
-| **AgentManager** | Manages agent registry and routing |
-| **AuditLogger** | Comprehensive event logging and compliance tracking |
-
----
-
-## 🔄 Workflow Execution
-
-### Creating a Workflow
-
-**POST** `/api/workflow`
-
-```json
-{
-  "name": "Invoice Processing",
-  "description": "Automated invoice approval workflow",
-  "category": "finance",
-  "nodes": [
-    {
-      "instanceId": "node-1",
-      "nodeType": "manual_trigger",
-      "name": "Start",
-      "config": {},
-      "position": { "x": 100, "y": 100 }
-    },
-    {
-      "instanceId": "node-2",
-      "nodeType": "llm_analysis",
-      "name": "Analyze Invoice",
-      "config": { "prompt": "Check for anomalies" },
-      "position": { "x": 300, "y": 100 }
-    },
-    {
-      "instanceId": "node-3",
-      "nodeType": "approval",
-      "name": "Manager Approval",
-      "config": { "approver": "manager@company.com" },
-      "position": { "x": 500, "y": 100 }
-    }
-  ],
-  "edges": [
-    { "id": "e1", "fromNodeId": "node-1", "toNodeId": "node-2" },
-    { "id": "e2", "fromNodeId": "node-2", "toNodeId": "node-3" }
-  ]
-}
-```
-
-### Executing a Workflow
-
-**POST** `/api/workflow/{workflowId}/execute`
-
-```json
-{
-  "context": {
-    "invoice": {
-      "vendorId": "V-123",
-      "amount": 50000,
-      "invoiceNum": "INV-2026-001"
-    }
-  }
-}
-```
-
-**Response**:
-```json
-{
-  "success": true,
-  "workflowId": "wf-xyz",
-  "runId": "run-abc",
-  "context": {
-    "invoice": { "vendorId": "V-123", "amount": 50000, "processed": true },
-    "logs": [
-      { "nodeId": "node-1", "nodeName": "Start", "status": "completed", "message": "..." },
-      { "nodeId": "node-2", "nodeName": "Analyze Invoice", "status": "completed", "message": "..." }
-    ]
-  }
-}
-```
-
-### Monitoring Execution
-
-**GET** `/api/workflow/{workflowId}/runs`
-
-Lists all runs of a workflow.
-
-**GET** `/api/workflow/{workflowId}/runs/{runId}`
-
-Gets detailed run information including context and execution logs.
-
-**GET** `/api/workflow/{workflowId}/metrics`
-
-Returns workflow metrics:
-```json
-{
-  "totalRuns": 42,
-  "completed": 40,
-  "failed": 2,
-  "avgDurationMs": 3500,
-  "successRate": "95.24%"
-}
-```
-
----
-
-## 🤖 Agents
-
-All agents use **Groq API** (llama-3.3-70b-versatile) and execute asynchronously.
-
-### Meeting Intelligence Agent
-- **ID**: `meeting` | **Color**: `#00D4FF`
-- Processes meeting transcripts and generates decisions, action items, and risk assessments.
-
-### Invoice Processor Agent
-- **ID**: `invoice` | **Color**: `#FFB800`
-- Analyzes invoices for policy compliance, anomalies, and routing decisions.
-
-### HR Operations Agent
-- **ID**: `hr` | **Color**: `#00E676`
-- Manages employee onboarding workflows including access provisioning and training plans.
-
-### Procurement Agent
-- **ID**: `procurement` | **Color**: `#FF6B6B`
-- Routes purchase requests through approval chains and compliance checks.
-
-### Security Monitor Agent
-- **ID**: `security` | **Color**: `#FF4488`
-- Responds to security events with threat analysis and containment recommendations.
-
-### Compliance Agent
-- **ID**: `compliance` | **Color**: `#A78BFA`
-- Performs regulatory compliance checks (GDPR, PCI, SOX) and generates compliance reports.
-
-### Document Intelligence Agent
-- **ID**: `document` | **Color**: `#F59E0B`
-- Classifies documents and extracts key fields using OCR and LLM analysis.
-
-### Monitoring Agent
-- **ID**: `monitoring` | **Color**: `#60A5FA`
-- Aggregates system metrics, detects bottlenecks, and flags SLA breaches.
-
-### Workflow Intelligence Agent
-- **ID**: `workflow` | **Color**: `#34D399`
-- Analyzes workflow performance and recommends optimizations.
-
-### IT Operations Agent
-- **ID**: `it_ops` | **Color**: `#F472B6`
-- Manages IT access requests, incident assignment, and system provisioning.
-
----
-
-## 📦 Node Types
-
-Workflows are built from reusable nodes across multiple categories:
-
-**Trigger Nodes**: manual_trigger, webhook_trigger, file_upload_trigger, timer_trigger
-**AI Nodes**: llm_analysis, classification, summarization, decision_generation, risk_analysis
-**Decision Nodes**: approval, conditional_routing, threshold_decision, rule_engine
-**Action Nodes**: invoice_processing, task_assignment, notification, report_generation
-**Data Nodes**: data_storage, data_retrieval, file_storage
-**Monitoring Nodes**: sla_monitoring, bottleneck_detection
-**Audit Nodes**: audit_log, compliance_check
-**Utility Nodes**: delay, merge, retry, parallel_execution
-
----
-
-## 📊 API Reference
-
-### Workflows
-- `GET /api/workflow` — List all workflows
-- `POST /api/workflow` — Create new workflow
-- `GET /api/workflow/{id}` — Get workflow details
-- `PUT /api/workflow/{id}` — Update workflow
-- `DELETE /api/workflow/{id}` — Delete workflow
-- `POST /api/workflow/{id}/execute` — Execute workflow
-- `POST /api/workflow/{id}/dry-run` — Test workflow
-- `GET /api/workflow/{id}/runs` — Get runs
-- `GET /api/workflow/{id}/metrics` — Get metrics
-
-### Agents
-- `GET /api/agent/list` — List all agents
-- `POST /api/agent/run` — Execute agent
-
-### System
-- `GET /api/health` — Server health
-- `GET /api/metrics` — System metrics
-- `GET /api/audit` — Audit logs
-- `POST /api/niyanta/chat` — Chat with orchestrator
-
----
-
-## 💾 Database
-
-Local SQLite database stores:
-- **agents** — Agent registry
-- **workflows** — Workflow definitions
-- **workflow_runs** — Execution history
-- **workflow_logs** — Audit trail
-- **files** — Generated artifacts
-- **audit_logs** — Comprehensive logging
-
----
-
-## 🚀 Production
-
-### Build
 ```bash
 npm run build
-```
-
-### Deploy
-```bash
 npm run start:prod
 ```
 
-Serves on port 3001 with frontend from `build/` directory.
+Production mode serves the React build from `build/` through the Express server.
 
----
+## Storage Modes
 
-## 📝 Example: Invoice Processing Workflow
+Niyanta supports two frontend persistence modes:
 
-1. **Trigger**: New invoice uploaded
-2. **Analyze**: LLM extracts fields, checks vendor
-3. **Classify**: High/Medium/Low risk classification
-4. **Route**: Auto-approve or escalate flagged
-5. **Process**: Mark paid or hold for approval
-6. **Notify**: Send to accounts payable
+- `server`: recommended for local installs. State persists through the backend, SQLite, and local filesystem.
+- `browser`: useful for lightweight demos. UI state is kept client-side for a browser-only experience.
 
----
+If you change any `REACT_APP_*` value, restart the frontend dev server.
 
-## 🙏 Acknowledgments
+## API Surface
 
-Built with Groq API, Express.js, React, SQLite, and TypeScript.
+The backend mounts these route groups under `/api`:
 
-**नियंता** — Command Without Chaos
+| Route group | Purpose |
+| --- | --- |
+| `/api/agent` | Run agents, send inter-agent messages, manage ports |
+| `/api/niyanta` | Chat, command execution, file extraction, insights |
+| `/api/workflow` | Workflow CRUD, publish/unpublish, execute, dry-run, metrics, runs |
+| `/api/approvals` | Human approval queue and approval actions |
+| `/api/audit` | Audit log retrieval |
+| `/api/metrics` | System-wide orchestration metrics |
+| `/api/health` | Health and readiness data |
+| `/api/port` | Access agents through generated agent ports |
+| `/api/templates` | Workflow templates |
+| `/api/versions` | Workflow version history |
 
+## Persistence Model
+
+The schema currently initializes these main tables:
+
+- `agents`
+- `nodes`
+- `workflows`
+- `workflow_runs`
+- `workflow_logs`
+- `audit_logs`
+- `files`
+- `pending_approvals`
+- `workflow_versions`
+- `agent_messages`
+- `agent_ports`
+- `agent_workflows`
+- `agent_canvas_layouts`
+
+## Project Layout
+
+| Path | Purpose |
+| --- | --- |
+| `src/` | Frontend screens, hooks, services, workflow UI, chat UI |
+| `server/routes/` | API route handlers |
+| `server/core/` | Orchestration, workflow engine, registry, audit logging |
+| `server/agents/` | Concrete agent prompt definitions and base agent class |
+| `server/nodes/` | Node implementations and dispatch logic |
+| `server/db/` | Database bootstrap, schema, migrations |
+| `server/config/` | Default agent blueprint configuration |
+| `server/templates/` | Workflow template seeds |
+| `storage/` | Local artifacts and uploaded/generated files |
+| `test-workflow-execution.js` | End-to-end integration smoke test |
+
+## Operational Notes
+
+- The backend auto-creates the storage directory if it does not exist.
+- Health will report Groq as `DEGRADED` when `GROQ_API_KEY` is missing.
+- Agent-heavy endpoints are rate-limited with `express-rate-limit`.
+- Approval nodes persist pending decisions in `pending_approvals` and move workflow runs into `WAITING_APPROVAL`.
+- `callGroqJSON()` strips markdown fences and falls back to a structured parse error payload if model output is not valid JSON.
+
+## Related Document
+
+For a quantified business-value model with explicit assumptions and back-of-envelope math, see [IMPACT_MODEL.md](IMPACT_MODEL.md).
