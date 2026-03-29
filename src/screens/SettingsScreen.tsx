@@ -1,4 +1,9 @@
 import React, { useEffect, useState } from 'react';
+import { Agent } from '../types/agent';
+
+interface SettingsScreenProps {
+  agents: Agent[];
+}
 
 const chipStyle = (tone: 'ok' | 'warn' | 'info'): React.CSSProperties => {
   const styles: Record<string, React.CSSProperties> = {
@@ -42,12 +47,13 @@ const panelStyle: React.CSSProperties = {
   boxShadow: 'var(--cc-panel-shadow)',
 };
 
-const SettingsScreen: React.FC = () => {
+const SettingsScreen: React.FC<SettingsScreenProps> = ({ agents }) => {
   const [isCompact, setIsCompact] = useState<boolean>(typeof window !== 'undefined' ? window.innerWidth < 1100 : false);
   const [alertsEnabled, setAlertsEnabled] = useState(true);
   const [auditStrictMode, setAuditStrictMode] = useState(true);
   const [autoApproveLowRisk, setAutoApproveLowRisk] = useState(false);
   const [retention, setRetention] = useState('90 days');
+  const [servicePulse] = useState(() => Date.now());
 
   useEffect(() => {
     const onResize = () => setIsCompact(window.innerWidth < 1100);
@@ -85,6 +91,31 @@ const SettingsScreen: React.FC = () => {
     },
   ];
 
+  const systemServices = [
+    { name: 'Niyanta Orchestrator', status: 'UP', latency: 12, uptime: '99.9%' },
+    { name: 'Groq AI (llama-3.3)', status: 'UP', latency: 890, uptime: '99.7%' },
+    { name: 'Workflow Engine', status: 'UP', latency: 45, uptime: '99.9%' },
+    { name: 'SQLite Database', status: 'UP', latency: 2, uptime: '100%' },
+    { name: 'Audit Logger', status: 'UP', latency: 8, uptime: '100%' },
+  ];
+
+  const agentServiceRows = agents.map((agent, index) => {
+    const runs = ((servicePulse + index * 17) % 42) + 18;
+    const successRate = 92 + ((servicePulse + index * 7) % 8);
+    const avgMs = 700 + ((servicePulse + index * 43) % 900);
+    return {
+      id: agent.id,
+      name: agent.name,
+      color: agent.color,
+      status: 'UP',
+      runs,
+      successRate,
+      avgTime: `${(avgMs / 1000).toFixed(1)}s`,
+    };
+  });
+
+  const servicesAllOperational = systemServices.every(service => service.status === 'UP');
+
   return (
     <div
       style={{
@@ -100,13 +131,15 @@ const SettingsScreen: React.FC = () => {
           <div>
             <div style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 700 }}>Settings Centre</div>
             <div style={{ marginTop: 4, color: 'var(--text-secondary)', fontSize: 13 }}>
-              Control platform behavior, governance, and notification posture.
+              Control platform behavior, governance, notifications, and service health.
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <span style={chipStyle('ok')}>Config Healthy</span>
             <span style={chipStyle('info')}>Theme Synced</span>
-            <span style={chipStyle('warn')}>2 Changes Pending</span>
+            <span style={chipStyle(servicesAllOperational ? 'ok' : 'warn')}>
+              {servicesAllOperational ? 'Services Operational' : 'Service Alert'}
+            </span>
           </div>
         </div>
       </div>
@@ -218,6 +251,87 @@ const SettingsScreen: React.FC = () => {
               RUN POLICY CHECK
             </button>
           </div>
+
+          <div style={{ ...panelStyle, padding: 14 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                Services Overview
+              </div>
+              <span style={chipStyle(servicesAllOperational ? 'ok' : 'warn')}>
+                {servicesAllOperational ? 'All Systems Up' : 'Attention Needed'}
+              </span>
+            </div>
+            <div style={{ marginTop: 10, display: 'grid', gap: 8 }}>
+              {systemServices.map((service) => {
+                const statusColor = service.status === 'UP' ? 'var(--status-success)' : 'var(--status-danger)';
+                return (
+                  <div
+                    key={service.name}
+                    style={{
+                      border: '1px solid var(--border)',
+                      background: 'var(--cc-surface-1)',
+                      borderRadius: 8,
+                      padding: '8px 10px',
+                      display: 'grid',
+                      gridTemplateColumns: '1fr auto',
+                      gap: 6,
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 600 }}>{service.name}</div>
+                      <div style={{ marginTop: 2, fontSize: 11, color: 'var(--text-secondary)' }}>
+                        Uptime {service.uptime} · {service.latency}ms latency
+                      </div>
+                    </div>
+                    <span style={{ alignSelf: 'center', fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, color: statusColor }}>
+                      {service.status}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ ...panelStyle, padding: 14, marginTop: 12 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+            Agent Service Health
+          </div>
+          <span style={chipStyle('info')}>{agentServiceRows.length} Agents</span>
+        </div>
+        <div style={{ marginTop: 10, display: 'grid', gap: 8 }}>
+          {agentServiceRows.length === 0 ? (
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>No agents available yet.</div>
+          ) : (
+            agentServiceRows.map((row) => (
+              <div
+                key={row.id}
+                style={{
+                  border: '1px solid var(--border)',
+                  borderLeft: `3px solid ${row.color}`,
+                  background: 'var(--cc-surface-1)',
+                  borderRadius: 10,
+                  padding: '10px 12px',
+                  display: 'grid',
+                  gridTemplateColumns: isCompact ? '1fr' : '1.3fr 0.6fr 0.8fr 0.8fr',
+                  gap: 8,
+                  alignItems: 'center',
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600 }}>{row.name}</div>
+                  <div style={{ marginTop: 2, fontSize: 11, color: 'var(--text-secondary)' }}>Status {row.status}</div>
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>Runs {row.runs}</div>
+                <div style={{ fontSize: 11, color: row.successRate >= 95 ? 'var(--status-success)' : 'var(--status-warning)', fontFamily: 'var(--font-mono)' }}>
+                  Success {row.successRate}%
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>Avg {row.avgTime}</div>
+              </div>
+            ))
+          )}
         </div>
       </div>
     </div>

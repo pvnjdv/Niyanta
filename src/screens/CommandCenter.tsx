@@ -18,6 +18,7 @@ interface CommandCenterProps {
   }>;
   onRunAll?: () => Promise<void>;
   runAllProgress?: string | null;
+  onOpenAIPanel?: () => void;
 }
 
 const CommandCenter: React.FC<CommandCenterProps> = ({
@@ -26,6 +27,7 @@ const CommandCenter: React.FC<CommandCenterProps> = ({
   workflows,
   onRunAll,
   runAllProgress,
+  onOpenAIPanel,
 }) => {
   const navigate = useNavigate();
   const agents = AGENT_LIST;
@@ -214,9 +216,34 @@ const CommandCenter: React.FC<CommandCenterProps> = ({
         letterSpacing: '0.02em',
         marginBottom: 2,
       }}>
-        Command Centre
+        {title}
       </div>
-      {badge}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        {badge}
+        <button
+          onClick={() => onOpenAIPanel?.()}
+          style={{
+            height: 34,
+            padding: '0 14px',
+            borderRadius: 999,
+            border: '1px solid var(--cc-info-border)',
+            background: 'linear-gradient(120deg, var(--cc-info-bg), var(--cc-ok-bg))',
+            color: 'var(--text-primary)',
+            fontFamily: 'var(--font-body)',
+            fontSize: 12,
+            fontWeight: 700,
+            letterSpacing: '0.02em',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 8,
+            boxShadow: '0 8px 20px rgba(46,125,140,0.18)',
+          }}
+          title="Open Niyanta AI panel"
+        >
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--status-info)', boxShadow: '0 0 8px var(--status-info)' }} />
+          Niyanta AI
+        </button>
+      </div>
     </div>
   );
 
