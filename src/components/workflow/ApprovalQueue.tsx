@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { approveApproval, fetchPendingApprovals, rejectApproval } from '../../services/api';
 
 interface Approval {
   id: string;
@@ -9,7 +10,7 @@ interface Approval {
   node_name: string;
   title: string;
   description: string;
-  context: any;
+  context: Record<string, unknown>;
   assigned_to: string;
   priority: 'low' | 'medium' | 'high' | 'critical';
   deadline: string | null;
@@ -27,57 +28,179 @@ interface ApprovalQueueProps {
   onReject?: (approvalId: string) => void;
 }
 
-export const ApprovalQueue: React.FC<ApprovalQueueProps> = ({ 
-  assignedTo = 'admin',
-  onApprove,
-  onReject 
-}) => {
+const panelStyle: React.CSSProperties = {
+  background: 'linear-gradient(160deg, var(--cc-panel-top), var(--cc-panel-bottom))',
+  border: '1px solid var(--border)',
+  borderRadius: 12,
+  boxShadow: 'var(--cc-panel-shadow)',
+  overflow: 'hidden',
+  minWidth: 0,
+};
+
+const toneMap: Record<Approval['priority'], { color: string; background: string; border: string }> = {
+  critical: {
+    color: 'var(--status-danger)',
+    background: 'var(--cc-danger-bg)',
+    border: 'var(--cc-danger-border)',
+  },
+  high: {
+    color: 'var(--status-warning)',
+    background: 'var(--cc-warn-bg)',
+    border: 'var(--cc-warn-border)',
+  },
+  medium: {
+    color: 'var(--status-info)',
+    background: 'var(--cc-info-bg)',
+    border: 'var(--cc-info-border)',
+  },
+  low: {
+    color: 'var(--status-success)',
+    background: 'var(--cc-ok-bg)',
+    border: 'var(--cc-ok-border)',
+  },
+};
+
+const monoPill = (active: boolean): React.CSSProperties => ({
+  height: 28,
+  padding: '0 12px',
+  borderRadius: 999,
+  border: `1px solid ${active ? 'var(--accent-border)' : 'var(--border)'}`,
+  background: active ? 'var(--accent-dim)' : 'transparent',
+  color: active ? 'var(--accent)' : 'var(--text-secondary)',
+  fontFamily: 'var(--font-mono)',
+  fontSize: 9,
+  letterSpacing: '0.06em',
+  textTransform: 'uppercase',
+  cursor: 'pointer',
+});
+
+const actionButtonStyle = (tone: 'approve' | 'reject'): React.CSSProperties => ({
+  height: 38,
+  padding: '0 18px',
+  borderRadius: 8,
+  border: `1px solid ${tone === 'approve' ? 'var(--cc-ok-border)' : 'var(--cc-danger-border)'}`,
+  background: tone === 'approve' ? 'var(--cc-ok-bg)' : 'var(--cc-danger-bg)',
+  color: tone === 'approve' ? 'var(--status-success)' : 'var(--status-danger)',
+  fontFamily: 'var(--font-mono)',
+  fontSize: 11,
+  letterSpacing: '0.06em',
+  textTransform: 'uppercase',
+  fontWeight: 700,
+  cursor: 'pointer',
+});
+
+function formatPriority(priority: Approval['priority']) {
+  return priority.charAt(0).toUpperCase() + priority.slice(1);
+}
+
+function formatDeadline(deadline: string | null) {
+  if (!deadline) return 'No deadline';
+
+  const now = Date.now();
+  const target = new Date(deadline).getTime();
+  const diff = target - now;
+
+  if (Number.isNaN(target)) return deadline;
+  if (diff <= 0) return 'Expired';
+
+  const totalMinutes = Math.floor(diff / (1000 * 60));
+  const days = Math.floor(totalMinutes / (60 * 24));
+  const hours = Math.floor((totalMinutes % (60 * 24)) / 60);
+  const minutes = totalMinutes % 60;
+
+  if (days > 0) return `${days}d ${hours}h`;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  return `${minutes}m`;
+}
+
+function formatContext(value: Record<string, unknown>) {
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return '{}';
+  }
+}
+
+export const ApprovalQueue: React.FC<ApprovalQueueProps> = ({ assignedTo = 'admin', onApprove, onReject }) => {
   const [approvals, setApprovals] = useState<Approval[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedApproval, setSelectedApproval] = useState<Approval | null>(null);
   const [comment, setComment] = useState('');
+  const [selectedApprovalId, setSelectedApprovalId] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'low' | 'medium' | 'high' | 'critical'>('all');
+  const [isCompact, setIsCompact] = useState<boolean>(typeof window !== 'undefined' ? window.innerWidth < 1180 : false);
 
   useEffect(() => {
-    fetchApprovals();
-    // Poll for updates every 10 seconds
-    const interval = setInterval(fetchApprovals, 10000);
-    return () => clearInterval(interval);
+    const onResize = () => setIsCompact(window.innerWidth < 1180);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadApprovals = async () => {
+      try {
+        const data = await fetchPendingApprovals({ assignedTo });
+        if (!cancelled) {
+          setApprovals(((data as { approvals?: Approval[] }).approvals || []) as Approval[]);
+        }
+      } catch (error) {
+        console.error('Failed to fetch approvals:', error);
+        if (!cancelled) {
+          setApprovals([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadApprovals();
+    const interval = setInterval(loadApprovals, 10000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
   }, [assignedTo]);
 
-  const fetchApprovals = async () => {
+  const filteredApprovals = useMemo(
+    () => (filter === 'all' ? approvals : approvals.filter((approval) => approval.priority === filter)),
+    [approvals, filter]
+  );
+
+  useEffect(() => {
+    if (filteredApprovals.length === 0) {
+      setSelectedApprovalId(null);
+      return;
+    }
+
+    if (!selectedApprovalId || !filteredApprovals.some((approval) => approval.id === selectedApprovalId)) {
+      setSelectedApprovalId(filteredApprovals[0].id);
+      setComment('');
+    }
+  }, [filteredApprovals, selectedApprovalId]);
+
+  const selectedApproval = filteredApprovals.find((approval) => approval.id === selectedApprovalId) || null;
+
+  const refreshApprovals = async () => {
     try {
-      const response = await fetch(`/api/approvals/pending?assignedTo=${assignedTo}`);
-      const data = await response.json();
-      if (data.success) {
-        setApprovals(data.approvals);
-      }
+      const data = await fetchPendingApprovals({ assignedTo });
+      setApprovals(((data as { approvals?: Approval[] }).approvals || []) as Approval[]);
     } catch (error) {
-      console.error('Failed to fetch approvals:', error);
-    } finally {
-      setLoading(false);
+      console.error('Failed to refresh approvals:', error);
     }
   };
 
   const handleApprove = async (approvalId: string) => {
     try {
-      const response = await fetch(`/api/approvals/${approvalId}/approve`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          comment,
-          approvedBy: assignedTo,
-        })
-      });
-
-      const data = await response.json();
-      if (data.success) {
-        fetchApprovals();
-        setSelectedApproval(null);
+      const data = await approveApproval(approvalId, comment, {});
+      if ((data as { success?: boolean }).success) {
+        await refreshApprovals();
         setComment('');
         onApprove?.(approvalId);
       } else {
-        alert(`Failed to approve: ${data.message}`);
+        alert(`Failed to approve: ${(data as { message?: string }).message || 'Unknown error'}`);
       }
     } catch (error) {
       console.error('Approve error:', error);
@@ -92,23 +215,13 @@ export const ApprovalQueue: React.FC<ApprovalQueueProps> = ({
     }
 
     try {
-      const response = await fetch(`/api/approvals/${approvalId}/reject`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          comment,
-          rejectedBy: assignedTo,
-        })
-      });
-
-      const data = await response.json();
-      if (data.success) {
-        fetchApprovals();
-        setSelectedApproval(null);
+      const data = await rejectApproval(approvalId, comment);
+      if ((data as { success?: boolean }).success) {
+        await refreshApprovals();
         setComment('');
         onReject?.(approvalId);
       } else {
-        alert(`Failed to reject: ${data.message}`);
+        alert(`Failed to reject: ${(data as { message?: string }).message || 'Unknown error'}`);
       }
     } catch (error) {
       console.error('Reject error:', error);
@@ -116,292 +229,258 @@ export const ApprovalQueue: React.FC<ApprovalQueueProps> = ({
     }
   };
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'critical': return '#EF4444';
-      case 'high': return '#F59E0B';
-      case 'medium': return '#3B82F6';
-      case 'low': return '#10B981';
-      default: return '#6B7280';
-    }
+  const queueSummary = {
+    critical: approvals.filter((approval) => approval.priority === 'critical').length,
+    high: approvals.filter((approval) => approval.priority === 'high').length,
   };
-
-  const getTimeRemaining = (deadline: string | null) => {
-    if (!deadline) return null;
-    
-    const now = new Date().getTime();
-    const end = new Date(deadline).getTime();
-    const diff = end - now;
-    
-    if (diff < 0) return 'EXPIRED';
-    
-    const hours = Math.floor(diff / (1000 * 60 * 60));
-    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-    
-    if (hours > 24) {
-      const days = Math.floor(hours / 24);
-      return `${days}d ${hours % 24}h`;
-    }
-    
-    return `${hours}h ${minutes}m`;
-  };
-
-  const filteredApprovals = filter === 'all' 
-    ? approvals 
-    : approvals.filter(a => a.priority === filter);
-
-  if (loading) {
-    return (
-      <div style={{ padding: 20, textAlign: 'center' }}>
-        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-muted)' }}>
-          Loading approvals...
-        </div>
-      </div>
-    );
-  }
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      {/* Header */}
-      <div style={{ 
-        height: 56, borderBottom: '1px solid var(--border)', 
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '0 20px', flexShrink: 0,
-      }}>
-        <div>
-          <div style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 700 }}>
-            Approval Queue
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: isCompact ? '1fr' : 'minmax(0, 1.2fr) minmax(360px, 0.8fr)',
+        gap: 12,
+        minHeight: isCompact ? undefined : 680,
+      }}
+    >
+      <section style={{ ...panelStyle, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+        <div
+          style={{
+            padding: 16,
+            borderBottom: '1px solid var(--border)',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: 12,
+            flexWrap: 'wrap',
+          }}
+        >
+          <div>
+            <div style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 700 }}>Approval Queue</div>
+            <div style={{ marginTop: 4, fontSize: 12, color: 'var(--text-secondary)' }}>
+              {filteredApprovals.length} active request{filteredApprovals.length !== 1 ? 's' : ''} assigned to {assignedTo}.
+            </div>
           </div>
-          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)' }}>
-            {filteredApprovals.length} pending request{filteredApprovals.length !== 1 ? 's' : ''}
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <span
+              style={{
+                ...monoPill(false),
+                borderColor: 'var(--cc-danger-border)',
+                background: 'var(--cc-danger-bg)',
+                color: 'var(--status-danger)',
+                cursor: 'default',
+              }}
+            >
+              {queueSummary.critical} Critical
+            </span>
+            <span
+              style={{
+                ...monoPill(false),
+                borderColor: 'var(--cc-warn-border)',
+                background: 'var(--cc-warn-bg)',
+                color: 'var(--status-warning)',
+                cursor: 'default',
+              }}
+            >
+              {queueSummary.high} High
+            </span>
           </div>
         </div>
 
-        {/* Priority Filter */}
-        <div style={{ display: 'flex', gap: 8 }}>
-          {['all', 'critical', 'high', 'medium', 'low'].map(p => (
+        <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {['all', 'critical', 'high', 'medium', 'low'].map((priority) => (
             <button
-              key={p}
-              onClick={() => setFilter(p as any)}
-              style={{
-                height: 28, padding: '0 12px', fontFamily: 'var(--font-mono)', fontSize: 9,
-                textTransform: 'uppercase', border: '1px solid var(--border)',
-                background: filter === p ? 'var(--bg-accent)' : 'transparent',
-                color: filter === p ? 'var(--text-primary)' : 'var(--text-secondary)',
-                cursor: 'pointer',
-              }}
+              key={priority}
+              onClick={() => setFilter(priority as typeof filter)}
+              style={monoPill(filter === priority)}
             >
-              {p}
+              {priority}
             </button>
           ))}
         </div>
-      </div>
 
-      {/* Approval List */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
-        {filteredApprovals.length === 0 ? (
-          <div style={{ 
-            padding: 40, textAlign: 'center',
-            fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-muted)'
-          }}>
-            No pending approvals
+        <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
+          {loading ? (
+            <div style={{ padding: 56, textAlign: 'center', fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-muted)' }}>
+              Loading approvals...
+            </div>
+          ) : filteredApprovals.length === 0 ? (
+            <div style={{ padding: 56, textAlign: 'center', color: 'var(--text-secondary)' }}>
+              <div style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 700, marginBottom: 6 }}>Queue clear</div>
+              <div style={{ fontSize: 13 }}>No pending approvals match the current priority filter.</div>
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gap: 12 }}>
+              {filteredApprovals.map((approval) => {
+                const tone = toneMap[approval.priority];
+                const isSelected = approval.id === selectedApprovalId;
+                return (
+                  <button
+                    key={approval.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedApprovalId(approval.id);
+                      setComment(approval.decision_comment || '');
+                    }}
+                    style={{
+                      textAlign: 'left',
+                      border: `1px solid ${isSelected ? tone.border : 'var(--border)'}`,
+                      borderLeft: `4px solid ${tone.color}`,
+                      borderRadius: 12,
+                      background: isSelected ? 'var(--bg-tile)' : 'var(--bg-panel)',
+                      padding: 16,
+                      cursor: 'pointer',
+                      transition: 'background 150ms ease, border-color 150ms ease',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', marginBottom: 10, flexWrap: 'wrap' }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 700, marginBottom: 4 }}>
+                          {approval.title}
+                        </div>
+                        <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>{approval.description}</div>
+                      </div>
+                      <span
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          height: 22,
+                          padding: '0 10px',
+                          borderRadius: 999,
+                          border: `1px solid ${tone.border}`,
+                          background: tone.background,
+                          color: tone.color,
+                          fontFamily: 'var(--font-mono)',
+                          fontSize: 9,
+                          letterSpacing: '0.08em',
+                          textTransform: 'uppercase',
+                          fontWeight: 700,
+                          flexShrink: 0,
+                        }}
+                      >
+                        {formatPriority(approval.priority)}
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      <span style={{ ...monoPill(false), cursor: 'default' }}>{approval.workflow_name}</span>
+                      <span style={{ ...monoPill(false), cursor: 'default' }}>Assigned {approval.assigned_to}</span>
+                      <span style={{ ...monoPill(false), cursor: 'default' }}>Due {formatDeadline(approval.deadline)}</span>
+                      <span style={{ ...monoPill(false), cursor: 'default' }}>{new Date(approval.created_at).toLocaleString()}</span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </section>
+
+      <aside style={{ ...panelStyle, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+        <div style={{ padding: 16, borderBottom: '1px solid var(--border)' }}>
+          <div style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 700 }}>Decision Workspace</div>
+          <div style={{ marginTop: 4, fontSize: 12, color: 'var(--text-secondary)' }}>
+            Review the request context, record your rationale, and issue a decision.
+          </div>
+        </div>
+
+        {!selectedApproval ? (
+          <div style={{ flex: 1, display: 'grid', placeItems: 'center', padding: 24, color: 'var(--text-secondary)' }}>
+            Select an approval request to inspect details.
           </div>
         ) : (
-          <div style={{ display: 'grid', gap: 12 }}>
-            {filteredApprovals.map(approval => {
-              const timeRemaining = getTimeRemaining(approval.deadline);
-              const isExpired = timeRemaining === 'EXPIRED';
-              
-              return (
-                <div
-                  key={approval.id}
-                  onClick={() => setSelectedApproval(approval)}
+          <>
+            <div style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'grid', gap: 14 }}>
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap', marginBottom: 8 }}>
+                  <div>
+                    <div style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700 }}>{selectedApproval.title}</div>
+                    <div style={{ marginTop: 4, color: 'var(--text-secondary)', fontSize: 13 }}>{selectedApproval.description}</div>
+                  </div>
+                  <span
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      height: 24,
+                      padding: '0 10px',
+                      borderRadius: 999,
+                      border: `1px solid ${toneMap[selectedApproval.priority].border}`,
+                      background: toneMap[selectedApproval.priority].background,
+                      color: toneMap[selectedApproval.priority].color,
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: 9,
+                      letterSpacing: '0.08em',
+                      textTransform: 'uppercase',
+                      fontWeight: 700,
+                    }}
+                  >
+                    {formatPriority(selectedApproval.priority)} Priority
+                  </span>
+                </div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <span style={{ ...monoPill(false), cursor: 'default' }}>{selectedApproval.workflow_name}</span>
+                  <span style={{ ...monoPill(false), cursor: 'default' }}>Node {selectedApproval.node_name}</span>
+                  <span style={{ ...monoPill(false), cursor: 'default' }}>Deadline {formatDeadline(selectedApproval.deadline)}</span>
+                </div>
+              </div>
+
+              <div style={{ border: '1px solid var(--border)', borderRadius: 10, background: 'var(--cc-surface-1)', padding: 14 }}>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 8 }}>
+                  Request Context
+                </div>
+                <pre
                   style={{
-                    padding: 16, border: '1px solid var(--border)',
-                    borderLeft: `4px solid ${getPriorityColor(approval.priority)}`,
-                    background: selectedApproval?.id === approval.id ? 'var(--bg-tile)' : 'var(--bg-panel)',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s',
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--bg-tile)'; }}
-                  onMouseLeave={(e) => { 
-                    if (selectedApproval?.id !== approval.id) {
-                      e.currentTarget.style.background = 'var(--bg-panel)'; 
-                    }
+                    margin: 0,
+                    maxHeight: 260,
+                    overflow: 'auto',
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-word',
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: 11,
+                    lineHeight: 1.6,
+                    color: 'var(--text-secondary)',
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-                    {/* Priority Badge */}
-                    <div style={{ 
-                      width: 40, height: 40, borderRadius: 4, flexShrink: 0,
-                      background: getPriorityColor(approval.priority) + '20',
-                      border: `1px solid ${getPriorityColor(approval.priority)}`,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700,
-                      color: getPriorityColor(approval.priority),
-                    }}>
-                      {approval.priority.substring(0, 1).toUpperCase()}
-                    </div>
-
-                    {/* Content */}
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ 
-                        fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 600,
-                        marginBottom: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                      }}>
-                        {approval.title}
-                      </div>
-                      
-                      <div style={{ 
-                        fontFamily: 'var(--font-body)', fontSize: 12, color: 'var(--text-secondary)',
-                        marginBottom: 8, lineHeight: 1.4,
-                      }}>
-                        {approval.description}
-                      </div>
-
-                      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)' }}>
-                          📋 {approval.workflow_name}
-                        </div>
-                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)' }}>
-                          🕐 {new Date(approval.created_at).toLocaleString()}
-                        </div>
-                        {timeRemaining && (
-                          <div style={{ 
-                            fontFamily: 'var(--font-mono)', fontSize: 10,
-                            color: isExpired ? '#EF4444' : 'var(--text-muted)',
-                            fontWeight: isExpired ? 600 : 400,
-                          }}>
-                            ⏱ {timeRemaining}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* Approval Details Modal */}
-      {selectedApproval && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          zIndex: 1000,
-        }} onClick={() => { setSelectedApproval(null); setComment(''); }}>
-          <div 
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              width: 600, maxHeight: '80vh', background: 'var(--bg-panel)',
-              border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden',
-              display: 'flex', flexDirection: 'column',
-            }}
-          >
-            {/* Modal Header */}
-            <div style={{ 
-              padding: 20, borderBottom: '1px solid var(--border)',
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            }}>
-              <div>
-                <div style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 700, marginBottom: 4 }}>
-                  {selectedApproval.title}
-                </div>
-                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)' }}>
-                  Priority: {selectedApproval.priority.toUpperCase()}
-                </div>
-              </div>
-              <button 
-                onClick={() => { setSelectedApproval(null); setComment(''); }}
-                style={{
-                  width: 32, height: 32, border: '1px solid var(--border)',
-                  background: 'transparent', cursor: 'pointer', fontSize: 18,
-                }}
-              >×</button>
-            </div>
-
-            {/* Modal Body */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
-              <div style={{ marginBottom: 20 }}>
-                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>
-                  DESCRIPTION
-                </div>
-                <div style={{ fontFamily: 'var(--font-body)', fontSize: 13, lineHeight: 1.6 }}>
-                  {selectedApproval.description}
-                </div>
-              </div>
-
-              <div style={{ marginBottom: 20 }}>
-                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>
-                  WORKFLOW
-                </div>
-                <div style={{ fontFamily: 'var(--font-body)', fontSize: 13 }}>
-                  {selectedApproval.workflow_name}
-                </div>
-              </div>
-
-              <div style={{ marginBottom: 20 }}>
-                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>
-                  CONTEXT DATA
-                </div>
-                <pre style={{ 
-                  fontFamily: 'var(--font-mono)', fontSize: 11, 
-                  background: 'var(--bg-base)', padding: 12, borderRadius: 4,
-                  border: '1px solid var(--border)', overflow: 'auto', maxHeight: 200,
-                }}>
-                  {JSON.stringify(selectedApproval.context, null, 2)}
+                  {formatContext(selectedApproval.context)}
                 </pre>
               </div>
 
-              <div style={{ marginBottom: 8 }}>
-                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>
-                  COMMENT (optional)
+              <div style={{ border: '1px solid var(--border)', borderRadius: 10, background: 'var(--cc-surface-1)', padding: 14 }}>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 8 }}>
+                  Decision Comment
                 </div>
                 <textarea
                   value={comment}
-                  onChange={(e) => setComment(e.target.value)}
-                  placeholder="Add your decision comment..."
-                  rows={3}
+                  onChange={(event) => setComment(event.target.value)}
+                  placeholder="Add your decision notes or rejection reason..."
+                  rows={6}
                   style={{
-                    width: '100%', padding: 10, fontFamily: 'var(--font-body)', fontSize: 13,
-                    background: 'var(--bg-tile)', border: '1px solid var(--border)',
-                    color: 'var(--text-primary)', resize: 'vertical',
+                    width: '100%',
+                    padding: '12px 14px',
+                    borderRadius: 10,
+                    border: '1px solid var(--border)',
+                    background: 'var(--bg-tile)',
+                    color: 'var(--text-primary)',
+                    fontFamily: 'var(--font-body)',
+                    fontSize: 13,
+                    resize: 'vertical',
+                    boxSizing: 'border-box',
                   }}
                 />
               </div>
             </div>
 
-            {/* Modal Footer */}
-            <div style={{ 
-              padding: 20, borderTop: '1px solid var(--border)',
-              display: 'flex', gap: 12, justifyContent: 'flex-end',
-            }}>
-              <button
-                onClick={() => handleReject(selectedApproval.id)}
-                style={{
-                  height: 36, padding: '0 20px', fontFamily: 'var(--font-mono)', fontSize: 11,
-                  background: 'transparent', border: '1px solid #EF4444', color: '#EF4444',
-                  cursor: 'pointer', fontWeight: 600,
-                }}
-              >
-                ✕ REJECT
+            <div style={{ padding: 16, borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: 10, flexWrap: 'wrap' }}>
+              <button type="button" onClick={() => handleReject(selectedApproval.id)} style={actionButtonStyle('reject')}>
+                Reject
               </button>
-              <button
-                onClick={() => handleApprove(selectedApproval.id)}
-                style={{
-                  height: 36, padding: '0 20px', fontFamily: 'var(--font-mono)', fontSize: 11,
-                  background: '#10B981', border: '1px solid #10B981', color: 'white',
-                  cursor: 'pointer', fontWeight: 600,
-                }}
-              >
-                ✓ APPROVE
+              <button type="button" onClick={() => handleApprove(selectedApproval.id)} style={actionButtonStyle('approve')}>
+                Approve
               </button>
             </div>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </aside>
     </div>
   );
 };
