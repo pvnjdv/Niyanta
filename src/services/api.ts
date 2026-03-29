@@ -78,7 +78,14 @@ export async function sendNiyantaMessage(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ message, conversationHistory, agentResults, systemContext }),
   });
-  if (!response.ok) throw new Error('Niyanta chat failed');
+  if (!response.ok) {
+    let detail = 'Niyanta chat failed';
+    try {
+      const err = await response.json() as { message?: string };
+      if (err.message) detail = err.message;
+    } catch { /* ignore */ }
+    throw new Error(detail);
+  }
   return response.json();
 }
 

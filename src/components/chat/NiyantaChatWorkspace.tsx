@@ -242,22 +242,23 @@ const NiyantaChatWorkspace: React.FC<NiyantaChatWorkspaceProps> = ({
   );
 
   const renderActivityStack = (items: NiyantaActivityItem[]) => (
-    <div style={{ display: 'grid', gap: 8 }}>
-      {items.map((item) => (
+    <div style={{ display: 'grid', gap: 5 }}>
+      {items.map((item, idx) => (
         <div key={item.id + item.timestamp} style={{
-          padding: '10px 12px',
-          borderRadius: 10,
-          border: '1px solid',
-          background: toneStyles[item.tone]?.background,
-          borderColor: toneStyles[item.tone]?.borderColor,
+          display: 'flex',
+          alignItems: 'baseline',
+          gap: 7,
+          animation: `slideInBottom 220ms ease both`,
+          animationDelay: `${idx * 60}ms`,
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: toneStyles[item.tone]?.color }}>{item.label}</span>
-            <span style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
-              {new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-            </span>
-          </div>
-          <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>{item.detail}</div>
+          <span style={{ fontSize: 9, color: toneStyles[item.tone]?.color, flexShrink: 0, marginTop: 2 }}>›</span>
+          <span style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+            <span style={{ fontWeight: 600, color: toneStyles[item.tone]?.color }}>{item.label}</span>
+            {item.detail ? <span style={{ color: 'var(--text-muted)' }}> — {item.detail}</span> : null}
+          </span>
+          <span style={{ marginLeft: 'auto', fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', whiteSpace: 'nowrap', flexShrink: 0 }}>
+            {new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          </span>
         </div>
       ))}
     </div>
@@ -290,47 +291,31 @@ const NiyantaChatWorkspace: React.FC<NiyantaChatWorkspaceProps> = ({
       );
     }
 
+    const isError = message.content === 'Niyanta chat failed' || message.content.startsWith('Niyanta chat failed');
     return (
-      <div key={`${message.timestamp}-${index}`} style={{ display: 'grid', gap: 10 }}>
-        <div style={{
-          border: '1px solid var(--border)',
-          background: 'linear-gradient(180deg, rgba(12, 18, 28, 0.88), rgba(12, 18, 28, 0.72))',
-          borderRadius: 16,
-          padding: 16,
-          boxShadow: 'var(--cc-panel-shadow)',
-          display: 'grid',
-          gap: 12,
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            {headerBadge(variant === 'command' ? 'Command Reply' : 'Niyanta Reply', 'info')}
-            <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
-              {new Date(message.timestamp).toLocaleString()}
-            </span>
-          </div>
-          <div style={{ color: 'var(--text-primary)', fontSize: 14, lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
-            {message.content}
-          </div>
-          {message.reports && message.reports.length > 0 && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
-              {message.reports.map((report) => (
-                <div key={report.id} style={{
-                  border: '1px solid',
-                  borderRadius: 12,
-                  padding: 12,
-                  background: toneStyles[report.tone]?.background,
-                  borderColor: toneStyles[report.tone]?.borderColor,
-                }}>
-                  <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: toneStyles[report.tone]?.color, textTransform: 'uppercase', letterSpacing: '0.07em' }}>
-                    {report.title}
-                  </div>
-                  <div style={{ marginTop: 6, fontSize: 24, fontWeight: 700, color: 'var(--text-primary)' }}>{report.value}</div>
-                  <div style={{ marginTop: 6, fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>{report.detail}</div>
-                </div>
-              ))}
-            </div>
-          )}
-          {message.activity && message.activity.length > 0 && renderActivityStack(message.activity)}
+      <div key={`${message.timestamp}-${index}`} style={{ display: 'grid', gap: 6, animation: 'slideInBottom 260ms ease both' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 10, color: isError ? 'var(--status-danger)' : 'var(--status-info)', fontFamily: 'var(--font-mono)', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+            {isError ? '⚠ Error' : (variant === 'command' ? '◎ Niyanta' : '◎ Niyanta')}
+          </span>
+          <span style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
+            {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          </span>
         </div>
+        <div style={{
+          color: isError ? 'var(--status-danger)' : 'var(--text-primary)',
+          fontSize: 13,
+          lineHeight: 1.75,
+          whiteSpace: 'pre-wrap',
+          paddingLeft: 2,
+        }}>
+          {message.content}
+        </div>
+        {message.activity && message.activity.length > 0 && (
+          <div style={{ marginTop: 4, borderLeft: '1px solid var(--border)', paddingLeft: 10 }}>
+            {renderActivityStack(message.activity)}
+          </div>
+        )}
       </div>
     );
   };
@@ -534,9 +519,14 @@ const NiyantaChatWorkspace: React.FC<NiyantaChatWorkspaceProps> = ({
             ) : messages.map(renderMessage)}
 
             {isSending && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', borderRadius: 12, border: '1px solid var(--cc-info-border)', background: 'var(--cc-info-bg)', width: 'fit-content' }}>
-                <span style={{ color: 'var(--status-info)', fontSize: 12, animation: 'pulse 1.3s infinite' }}>◎</span>
-                <span style={{ fontSize: 12, color: 'var(--status-info)', fontFamily: 'var(--font-mono)' }}>Niyanta is thinking...</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 2px', animation: 'fadeIn 200ms ease' }}>
+                <span style={{ color: 'var(--status-info)', fontSize: 12, animation: 'pulse 1.3s infinite', fontFamily: 'var(--font-mono)' }}>◎</span>
+                <span style={{ fontSize: 12, color: 'var(--status-info)', fontFamily: 'var(--font-mono)' }}>Niyanta is thinking…</span>
+                {liveActivity.length > 0 && (
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                    — {liveActivity[liveActivity.length - 1].label}
+                  </span>
+                )}
               </div>
             )}
             <div ref={bottomRef} />
