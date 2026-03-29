@@ -34,6 +34,26 @@
   --status-info:     #7AB8C4;
   --status-neutral:  #3A3A44;
 
+  --cc-panel-top:        rgba(20,20,30,0.94);
+  --cc-panel-bottom:     rgba(13,13,20,0.94);
+  --cc-panel-shadow:     0 12px 34px rgba(0,0,0,0.36), 0 1px 0 rgba(255,255,255,0.04) inset;
+  --cc-surface-1:        rgba(255,255,255,0.02);
+  --cc-glow-a:           rgba(122,184,196,0.10);
+  --cc-glow-b:           rgba(138,224,138,0.06);
+  --cc-action-primary-bg: rgba(255,255,255,0.07);
+
+  --cc-ok-bg:            rgba(138,224,138,0.10);
+  --cc-ok-border:        rgba(138,224,138,0.32);
+  --cc-warn-bg:          rgba(212,168,77,0.12);
+  --cc-warn-border:      rgba(212,168,77,0.36);
+  --cc-danger-bg:        rgba(212,90,90,0.12);
+  --cc-danger-border:    rgba(212,90,90,0.36);
+  --cc-info-bg:          rgba(122,184,196,0.10);
+  --cc-info-border:      rgba(122,184,196,0.34);
+
+  --cc-progress-start:   rgba(122,184,196,0.92);
+  --cc-progress-end:     rgba(138,224,138,0.92);
+
   --text-primary:    #E8E8EE;
   --text-secondary:  #6E6E80;
   --text-muted:      #3A3A4A;
@@ -90,6 +110,26 @@
   --status-danger:   #B83030;
   --status-info:     #2E7D8C;
   --status-neutral:  #D0D0D8;
+
+  --cc-panel-top:        rgba(255,255,255,0.94);
+  --cc-panel-bottom:     rgba(245,246,250,0.94);
+  --cc-panel-shadow:     0 8px 28px rgba(10,18,32,0.10), 0 1px 0 rgba(255,255,255,0.70) inset;
+  --cc-surface-1:        rgba(26,26,46,0.03);
+  --cc-glow-a:           rgba(46,125,140,0.10);
+  --cc-glow-b:           rgba(45,138,78,0.08);
+  --cc-action-primary-bg: rgba(26,26,46,0.08);
+
+  --cc-ok-bg:            rgba(45,138,78,0.10);
+  --cc-ok-border:        rgba(45,138,78,0.32);
+  --cc-warn-bg:          rgba(184,134,11,0.12);
+  --cc-warn-border:      rgba(184,134,11,0.34);
+  --cc-danger-bg:        rgba(184,48,48,0.10);
+  --cc-danger-border:    rgba(184,48,48,0.32);
+  --cc-info-bg:          rgba(46,125,140,0.10);
+  --cc-info-border:      rgba(46,125,140,0.34);
+
+  --cc-progress-start:   rgba(46,125,140,0.88);
+  --cc-progress-end:     rgba(45,138,78,0.88);
 
   --text-primary:    #1A1A2E;
   --text-secondary:  #5E5E72;

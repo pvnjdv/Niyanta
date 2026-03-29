@@ -171,10 +171,10 @@ const CommandCenter: React.FC<CommandCenterProps> = ({
 
   const headerBadge = (label: string, tone: 'ok' | 'warn' | 'danger' | 'info') => {
     const toneStyles: Record<string, React.CSSProperties> = {
-      ok: { color: 'var(--status-success)', borderColor: 'rgba(138,224,138,0.25)', background: 'rgba(138,224,138,0.08)' },
-      warn: { color: 'var(--status-warning)', borderColor: 'rgba(212,168,77,0.25)', background: 'rgba(212,168,77,0.08)' },
-      danger: { color: 'var(--status-danger)', borderColor: 'rgba(212,90,90,0.25)', background: 'rgba(212,90,90,0.08)' },
-      info: { color: 'var(--status-info)', borderColor: 'rgba(122,184,196,0.25)', background: 'rgba(122,184,196,0.08)' },
+      ok: { color: 'var(--status-success)', borderColor: 'var(--cc-ok-border)', background: 'var(--cc-ok-bg)' },
+      warn: { color: 'var(--status-warning)', borderColor: 'var(--cc-warn-border)', background: 'var(--cc-warn-bg)' },
+      danger: { color: 'var(--status-danger)', borderColor: 'var(--cc-danger-border)', background: 'var(--cc-danger-bg)' },
+      info: { color: 'var(--status-info)', borderColor: 'var(--cc-info-border)', background: 'var(--cc-info-bg)' },
     };
     return (
       <span style={{
@@ -197,10 +197,10 @@ const CommandCenter: React.FC<CommandCenterProps> = ({
   };
 
   const panelStyle: React.CSSProperties = {
-    background: 'linear-gradient(160deg, rgba(18,18,26,0.92), rgba(14,14,20,0.92))',
+    background: 'linear-gradient(160deg, var(--cc-panel-top), var(--cc-panel-bottom))',
     border: '1px solid var(--border)',
-    borderRadius: 10,
-    boxShadow: 'var(--shadow-card)',
+    borderRadius: 12,
+    boxShadow: 'var(--cc-panel-shadow)',
     padding: 14,
     minWidth: 0,
   };
@@ -235,7 +235,12 @@ const CommandCenter: React.FC<CommandCenterProps> = ({
       };
 
   return (
-    <div style={{ height: '100%', overflow: 'auto', padding: isCompact ? 14 : 20 }}>
+    <div style={{
+      height: '100%',
+      overflow: 'auto',
+      padding: isCompact ? 14 : 20,
+      background: 'radial-gradient(circle at 15% 0%, var(--cc-glow-a), transparent 40%), radial-gradient(circle at 85% 0%, var(--cc-glow-b), transparent 35%)',
+    }}>
       {sectionHeader(
         'Command Centre',
         headerBadge(activeAgents > 0 ? 'System Online' : 'Standby', activeAgents > 0 ? 'ok' : 'info')
@@ -282,9 +287,9 @@ const CommandCenter: React.FC<CommandCenterProps> = ({
                   : 'var(--text-muted)';
               return (
                 <div key={stage.name + idx} style={{
-                  border: `1px solid ${stage.state === 'running' ? 'rgba(122,184,196,0.45)' : 'var(--border)'}`,
+                  border: `1px solid ${stage.state === 'running' ? 'var(--cc-info-border)' : 'var(--border)'}`,
                   borderRadius: 8,
-                  background: 'var(--bg-tile)',
+                  background: 'var(--cc-surface-1)',
                   padding: '10px 8px',
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
@@ -312,7 +317,7 @@ const CommandCenter: React.FC<CommandCenterProps> = ({
             <div style={{
               width: `${progressPct}%`,
               height: '100%',
-              background: 'linear-gradient(90deg, rgba(122,184,196,0.85), rgba(138,224,138,0.85))',
+              background: 'linear-gradient(90deg, var(--cc-progress-start), var(--cc-progress-end))',
               transition: 'width 240ms ease',
             }} />
           </div>
@@ -355,7 +360,7 @@ const CommandCenter: React.FC<CommandCenterProps> = ({
                 height: 34,
                 borderRadius: 6,
                 border: '1px solid var(--accent-border)',
-                background: 'var(--accent-dim)',
+                background: 'var(--cc-action-primary-bg)',
                 color: 'var(--text-primary)',
                 fontFamily: 'var(--font-mono)',
                 fontSize: 11,
@@ -365,8 +370,8 @@ const CommandCenter: React.FC<CommandCenterProps> = ({
               Run All Agents
             </button>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-              <button style={{ height: 32, borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-input)', color: 'var(--text-secondary)', fontSize: 11 }}>Retry Failed</button>
-              <button style={{ height: 32, borderRadius: 6, border: '1px solid var(--border-danger)', background: 'rgba(212,90,90,0.08)', color: 'var(--status-danger)', fontSize: 11 }}>Cancel</button>
+              <button style={{ height: 32, borderRadius: 6, border: '1px solid var(--border)', background: 'var(--cc-surface-1)', color: 'var(--text-secondary)', fontSize: 11 }}>Retry Failed</button>
+              <button style={{ height: 32, borderRadius: 6, border: '1px solid var(--cc-danger-border)', background: 'var(--cc-danger-bg)', color: 'var(--status-danger)', fontSize: 11 }}>Cancel</button>
             </div>
           </div>
         </section>
@@ -415,8 +420,8 @@ const CommandCenter: React.FC<CommandCenterProps> = ({
             {headerBadge(`${pendingApprovals || 1} Pending`, pendingApprovals > 0 ? 'warn' : 'info')}
           </div>
           <div style={{
-            border: '1px solid var(--border-warning)',
-            background: 'rgba(212,168,77,0.08)',
+            border: '1px solid var(--cc-warn-border)',
+            background: 'var(--cc-warn-bg)',
             borderRadius: 8,
             padding: 12,
             marginBottom: 10,
@@ -428,8 +433,8 @@ const CommandCenter: React.FC<CommandCenterProps> = ({
             <div style={{ fontSize: 12, color: 'var(--status-warning)' }}>Reason: Exceeds auto-approval threshold</div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            <button onClick={() => navigate('/audit')} style={{ height: 32, borderRadius: 6, border: '1px solid rgba(138,224,138,0.35)', background: 'rgba(138,224,138,0.12)', color: 'var(--status-success)', fontSize: 12 }}>Approve</button>
-            <button onClick={() => navigate('/audit')} style={{ height: 32, borderRadius: 6, border: '1px solid rgba(212,90,90,0.35)', background: 'rgba(212,90,90,0.12)', color: 'var(--status-danger)', fontSize: 12 }}>Reject</button>
+            <button onClick={() => navigate('/audit')} style={{ height: 32, borderRadius: 6, border: '1px solid var(--cc-ok-border)', background: 'var(--cc-ok-bg)', color: 'var(--status-success)', fontSize: 12 }}>Approve</button>
+            <button onClick={() => navigate('/audit')} style={{ height: 32, borderRadius: 6, border: '1px solid var(--cc-danger-border)', background: 'var(--cc-danger-bg)', color: 'var(--status-danger)', fontSize: 12 }}>Reject</button>
           </div>
         </section>
 
