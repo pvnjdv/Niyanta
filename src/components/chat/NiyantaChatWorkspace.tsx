@@ -7,6 +7,7 @@ import {
   NiyantaActivityItem,
   NiyantaReportCard,
 } from '../../types/message';
+import { Agent, AgentState } from '../../types/agent';
 
 interface NiyantaChatWorkspaceProps {
   variant: 'regular' | 'command';
@@ -26,6 +27,10 @@ interface NiyantaChatWorkspaceProps {
     auditCount: number;
     decisionCount: number;
   };
+  agents?: Agent[];
+  agentStates?: Record<string, AgentState>;
+  workflows?: Array<{ id?: string; name?: string; status?: string; category?: string; updated_at?: string }>;
+  metrics?: Record<string, unknown>;
 }
 
 const toneStyles: Record<string, React.CSSProperties> = {
@@ -53,10 +58,15 @@ const NiyantaChatWorkspace: React.FC<NiyantaChatWorkspaceProps> = ({
   onRestoreHistory,
   onDeleteHistory,
   systemSnapshot,
+  agents = [],
+  agentStates = {},
+  workflows = [],
+  metrics = {},
 }) => {
   const [input, setInput] = useState('');
   const [uploadedFiles, setUploadedFiles] = useState<ExtractedFileAttachment[]>([]);
   const [isExtractingFiles, setIsExtractingFiles] = useState(false);
+  const [activeCommandTab, setActiveCommandTab] = useState<'analysis' | 'control' | 'reports'>('analysis');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -65,12 +75,46 @@ const NiyantaChatWorkspace: React.FC<NiyantaChatWorkspaceProps> = ({
     [messages]
   );
 
+  const m = metrics as Record<string, unknown>;
+  const toNum = (v: unknown, fallback = 0) => { const n = Number(v); return Number.isFinite(n) ? n : fallback; };
+  const failedToday = toNum(m.failedToday, 0);
+  const criticalAlerts = toNum(m.criticalAlerts, 0);
+  const pendingApprovals = toNum(m.pendingApprovals, 0);
+  const totalRuns = toNum(m.totalWorkflowsRun ?? m.totalRuns, workflows.length);
+  const avgMs = toNum(m.avgProcessingTimeMs, 1200);
+
+  const agentList = useMemo(() => agents.slice(0, 10).map(a => ({
+    name: a.name,
+    id: a.id,
+    status: agentStates[a.id]?.status || 'idle',
+    hasResult: !!agentStates[a.id]?.result,
+  })), [agents, agentStates]);
+
+  const activeWorkflows = useMemo(() => workflows.filter(w => w.status === 'active').slice(0, 6), [workflows]);
+
+  const commandPromptGroups = {
+    analysis: [
+      'Summarize overall system health, active agents, and any critical signals.',
+      'Which workflows have the highest failure rate and what causes them?',
+      'Compare agent performance over the last 24 hours and flag anomalies.',
+      'What are the top 3 risks in the current operation pipeline?',
+    ],
+    control: [
+      'List all pending approvals with amounts, owners, and priority.',
+      'Which agents are blocked or in error state right now?',
+      'Show workflows that need immediate operator intervention.',
+      'What actions can I take to resolve the current bottlenecks?',
+    ],
+    reports: [
+      'Generate a full audit summary for the current period.',
+      'Create a decision log report grouped by agent and outcome.',
+      'Summarize uploaded file contents and flag compliance issues.',
+      'Produce an executive briefing on system performance and decisions.',
+    ],
+  };
+
   const quickPrompts = variant === 'command'
-    ? [
-        'Show the controlled path from input to workflow execution and audit logging.',
-        'Summarize current risks, blocked approvals, and the next operator actions.',
-        'Compare active agents, recent decisions, and the strongest failure signals.',
-      ]
+    ? commandPromptGroups[activeCommandTab]
     : [
         'Summarize the latest workflow and audit state.',
         'What changed across agents in the last few runs?',
@@ -87,7 +131,7 @@ const NiyantaChatWorkspace: React.FC<NiyantaChatWorkspaceProps> = ({
     },
     {
       id: 'fallback-workflows',
-      title: 'Workflow Studio',
+      title: 'Workflows',
       value: String(systemSnapshot.workflowCount),
       detail: 'Published and draft workflows available for orchestration.',
       tone: systemSnapshot.workflowCount > 0 ? 'info' : 'warning',
@@ -101,7 +145,7 @@ const NiyantaChatWorkspace: React.FC<NiyantaChatWorkspaceProps> = ({
     },
     {
       id: 'fallback-decisions',
-      title: 'Decisions Logged',
+      title: 'Decisions',
       value: String(systemSnapshot.decisionCount),
       detail: 'Decision output available for operator review.',
       tone: systemSnapshot.decisionCount > 0 ? 'success' : 'info',
@@ -292,74 +336,123 @@ const NiyantaChatWorkspace: React.FC<NiyantaChatWorkspaceProps> = ({
   };
 
   const gridColumns = variant === 'command'
-    ? '260px minmax(0, 1fr) 320px'
-    : 'minmax(0, 1fr) 320px';
+    ? '280px minmax(0, 1fr) 300px'
+    : 'minmax(0, 1fr) 300px';
+
+  const tabStyle = (active: boolean): React.CSSProperties => ({
+    height: 28,
+    padding: '0 12px',
+    borderRadius: 6,
+    border: active ? '1px solid var(--cc-info-border)' : '1px solid transparent',
+    background: active ? 'var(--cc-info-bg)' : 'transparent',
+    color: active ? 'var(--status-info)' : 'var(--text-muted)',
+    fontFamily: 'var(--font-mono)',
+    fontSize: 10,
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.07em',
+    cursor: 'pointer',
+  });
 
   return (
     <div style={{
       height: '100%',
       display: 'flex',
       flexDirection: 'column',
-      gap: 14,
+      gap: 12,
       padding: variant === 'command' ? 20 : 16,
       background: 'radial-gradient(circle at 12% 0%, rgba(6,182,212,0.12), transparent 30%), radial-gradient(circle at 88% 0%, rgba(124,58,237,0.12), transparent 34%), var(--bg-base)',
     }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', flexShrink: 0 }}>
         <div>
-          <div style={{ fontFamily: 'var(--font-display)', fontSize: variant === 'command' ? 34 : 28, fontWeight: 700, letterSpacing: '0.02em', color: 'var(--text-primary)' }}>
+          <div style={{ fontFamily: 'var(--font-display)', fontSize: variant === 'command' ? 30 : 26, fontWeight: 700, letterSpacing: '0.02em', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ color: 'var(--status-info)', fontSize: variant === 'command' ? 26 : 22 }}>◎</span>
             {title}
+            {variant === 'command' && (
+              <span style={{ height: 22, display: 'inline-flex', alignItems: 'center', padding: '0 10px', borderRadius: 999, border: '1px solid var(--cc-ok-border)', background: 'var(--cc-ok-bg)', fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--status-success)', fontWeight: 700 }}>
+                {systemSnapshot.activeAgents > 0 ? 'Online' : 'Standby'}
+              </span>
+            )}
           </div>
-          <div style={{ marginTop: 6, color: 'var(--text-secondary)', fontSize: 13 }}>{subtitle}</div>
+          <div style={{ marginTop: 4, color: 'var(--text-secondary)', fontSize: 12 }}>{subtitle}</div>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          {variant === 'command' && (
+            <>
+              {criticalAlerts > 0 && (
+                <span style={{ height: 24, display: 'inline-flex', alignItems: 'center', padding: '0 10px', borderRadius: 999, border: '1px solid var(--cc-danger-border)', background: 'var(--cc-danger-bg)', fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--status-danger)', fontWeight: 700 }}>
+                  {criticalAlerts} Alert{criticalAlerts > 1 ? 's' : ''}
+                </span>
+              )}
+              {pendingApprovals > 0 && (
+                <span style={{ height: 24, display: 'inline-flex', alignItems: 'center', padding: '0 10px', borderRadius: 999, border: '1px solid var(--cc-warn-border)', background: 'var(--cc-warn-bg)', fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--status-warning)', fontWeight: 700 }}>
+                  {pendingApprovals} Approval{pendingApprovals > 1 ? 's' : ''}
+                </span>
+              )}
+              <span style={{ height: 24, display: 'inline-flex', alignItems: 'center', padding: '0 10px', borderRadius: 999, border: '1px solid var(--border)', fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
+                {totalRuns} runs · {(avgMs / 1000).toFixed(1)}s avg
+              </span>
+            </>
+          )}
           {headerBadge(`${historySessions.length} Sessions`, 'info')}
-          {headerBadge(`${systemSnapshot.activeAgents} Agents`, systemSnapshot.activeAgents > 0 ? 'success' : 'warning')}
-          <button
-            onClick={onNewChat}
-            style={{
-              height: 34,
-              padding: '0 14px',
-              borderRadius: 10,
-              border: '1px solid var(--border)',
-              background: 'var(--cc-surface-1)',
-              color: 'var(--text-primary)',
-              fontSize: 12,
-              fontFamily: 'var(--font-mono)',
-              cursor: 'pointer',
-            }}
-          >
-            New Chat
+          <button onClick={onNewChat} style={{ height: 32, padding: '0 14px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--cc-surface-1)', color: 'var(--text-primary)', fontSize: 12, fontFamily: 'var(--font-mono)', cursor: 'pointer' }}>
+            + New Chat
           </button>
         </div>
       </div>
 
-      <div style={{
-        flex: 1,
-        minHeight: 0,
-        display: 'grid',
-        gridTemplateColumns: gridColumns,
-        gap: 14,
-      }}>
+      <div style={{ flex: 1, minHeight: 0, display: 'grid', gridTemplateColumns: gridColumns, gap: 12 }}>
+
+        {/* LEFT RAIL — command only */}
         {variant === 'command' && (
-          <aside style={{ ...railCardStyle, display: 'grid', gridTemplateRows: 'auto auto 1fr', gap: 14, overflow: 'hidden' }}>
+          <aside style={{ ...railCardStyle, display: 'flex', flexDirection: 'column', gap: 12, overflow: 'hidden' }}>
+
+            {/* System Stats */}
             <div>
-              <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>Quick Commands</div>
-              <div style={{ display: 'grid', gap: 8 }}>
+              <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>System</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                {[
+                  { label: 'Agents', value: systemSnapshot.activeAgents, tone: systemSnapshot.activeAgents > 0 ? 'var(--status-success)' : 'var(--text-muted)' },
+                  { label: 'Workflows', value: systemSnapshot.workflowCount, tone: 'var(--status-info)' },
+                  { label: 'Errors', value: failedToday, tone: failedToday > 0 ? 'var(--status-danger)' : 'var(--text-muted)' },
+                  { label: 'Decisions', value: systemSnapshot.decisionCount, tone: 'var(--status-info)' },
+                ].map(stat => (
+                  <div key={stat.label} style={{ border: '1px solid var(--border)', borderRadius: 8, padding: '8px 10px', background: 'var(--bg-input)' }}>
+                    <div style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{stat.label}</div>
+                    <div style={{ fontSize: 20, fontWeight: 700, color: stat.tone, lineHeight: 1.2, marginTop: 2 }}>{stat.value}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Quick Prompts with tabs */}
+            <div>
+              <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
+                {(['analysis', 'control', 'reports'] as const).map(tab => (
+                  <button key={tab} onClick={() => setActiveCommandTab(tab)} style={tabStyle(activeCommandTab === tab)}>
+                    {tab}
+                  </button>
+                ))}
+              </div>
+              <div style={{ display: 'grid', gap: 6 }}>
                 {quickPrompts.map((prompt) => (
                   <button
                     key={prompt}
                     onClick={() => handleSend(prompt)}
                     style={{
                       textAlign: 'left',
-                      padding: '10px 12px',
-                      borderRadius: 10,
+                      padding: '9px 11px',
+                      borderRadius: 8,
                       border: '1px solid var(--border)',
                       background: 'var(--cc-surface-1)',
                       color: 'var(--text-secondary)',
-                      fontSize: 12,
+                      fontSize: 11,
                       lineHeight: 1.5,
                       cursor: 'pointer',
+                      transition: 'background 120ms',
                     }}
+                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-tile-hover)')}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'var(--cc-surface-1)')}
                   >
                     {prompt}
                   </button>
@@ -367,134 +460,107 @@ const NiyantaChatWorkspace: React.FC<NiyantaChatWorkspaceProps> = ({
               </div>
             </div>
 
-            <div>
-              <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>Live Tape</div>
-              {displayedActivity.length > 0 ? renderActivityStack(displayedActivity.slice(0, 3)) : (
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>
-                  The command tape will populate as soon as Niyanta starts processing.
+            {/* Agent Status */}
+            {agentList.length > 0 && (
+              <div>
+                <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Agent Status</div>
+                <div style={{ display: 'grid', gap: 5 }}>
+                  {agentList.map(a => {
+                    const dotColor = a.status === 'processing'
+                      ? 'var(--status-info)'
+                      : a.status === 'complete'
+                        ? 'var(--status-success)'
+                        : a.status === 'error'
+                          ? 'var(--status-danger)'
+                          : 'var(--text-muted)';
+                    return (
+                      <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 8, height: 28, padding: '0 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-input)' }}>
+                        <span style={{ width: 7, height: 7, borderRadius: 999, background: dotColor, flexShrink: 0, boxShadow: a.status === 'processing' ? `0 0 6px ${dotColor}` : 'none' }} />
+                        <span style={{ fontSize: 11, color: 'var(--text-secondary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</span>
+                        <span style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: dotColor, textTransform: 'uppercase' }}>{a.status}</span>
+                      </div>
+                    );
+                  })}
                 </div>
-              )}
-            </div>
+              </div>
+            )}
 
-            <div style={{ minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-              <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>Recent Sessions</div>
-              <div style={{ flex: 1, overflowY: 'auto', display: 'grid', gap: 8, paddingRight: 4 }}>
-                {historySessions.length === 0 ? (
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>No saved sessions yet.</div>
-                ) : historySessions.slice(0, 10).map((session) => (
-                  <div key={session.id} style={{ border: '1px solid var(--border)', borderRadius: 10, padding: 10, background: 'var(--cc-surface-1)' }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>{session.title}</div>
-                    <div style={{ marginTop: 4, fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
-                      {new Date(session.timestamp).toLocaleString()} · {session.messages.length} msgs
-                    </div>
-                    <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                      <button
-                        onClick={() => onRestoreHistory(session.id)}
-                        style={{ flex: 1, height: 30, borderRadius: 8, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-secondary)', fontSize: 11, cursor: 'pointer' }}
-                      >
-                        Restore
-                      </button>
-                      <button
-                        onClick={() => onDeleteHistory(session.id)}
-                        style={{ flex: 1, height: 30, borderRadius: 8, border: '1px solid var(--cc-danger-border)', background: 'var(--cc-danger-bg)', color: 'var(--status-danger)', fontSize: 11, cursor: 'pointer' }}
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  </div>
-                ))}
+            {/* Live Tape */}
+            <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+              <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Live Tape</div>
+              <div style={{ flex: 1, overflowY: 'auto', paddingRight: 2 }}>
+                {displayedActivity.length > 0 ? renderActivityStack(displayedActivity.slice(0, 5)) : (
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.6 }}>Tape populates as Niyanta processes operations.</div>
+                )}
               </div>
             </div>
           </aside>
         )}
 
-        <section style={{
-          ...railCardStyle,
-          display: 'grid',
-          gridTemplateRows: '1fr auto auto',
-          minHeight: 0,
-          overflow: 'hidden',
-        }}>
-          <div style={{ overflowY: 'auto', paddingRight: 4, display: 'grid', gap: 14 }}>
+        {/* CENTER — Chat */}
+        <section style={{ ...railCardStyle, display: 'grid', gridTemplateRows: '1fr auto', minHeight: 0, overflow: 'hidden' }}>
+          <div style={{ overflowY: 'auto', paddingRight: 4, display: 'grid', gap: 14, alignContent: 'start' }}>
             {messages.length === 0 ? (
-              <div style={{
-                minHeight: variant === 'command' ? 420 : 300,
-                display: 'grid',
-                placeItems: 'center',
-                textAlign: 'center',
-                color: 'var(--text-secondary)',
-                padding: 24,
-              }}>
-                <div style={{ maxWidth: 520 }}>
-                  <div style={{ fontSize: 42, marginBottom: 14 }}>◎</div>
-                  <div style={{ fontFamily: 'var(--font-display)', fontSize: 24, color: 'var(--text-primary)', marginBottom: 8 }}>
-                    {variant === 'command' ? 'Main Niyanta Command Workspace' : 'Niyanta AI Console'}
+              <div style={{ minHeight: 340, display: 'grid', placeItems: 'center', textAlign: 'center', color: 'var(--text-secondary)', padding: 24 }}>
+                <div style={{ maxWidth: 500 }}>
+                  <div style={{ fontSize: 48, marginBottom: 16, opacity: 0.5 }}>◎</div>
+                  <div style={{ fontFamily: 'var(--font-display)', fontSize: 22, color: 'var(--text-primary)', marginBottom: 10 }}>
+                    {variant === 'command' ? 'Niyanta Command Intelligence' : 'Niyanta AI Console'}
                   </div>
-                  <div style={{ fontSize: 14, lineHeight: 1.7 }}>
-                    Ask for operational control, upload PDFs or spreadsheets, inspect reports, and keep the full control plane visible while Niyanta responds.
-                  </div>
+                  {variant === 'command' ? (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 16, textAlign: 'left' }}>
+                      {[
+                        { icon: '◈', label: 'Agent Ops', text: 'Run, inspect, and control all AI agents from one place' },
+                        { icon: '⇢', label: 'Workflow Control', text: 'Monitor and trigger workflows with full audit trail' },
+                        { icon: '⊘', label: 'Compliance', text: 'Query audit events and decision logs instantly' },
+                        { icon: '⤴', label: 'File Analysis', text: 'Upload PDFs or spreadsheets for AI-powered extraction' },
+                      ].map(cap => (
+                        <div key={cap.label} style={{ border: '1px solid var(--border)', borderRadius: 10, padding: 12, background: 'var(--cc-surface-1)' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                            <span style={{ color: 'var(--status-info)', fontSize: 14 }}>{cap.icon}</span>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-primary)' }}>{cap.label}</span>
+                          </div>
+                          <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.5 }}>{cap.text}</div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: 14, lineHeight: 1.7 }}>
+                      Ask about workflows, agents, risks, or upload files for analysis.
+                    </div>
+                  )}
                 </div>
               </div>
             ) : messages.map(renderMessage)}
 
             {isSending && (
-              <div style={{ display: 'flex', gap: 6, color: 'var(--text-muted)', fontSize: 12 }}>
-                <span style={{ animation: 'pulse 1.3s infinite' }}>●</span>
-                <span style={{ animation: 'pulse 1.3s infinite 0.2s' }}>●</span>
-                <span style={{ animation: 'pulse 1.3s infinite 0.4s' }}>●</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', borderRadius: 12, border: '1px solid var(--cc-info-border)', background: 'var(--cc-info-bg)', width: 'fit-content' }}>
+                <span style={{ color: 'var(--status-info)', fontSize: 12, animation: 'pulse 1.3s infinite' }}>◎</span>
+                <span style={{ fontSize: 12, color: 'var(--status-info)', fontFamily: 'var(--font-mono)' }}>Niyanta is thinking...</span>
               </div>
             )}
             <div ref={bottomRef} />
           </div>
 
-          <div style={{ paddingTop: 12, borderTop: '1px solid var(--border-subtle)', display: 'grid', gap: 10 }}>
-            <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
-              {(displayedActivity.length > 0 ? displayedActivity : [{ id: 'idle', label: 'Standby', detail: 'Niyanta is ready for the next command.', tone: 'info', timestamp: new Date().toISOString() }]).map((item) => (
-                <div key={item.id + item.timestamp} style={{
-                  minWidth: 190,
-                  padding: '10px 12px',
-                  borderRadius: 12,
-                  border: '1px solid',
-                  background: toneStyles[item.tone]?.background,
-                  borderColor: toneStyles[item.tone]?.borderColor,
-                }}>
-                  <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: toneStyles[item.tone]?.color, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>
-                    {item.label}
-                  </div>
-                  <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.5 }}>{item.detail}</div>
-                </div>
-              ))}
-            </div>
-
+          {/* Input Area */}
+          <div style={{ paddingTop: 12, borderTop: '1px solid var(--border)', display: 'grid', gap: 8 }}>
             {uploadedFiles.length > 0 && (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                 {uploadedFiles.map(renderAttachmentChip)}
               </div>
             )}
-
-            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                onChange={handleFileChange}
-                style={{ display: 'none' }}
-              />
+            <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+              <input ref={fileInputRef} type="file" multiple onChange={handleFileChange} style={{ display: 'none' }} />
               <button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isExtractingFiles}
                 style={{
-                  width: 42,
-                  height: 42,
-                  borderRadius: 12,
-                  border: '1px solid var(--border)',
+                  width: 40, height: 40, borderRadius: 10, border: '1px solid var(--border)',
                   background: isExtractingFiles ? 'var(--cc-info-bg)' : 'var(--cc-surface-1)',
                   color: isExtractingFiles ? 'var(--status-info)' : uploadedFiles.length > 0 ? 'var(--status-success)' : 'var(--text-secondary)',
-                  cursor: 'pointer',
-                  fontSize: 18,
-                  flexShrink: 0,
+                  cursor: 'pointer', fontSize: 16, flexShrink: 0,
                 }}
-                title="Attach files"
+                title="Attach files (PDF, Excel, etc.)"
               >
                 {isExtractingFiles ? '…' : '⤴'}
               </button>
@@ -502,102 +568,100 @@ const NiyantaChatWorkspace: React.FC<NiyantaChatWorkspaceProps> = ({
                 value={input}
                 onChange={(event) => setInput(event.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Ask Niyanta to inspect agents, workflows, risks, reports, or uploaded files..."
+                placeholder={variant === 'command'
+                  ? 'Ask Niyanta to run agents, inspect risks, analyse files, or generate reports...'
+                  : 'Ask Niyanta about workflows, agents, or upload a file...'
+                }
                 rows={2}
                 style={{
-                  flex: 1,
-                  minHeight: 56,
-                  maxHeight: 140,
-                  padding: '12px 14px',
-                  borderRadius: 14,
-                  border: '1px solid var(--border)',
-                  background: 'var(--bg-input)',
-                  color: 'var(--text-primary)',
-                  fontSize: 13,
-                  lineHeight: 1.5,
-                  resize: 'none',
-                  outline: 'none',
+                  flex: 1, minHeight: 52, maxHeight: 140, padding: '10px 14px',
+                  borderRadius: 12, border: '1px solid var(--border)',
+                  background: 'var(--bg-input)', color: 'var(--text-primary)',
+                  fontSize: 13, lineHeight: 1.5, resize: 'none', outline: 'none',
+                  fontFamily: 'var(--font-body)',
                 }}
               />
               <button
                 onClick={() => handleSend()}
                 disabled={isSending || (!input.trim() && uploadedFiles.length === 0)}
                 style={{
-                  minWidth: 126,
-                  height: 42,
-                  borderRadius: 12,
+                  minWidth: 110, height: 40, borderRadius: 10,
                   border: '1px solid var(--cc-info-border)',
-                  background: input.trim() || uploadedFiles.length > 0 ? 'var(--cc-info-bg)' : 'var(--cc-surface-1)',
+                  background: input.trim() || uploadedFiles.length > 0 ? 'linear-gradient(135deg, rgba(6,182,212,0.25), rgba(59,130,246,0.2))' : 'var(--cc-surface-1)',
                   color: input.trim() || uploadedFiles.length > 0 ? 'var(--status-info)' : 'var(--text-muted)',
                   cursor: input.trim() || uploadedFiles.length > 0 ? 'pointer' : 'not-allowed',
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: 11,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.08em',
-                  flexShrink: 0,
+                  fontFamily: 'var(--font-mono)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.08em', flexShrink: 0,
                 }}
               >
-                {isSending ? 'Sending' : 'Send to Niyanta'}
+                {isSending ? 'Sending…' : 'Send'}
               </button>
             </div>
           </div>
         </section>
 
-        <aside style={{ ...railCardStyle, display: 'grid', gridTemplateRows: 'auto auto 1fr', gap: 14, overflow: 'hidden' }}>
+        {/* RIGHT RAIL */}
+        <aside style={{ ...railCardStyle, display: 'flex', flexDirection: 'column', gap: 14, overflow: 'hidden' }}>
+
+          {/* Control Snapshot */}
           <div>
-            <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>Control Snapshot</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Control Snapshot</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
               {fallbackReports.map((report) => (
-                <div key={report.id} style={{ border: '1px solid var(--border)', borderRadius: 12, padding: 12, background: 'var(--cc-surface-1)' }}>
-                  <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{report.title}</div>
-                  <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-primary)', marginTop: 6 }}>{report.value}</div>
-                  <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.5, marginTop: 6 }}>{report.detail}</div>
+                <div key={report.id} style={{ border: '1px solid var(--border)', borderRadius: 10, padding: 10, background: 'var(--cc-surface-1)' }}>
+                  <div style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{report.title}</div>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', marginTop: 4 }}>{report.value}</div>
                 </div>
               ))}
             </div>
           </div>
 
+          {/* Active Workflows */}
+          {variant === 'command' && activeWorkflows.length > 0 && (
+            <div>
+              <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Active Workflows</div>
+              <div style={{ display: 'grid', gap: 5 }}>
+                {activeWorkflows.map((wf, i) => (
+                  <div key={wf.id || i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', borderRadius: 8, border: '1px solid var(--cc-ok-border)', background: 'var(--cc-ok-bg)' }}>
+                    <span style={{ width: 6, height: 6, borderRadius: 999, background: 'var(--status-success)', flexShrink: 0 }} />
+                    <span style={{ fontSize: 11, color: 'var(--text-primary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{wf.name || 'Untitled'}</span>
+                    <span style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', textTransform: 'uppercase' }}>{wf.category || 'ops'}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Latest AI Briefing */}
           <div>
-            <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>Latest Briefing</div>
-            <div style={{ display: 'grid', gap: 10 }}>
+            <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Latest Briefing</div>
+            <div style={{ display: 'grid', gap: 8 }}>
               {displayedReports.map((report) => (
-                <div key={report.id} style={{
-                  border: '1px solid',
-                  borderColor: toneStyles[report.tone]?.borderColor,
-                  background: toneStyles[report.tone]?.background,
-                  borderRadius: 12,
-                  padding: 12,
-                }}>
-                  <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: toneStyles[report.tone]?.color, textTransform: 'uppercase', letterSpacing: '0.07em' }}>{report.title}</div>
-                  <div style={{ marginTop: 6, fontSize: 24, fontWeight: 700, color: 'var(--text-primary)' }}>{report.value}</div>
-                  <div style={{ marginTop: 6, fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>{report.detail}</div>
+                <div key={report.id} style={{ border: '1px solid', borderColor: toneStyles[report.tone]?.borderColor, background: toneStyles[report.tone]?.background, borderRadius: 10, padding: '10px 12px' }}>
+                  <div style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: toneStyles[report.tone]?.color, textTransform: 'uppercase', letterSpacing: '0.07em' }}>{report.title}</div>
+                  <div style={{ marginTop: 4, fontSize: 20, fontWeight: 700, color: 'var(--text-primary)' }}>{report.value}</div>
+                  <div style={{ marginTop: 4, fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.5 }}>{report.detail}</div>
                 </div>
               ))}
             </div>
           </div>
 
-          <div style={{ minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-            <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>Session Archive</div>
-            <div style={{ flex: 1, overflowY: 'auto', display: 'grid', gap: 8, paddingRight: 4 }}>
+          {/* Session Archive */}
+          <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+            <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Session Archive</div>
+            <div style={{ flex: 1, overflowY: 'auto', display: 'grid', gap: 7, paddingRight: 4, alignContent: 'start' }}>
               {historySessions.length === 0 ? (
                 <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>No archived sessions yet.</div>
-              ) : historySessions.slice(0, 8).map((session) => (
-                <div key={session.id} style={{ border: '1px solid var(--border)', borderRadius: 10, padding: 10, background: 'var(--cc-surface-1)' }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>{session.title}</div>
-                  <div style={{ marginTop: 4, fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
+              ) : historySessions.slice(0, 10).map((session) => (
+                <div key={session.id} style={{ border: '1px solid var(--border)', borderRadius: 10, padding: '8px 10px', background: 'var(--cc-surface-1)' }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{session.title}</div>
+                  <div style={{ marginTop: 3, fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
                     {new Date(session.timestamp).toLocaleDateString()} · {session.messages.length} msgs
                   </div>
-                  <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                    <button
-                      onClick={() => onRestoreHistory(session.id)}
-                      style={{ flex: 1, height: 28, borderRadius: 8, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-secondary)', fontSize: 11, cursor: 'pointer' }}
-                    >
+                  <div style={{ display: 'flex', gap: 6, marginTop: 7 }}>
+                    <button onClick={() => onRestoreHistory(session.id)} style={{ flex: 1, height: 26, borderRadius: 6, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-secondary)', fontSize: 11, cursor: 'pointer' }}>
                       Restore
                     </button>
-                    <button
-                      onClick={() => onDeleteHistory(session.id)}
-                      style={{ flex: 1, height: 28, borderRadius: 8, border: '1px solid var(--cc-danger-border)', background: 'var(--cc-danger-bg)', color: 'var(--status-danger)', fontSize: 11, cursor: 'pointer' }}
-                    >
+                    <button onClick={() => onDeleteHistory(session.id)} style={{ flex: 1, height: 26, borderRadius: 6, border: '1px solid var(--cc-danger-border)', background: 'var(--cc-danger-bg)', color: 'var(--status-danger)', fontSize: 11, cursor: 'pointer' }}>
                       Delete
                     </button>
                   </div>

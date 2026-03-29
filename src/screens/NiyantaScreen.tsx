@@ -2,6 +2,7 @@ import React from 'react';
 import { NiyantaChatSession } from '../hooks/useNiyantaChat';
 import NiyantaChatWorkspace from '../components/chat/NiyantaChatWorkspace';
 import { ChatMessage, ExtractedFileAttachment, NiyantaActivityItem } from '../types/message';
+import { Agent, AgentState } from '../types/agent';
 
 interface NiyantaScreenProps {
   variant: 'regular' | 'command';
@@ -19,13 +20,17 @@ interface NiyantaScreenProps {
     auditCount: number;
     decisionCount: number;
   };
+  agents?: Agent[];
+  agentStates?: Record<string, AgentState>;
+  workflows?: Array<{ id?: string; name?: string; status?: string; category?: string; updated_at?: string }>;
+  metrics?: Record<string, unknown>;
 }
 
 const NiyantaScreen: React.FC<NiyantaScreenProps> = ({ variant, ...props }) => {
-  const title = variant === 'command' ? 'Niyanta Command Workspace' : 'Niyanta AI Console';
+  const title = variant === 'command' ? 'Niyanta Command' : 'Niyanta AI Console';
   const subtitle = variant === 'command'
-    ? 'Central command view with live reports, activity tape, and uploaded file analysis.'
-    : 'Dedicated routed Niyanta workspace for operational questions, reports, and control guidance.';
+    ? 'Central intelligence workspace — live agent status, workflow control, approvals, and operational AI.'
+    : 'Dedicated AI workspace for operational questions, reports, and control guidance.';
 
   return (
     <NiyantaChatWorkspace

@@ -51,7 +51,6 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
     { name: 'Command Centre', path: '/' },
     { name: 'Workflow Studio', path: '/workflows' },
     { name: 'Agent Studio', path: '/agents' },
-    { name: 'Niyanta AI', path: '/niyanta' },
     { name: 'Niyanta Command', path: '/niyanta/command' },
     { name: 'Operations', path: '/monitor' },
     { name: 'Approvals', path: '/approvals' },
@@ -91,7 +90,6 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
   };
 
   const activeId = getActiveId();
-  const niyantaRouteActive = location.pathname.startsWith('/niyanta');
   const width = collapsed ? 64 : 260;
 
   return (
@@ -352,17 +350,14 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
           flexShrink: 0,
         }}
       >
-        {/* AI Panel toggle */}
+        {/* Niyanta AI Chat - Right Side Panel */}
         {onToggleAIPanel && (
           <GradientButton
-            onClick={() => navigate('/niyanta')}
+            onClick={onToggleAIPanel}
             width={collapsed ? '36px' : '100%'}
             height="36px"
-            className="sidebar-niyanta-button"
-            style={niyantaRouteActive ? {
-              boxShadow: '0 0 0 1px var(--cc-info-border), 0 0 16px rgba(6, 182, 212, 0.18)',
-            } : undefined}
-            title="Open Niyanta AI workspace"
+            className="sidebar-niyanta-chat-button"
+            title="Open Niyanta AI Chat"
           >
             <span style={{ color: 'var(--status-info)', fontSize: 12 }}>◎</span>
             {!collapsed && <span>Niyanta AI</span>}

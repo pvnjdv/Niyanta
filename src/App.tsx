@@ -23,6 +23,7 @@ import SettingsScreen from './screens/SettingsScreen';
 import { ApprovalsScreen } from './screens/ApprovalsScreen';
 import ServicesStatus from './screens/ServicesStatus';
 import NiyantaScreen from './screens/NiyantaScreen';
+import NiyantaCommandConsole from './screens/NiyantaCommandConsole';
 import { ExtractedFileAttachment } from './types/message';
 
 const AppContent: React.FC = () => {
@@ -256,35 +257,13 @@ const AppContent: React.FC = () => {
           />
           <Route path="/monitor" element={<OperationsMonitor />} />
           <Route
-            path="/niyanta"
-            element={
-              <NiyantaScreen
-                variant="regular"
-                messages={messages}
-                isSending={isSending}
-                liveActivity={liveActivity}
-                onSend={handleSendNiyantaMessage}
-                onNewChat={startNewChat}
-                historySessions={historySessions}
-                onRestoreHistory={restoreFromHistory}
-                onDeleteHistory={deleteHistorySession}
-                systemSnapshot={niyantaSnapshot}
-              />
-            }
-          />
-          <Route
             path="/niyanta/command"
             element={
-              <NiyantaScreen
-                variant="command"
-                messages={messages}
-                isSending={isSending}
-                liveActivity={liveActivity}
-                onSend={handleSendNiyantaMessage}
-                onNewChat={startNewChat}
-                historySessions={historySessions}
-                onRestoreHistory={restoreFromHistory}
-                onDeleteHistory={deleteHistorySession}
+              <NiyantaCommandConsole
+                agents={runtimeAgents}
+                agentStates={agentStates}
+                workflows={workflows}
+                metrics={metrics}
                 systemSnapshot={niyantaSnapshot}
               />
             }
