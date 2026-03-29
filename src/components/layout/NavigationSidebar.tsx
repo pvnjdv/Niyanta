@@ -226,7 +226,7 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
                 justifyContent: collapsed ? 'center' : 'flex-start',
               }}
             >
-              <span style={{ fontSize: 16, width: 20, textAlign: 'center', flexShrink: 0 }}>
+              <span style={{ fontSize: 17, width: 22, textAlign: 'center', flexShrink: 0 }}>
                 {item.icon}
               </span>
               {!collapsed && <span>{item.label}</span>}
@@ -277,7 +277,7 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
                 position: 'relative',
               }}
             >
-              <span style={{ fontSize: 16, width: 20, textAlign: 'center', flexShrink: 0 }}>
+              <span style={{ fontSize: 17, width: 22, textAlign: 'center', flexShrink: 0 }}>
                 {item.icon}
               </span>
               {!collapsed && <span>{item.label}</span>}

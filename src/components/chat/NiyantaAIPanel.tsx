@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ChatMessage } from '../../types/message';
+import { NiyantaChatSession } from '../../hooks/useNiyantaChat';
 
 interface NiyantaAIPanelProps {
   isOpen: boolean;
@@ -7,6 +8,9 @@ interface NiyantaAIPanelProps {
   onSend: (message: string) => Promise<void>;
   isSending: boolean;
   messages: ChatMessage[];
+  onNewChat: () => void;
+  historySessions: NiyantaChatSession[];
+  onRestoreHistory: (sessionId: string) => void;
 }
 
 const NiyantaAIPanel: React.FC<NiyantaAIPanelProps> = ({
@@ -15,8 +19,14 @@ const NiyantaAIPanel: React.FC<NiyantaAIPanelProps> = ({
   onSend,
   isSending,
   messages,
+  onNewChat,
+  historySessions,
+  onRestoreHistory,
 }) => {
   const [input, setInput] = useState('');
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const quickPrompts = [
@@ -32,6 +42,16 @@ const NiyantaAIPanel: React.FC<NiyantaAIPanelProps> = ({
   useEffect(() => {
     if (isOpen) inputRef.current?.focus();
   }, [isOpen]);
+
+  useEffect(() => {
+    const onDocClick = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, []);
 
   const handleSend = async () => {
     const text = input.trim();
@@ -120,6 +140,60 @@ const NiyantaAIPanel: React.FC<NiyantaAIPanelProps> = ({
           Ctrl+K
         </span>
         <div style={{ flex: 1 }} />
+        <div ref={menuRef} style={{ position: 'relative' }}>
+          <button
+            onClick={() => setMenuOpen(v => !v)}
+            style={{
+              width: 28,
+              height: 28,
+              borderRadius: 4,
+              border: '1px solid var(--border)',
+              background: 'transparent',
+              color: 'var(--text-secondary)',
+              cursor: 'pointer',
+              display: 'grid',
+              placeItems: 'center',
+              fontSize: 15,
+            }}
+            title="Chat options"
+          >
+            ⋮
+          </button>
+          {menuOpen && (
+            <div style={{
+              position: 'absolute',
+              top: '100%',
+              right: 0,
+              marginTop: 6,
+              minWidth: 152,
+              background: 'var(--bg-panel)',
+              border: '1px solid var(--border)',
+              borderRadius: 6,
+              boxShadow: 'var(--shadow-panel)',
+              zIndex: 20,
+              overflow: 'hidden',
+            }}>
+              <button
+                onClick={() => {
+                  setMenuOpen(false);
+                  onNewChat();
+                }}
+                style={{ width: '100%', height: 34, border: 'none', background: 'transparent', color: 'var(--text-primary)', fontSize: 12, textAlign: 'left', padding: '0 12px' }}
+              >
+                New Chat
+              </button>
+              <button
+                onClick={() => {
+                  setMenuOpen(false);
+                  setShowHistory(v => !v);
+                }}
+                style={{ width: '100%', height: 34, border: 'none', borderTop: '1px solid var(--border)', background: 'transparent', color: 'var(--text-primary)', fontSize: 12, textAlign: 'left', padding: '0 12px' }}
+              >
+                Chat History
+              </button>
+            </div>
+          )}
+        </div>
         <button
           onClick={onClose}
           style={{
@@ -138,6 +212,39 @@ const NiyantaAIPanel: React.FC<NiyantaAIPanelProps> = ({
           ✕
         </button>
       </div>
+
+      {showHistory && (
+        <div style={{ borderBottom: '1px solid var(--border)', padding: 12, maxHeight: 170, overflowY: 'auto', background: 'var(--cc-surface-1)' }}>
+          <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)', marginBottom: 8 }}>
+            Recent Chats
+          </div>
+          {historySessions.length === 0 ? (
+            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>No chat history yet.</div>
+          ) : (
+            <div style={{ display: 'grid', gap: 6 }}>
+              {historySessions.map((session) => (
+                <button
+                  key={session.id}
+                  onClick={() => onRestoreHistory(session.id)}
+                  style={{
+                    border: '1px solid var(--border)',
+                    background: 'var(--bg-panel)',
+                    borderRadius: 6,
+                    padding: '8px 10px',
+                    textAlign: 'left',
+                    color: 'var(--text-primary)',
+                  }}
+                >
+                  <div style={{ fontSize: 12, fontWeight: 600 }}>{session.title}</div>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2, fontFamily: 'var(--font-mono)' }}>
+                    {new Date(session.timestamp).toLocaleString()} · {session.messages.length} msgs
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Messages */}
       <div
