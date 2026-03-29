@@ -22,7 +22,7 @@ interface NiyantaCommandConsoleProps {
 
 type RoutedAgent = { agentId: string; label: string };
 
-const STORAGE_KEY = 'niyanta-command-chat';
+const STORAGE_KEY = 'niyanta-command-chat-v2';
 
 const AGENT_KEYWORDS: Array<RoutedAgent & { keywords: string[] }> = [
   { agentId: 'document', label: 'Document Intelligence', keywords: ['document', 'pdf', 'file', 'attachment', 'extract'] },
@@ -90,6 +90,65 @@ function summarizeHistory(messages: ChatMessage[]) {
   return items.reverse().slice(0, 12);
 }
 
+function getStructuredLineTone(label: string, value: string): keyof typeof TONE_COLOR | null {
+  const normalizedLabel = label.trim().toLowerCase();
+  const normalizedValue = value.trim().toLowerCase();
+
+  if (normalizedLabel.startsWith('approval required') || normalizedLabel.startsWith('approval note') || normalizedLabel.startsWith('approval pending')) {
+    return 'danger';
+  }
+
+  if (normalizedLabel === 'decision' || normalizedLabel === 'approval action') {
+    if (normalizedValue.includes('auto-approve') || normalizedValue.includes('proceed') || normalizedValue.includes('approved')) {
+      return 'success';
+    }
+    if (normalizedValue.includes('reject')) {
+      return 'danger';
+    }
+    return 'warning';
+  }
+
+  if (normalizedLabel === 'risk') {
+    if (normalizedValue.includes('high') || normalizedValue.includes('critical')) {
+      return 'danger';
+    }
+    if (normalizedValue.includes('medium')) {
+      return 'warning';
+    }
+    return 'success';
+  }
+
+  if (normalizedLabel === 'run status' || normalizedLabel === 'approval status') {
+    if (normalizedValue.includes('failed') || normalizedValue.includes('rejected')) {
+      return 'danger';
+    }
+    if (normalizedValue.includes('waiting')) {
+      return 'warning';
+    }
+    return 'success';
+  }
+
+  if (normalizedLabel === 'next action' || normalizedLabel === 'summary') {
+    return 'info';
+  }
+
+  return null;
+}
+
+function getParagraphTone(line: string): keyof typeof TONE_COLOR | null {
+  const normalized = line.trim().toLowerCase();
+  if (normalized.startsWith('approval required') || normalized.startsWith('approval pending') || normalized.startsWith('approval note')) {
+    return 'danger';
+  }
+  if (normalized.includes('failed') || normalized.includes('error')) {
+    return 'danger';
+  }
+  if (normalized.includes('approved') || normalized.includes('resumed successfully')) {
+    return 'success';
+  }
+  return null;
+}
+
 const NiyantaCommandConsole: React.FC<NiyantaCommandConsoleProps> = ({
   agents = [],
   agentStates = {},
@@ -121,6 +180,24 @@ const NiyantaCommandConsole: React.FC<NiyantaCommandConsoleProps> = ({
   const criticalAlerts = toNum(metricMap.criticalAlerts, 0);
   const recentRuns = Array.isArray(metricMap.recentRuns) ? (metricMap.recentRuns as Array<Record<string, unknown>>) : [];
   const historyItems = useMemo(() => summarizeHistory(messages), [messages]);
+  const systemContext = useMemo(() => ({
+    generatedAt: new Date().toISOString(),
+    agents: agents.map((agent) => ({
+      id: agent.id,
+      name: agent.name,
+      status: agent.status,
+      capabilities: Array.isArray((agent as { capabilities?: string[] }).capabilities) ? (agent as { capabilities?: string[] }).capabilities : [],
+    })),
+    workflows: workflows.map((workflow) => ({
+      id: workflow.id,
+      name: workflow.name,
+      status: workflow.status,
+      category: workflow.category,
+      updatedAt: workflow.updated_at,
+    })),
+    metrics,
+    reports: recentRuns.slice(0, 6),
+  }), [agents, metrics, recentRuns, workflows]);
 
   useEffect(() => {
     writeLocalStorage(STORAGE_KEY, messages);
@@ -132,6 +209,7 @@ const NiyantaCommandConsole: React.FC<NiyantaCommandConsoleProps> = ({
 
   const buildPendingActivity = useCallback((messageText: string, attachments: ExtractedFileAttachment[], matchedAgents: RoutedAgent[]) => {
     const now = Date.now();
+    const extractionWarnings = attachments.filter((attachment) => attachment.extractionStatus === 'failed' || attachment.extractionStatus === 'unsupported');
     const items: NiyantaActivityItem[] = [
       {
         id: 'pending-intake',
@@ -149,6 +227,16 @@ const NiyantaCommandConsole: React.FC<NiyantaCommandConsoleProps> = ({
         detail: `${attachments.length} attachment${attachments.length === 1 ? '' : 's'} ready for command analysis.`,
         tone: 'success',
         timestamp: new Date(now + 120).toISOString(),
+      });
+    }
+
+    if (extractionWarnings.length > 0) {
+      items.push({
+        id: 'pending-files-warning',
+        label: 'Limited extraction',
+        detail: `${extractionWarnings.length} attachment${extractionWarnings.length === 1 ? '' : 's'} need operator context because extraction was incomplete.`,
+        tone: 'warning',
+        timestamp: new Date(now + 180).toISOString(),
       });
     }
 
@@ -186,7 +274,21 @@ const NiyantaCommandConsole: React.FC<NiyantaCommandConsoleProps> = ({
       try {
         attachments = await extractNiyantaFiles(pendingFiles);
         extractedText = attachments
-          .map((attachment) => attachment.textContent || attachment.excerpt || `File ${attachment.name}`)
+          .map((attachment) => {
+            if (attachment.textContent && attachment.textContent.trim()) {
+              return attachment.textContent;
+            }
+            if (attachment.excerpt && attachment.excerpt.trim()) {
+              return attachment.excerpt;
+            }
+            if (attachment.extractionStatus === 'failed') {
+              return `File ${attachment.name} was uploaded, but text extraction was not available.`;
+            }
+            if (attachment.extractionStatus === 'unsupported') {
+              return `File ${attachment.name} was uploaded with limited text visibility.`;
+            }
+            return `File ${attachment.name}`;
+          })
           .filter(Boolean)
           .join('\n\n');
       } catch (error) {
@@ -268,7 +370,7 @@ const NiyantaCommandConsole: React.FC<NiyantaCommandConsoleProps> = ({
         content: message.content,
       }));
 
-      const response = await executeNiyantaCommand(commandText, history, agentResults, attachments);
+      const response = await executeNiyantaCommand(commandText, history, agentResults, attachments, systemContext);
 
       setMessages((prev) => [...prev, {
         role: 'assistant',
@@ -303,7 +405,7 @@ const NiyantaCommandConsole: React.FC<NiyantaCommandConsoleProps> = ({
       setRunningAgents([]);
       setIsSending(false);
     }
-  }, [agentStates, buildPendingActivity, input, isExtracting, isSending, messages, onExecuteAgent, onSyncState, pendingFiles]);
+  }, [agentStates, buildPendingActivity, input, isExtracting, isSending, messages, onExecuteAgent, onSyncState, pendingFiles, systemContext]);
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === 'Enter' && !event.shiftKey) {
@@ -372,7 +474,7 @@ const NiyantaCommandConsole: React.FC<NiyantaCommandConsoleProps> = ({
   const renderReportGrid = (msg: ChatMessage) => {
     if (!msg.reports || msg.reports.length === 0) return null;
     return (
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8, marginTop: 4 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(132px, 1fr))', gap: 8, marginTop: 4 }}>
         {msg.reports.map((report) => (
           <div
             key={report.id}
@@ -380,17 +482,17 @@ const NiyantaCommandConsole: React.FC<NiyantaCommandConsoleProps> = ({
               border: '1px solid var(--border)',
               borderRadius: 9,
               background: 'var(--bg-input)',
-              padding: '10px 11px',
+              padding: '8px 10px',
               minWidth: 0,
             }}
           >
             <div style={{ fontSize: 9, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)' }}>
               {report.title}
             </div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: TONE_COLOR[report.tone] ?? 'var(--text-primary)', marginTop: 3 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: TONE_COLOR[report.tone] ?? 'var(--text-primary)', marginTop: 3 }}>
               {report.value}
             </div>
-            <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.5, marginTop: 4 }}>
+            <div style={{ fontSize: 10, color: 'var(--text-secondary)', lineHeight: 1.45, marginTop: 3 }}>
               {report.detail}
             </div>
           </div>
@@ -401,6 +503,7 @@ const NiyantaCommandConsole: React.FC<NiyantaCommandConsoleProps> = ({
 
   const renderAssistantMessage = (msg: ChatMessage, index: number) => {
     const isError = msg.content.startsWith('Niyanta failed') || msg.content.toLowerCase().includes('failed');
+    const lines = msg.content.split('\n');
     return (
       <div key={`${msg.timestamp}-${index}`} style={{ display: 'grid', gap: 7, animation: 'slideIn 240ms ease both' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
@@ -411,8 +514,58 @@ const NiyantaCommandConsole: React.FC<NiyantaCommandConsoleProps> = ({
             {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
           </span>
         </div>
-        <div style={{ color: isError ? 'var(--status-danger)' : 'var(--text-primary)', fontSize: 13, lineHeight: 1.72, whiteSpace: 'pre-wrap' }}>
-          {msg.content}
+        <div style={{ display: 'grid', gap: 5 }}>
+          {lines.map((line, lineIndex) => {
+            const trimmed = line.trim();
+            if (!trimmed) {
+              return <div key={`${msg.timestamp}-gap-${lineIndex}`} style={{ height: 2 }} />;
+            }
+
+            const fieldMatch = trimmed.match(/^([A-Za-z ]+):\s*(.+)$/);
+            if (fieldMatch) {
+              const label = fieldMatch[1].trim();
+              const value = fieldMatch[2].trim();
+              const tone = getStructuredLineTone(label, value);
+
+              return (
+                <div
+                  key={`${msg.timestamp}-field-${lineIndex}`}
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '116px minmax(0, 1fr)',
+                    gap: 10,
+                    alignItems: 'start',
+                    animation: 'textLift 260ms ease both',
+                    animationDelay: `${lineIndex * 42}ms`,
+                  }}
+                >
+                  <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.07em', color: tone ? TONE_COLOR[tone] : 'var(--text-muted)' }}>
+                    {label}
+                  </div>
+                  <div style={{ fontSize: 13, lineHeight: 1.7, color: tone ? TONE_COLOR[tone] : (isError ? 'var(--status-danger)' : 'var(--text-primary)') }}>
+                    {value}
+                  </div>
+                </div>
+              );
+            }
+
+            const tone = getParagraphTone(trimmed);
+            return (
+              <div
+                key={`${msg.timestamp}-line-${lineIndex}`}
+                style={{
+                  color: tone ? TONE_COLOR[tone] : (isError ? 'var(--status-danger)' : 'var(--text-primary)'),
+                  fontSize: 13,
+                  lineHeight: 1.72,
+                  whiteSpace: 'pre-wrap',
+                  animation: 'textLift 260ms ease both',
+                  animationDelay: `${lineIndex * 42}ms`,
+                }}
+              >
+                {trimmed}
+              </div>
+            );
+          })}
         </div>
         {renderReportGrid(msg)}
         {msg.activity && msg.activity.length > 0 && (
@@ -446,7 +599,8 @@ const NiyantaCommandConsole: React.FC<NiyantaCommandConsoleProps> = ({
               <span style={{ fontSize: 12 }}>📎</span>
               <span style={{ maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{attachment.name}</span>
               {attachment.pageCount ? <span style={{ fontSize: 9, fontFamily: 'var(--font-mono)' }}>{attachment.pageCount}p</span> : null}
-              {attachment.extractionStatus === 'unsupported' ? <span style={{ color: 'var(--status-warning)', fontSize: 9 }}>unsupported</span> : null}
+              {attachment.extractionStatus === 'unsupported' ? <span style={{ color: 'var(--status-warning)', fontSize: 9 }}>limited</span> : null}
+              {attachment.extractionStatus === 'failed' ? <span style={{ color: 'var(--status-danger)', fontSize: 9 }}>extract failed</span> : null}
             </div>
           ))}
         </div>
@@ -489,7 +643,7 @@ const NiyantaCommandConsole: React.FC<NiyantaCommandConsoleProps> = ({
           {[
             { key: 'Agents', value: systemSnapshot.activeAgents, color: systemSnapshot.activeAgents > 0 ? 'var(--status-success)' : 'var(--text-muted)' },
             { key: 'Workflows', value: systemSnapshot.workflowCount, color: 'var(--status-info)' },
-            { key: 'Errors', value: failedToday, color: failedToday > 0 ? 'var(--status-danger)' : 'var(--text-muted)' },
+            { key: 'Issues', value: failedToday, color: failedToday > 0 ? 'var(--status-danger)' : 'var(--status-success)' },
             { key: 'Approvals', value: pendingApprovals, color: pendingApprovals > 0 ? 'var(--status-warning)' : 'var(--text-muted)' },
           ].map((item) => (
             <div key={item.key} style={{ border: '1px solid var(--border)', borderRadius: 7, padding: '8px 10px', background: 'var(--bg-input)' }}>
@@ -619,6 +773,7 @@ const NiyantaCommandConsole: React.FC<NiyantaCommandConsoleProps> = ({
         @keyframes slideIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+        @keyframes textLift { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
         .cmd-input:focus { border-color: var(--status-info) !important; outline: none; }
       `}</style>
 
@@ -649,6 +804,24 @@ const NiyantaCommandConsole: React.FC<NiyantaCommandConsoleProps> = ({
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <button
+                onClick={() => navigate(-1)}
+                style={{
+                  height: 30,
+                  padding: '0 11px',
+                  borderRadius: 8,
+                  border: '1px solid var(--border)',
+                  background: 'var(--bg-input)',
+                  color: 'var(--text-secondary)',
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 10,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.07em',
+                  cursor: 'pointer',
+                }}
+              >
+                ← Back
+              </button>
               <span style={{ width: 8, height: 8, borderRadius: 999, flexShrink: 0, background: isSending ? 'var(--status-info)' : messages.length > 0 ? 'var(--status-success)' : 'var(--text-muted)', boxShadow: isSending ? '0 0 8px var(--status-info)' : 'none', animation: isSending ? 'pulse 1.2s ease infinite' : 'none' }} />
               <div>
                 <div style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 700, letterSpacing: '0.05em', color: 'var(--text-primary)', textTransform: 'uppercase' }}>
@@ -688,7 +861,7 @@ const NiyantaCommandConsole: React.FC<NiyantaCommandConsoleProps> = ({
                 <div>
                   <div style={{ fontFamily: 'var(--font-display)', fontSize: 18, color: 'var(--text-secondary)', letterSpacing: '0.06em', marginBottom: 6 }}>Niyanta Command Intelligence</div>
                   <div style={{ fontSize: 12, lineHeight: 1.75, maxWidth: 520 }}>
-                    Enter an operational command or upload a document. Niyanta will classify the input, activate the right agents, run the workflow, update the audit and approvals state, and return a structured execution report.
+                    Enter a normal question, an operational command, or upload a document. Niyanta can chat normally, identify workflow scenarios, run the right agents, and accept typed approvals directly from this screen.
                   </div>
                 </div>
               </div>
@@ -772,7 +945,7 @@ const NiyantaCommandConsole: React.FC<NiyantaCommandConsoleProps> = ({
                 value={input}
                 onChange={(event) => setInput(event.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Enter a command or attach a file. Example: Process this invoice for Rs 48,000 from AWS."
+                placeholder="Chat normally, run a scenario, or type APPROVE LATEST. Example: Process this invoice for Rs 48,000 from AWS."
                 rows={2}
                 disabled={isSending || isExtracting}
                 style={{

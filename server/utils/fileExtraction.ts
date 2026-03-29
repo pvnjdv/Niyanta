@@ -1,6 +1,11 @@
 import XLSX from 'xlsx';
 
-const pdfParse = require('pdf-parse') as (buffer: Buffer) => Promise<{ text?: string; numpages?: number }>;
+const { PDFParse } = require('pdf-parse') as {
+  PDFParse: new (params: { data: Buffer }) => {
+    getText: () => Promise<{ text?: string; total?: number }>;
+    destroy?: () => Promise<void>;
+  };
+};
 
 export interface UploadedFileLike {
   originalname: string;
@@ -66,15 +71,21 @@ export async function extractUploadedFile(file: UploadedFileLike): Promise<Extra
 
   if (lowerName.endsWith('.pdf') || file.mimetype === 'application/pdf') {
     try {
-      const parsed = await pdfParse(file.buffer);
+      const parser = new PDFParse({ data: file.buffer });
+      const parsed = await parser.getText();
       const textContent = (parsed.text || '').trim().slice(0, 14000);
+
+      if (typeof parser.destroy === 'function') {
+        await parser.destroy().catch(() => undefined);
+      }
+
       return {
         name: file.originalname,
         size: file.size,
         type: file.mimetype,
         excerpt: buildExcerpt(textContent),
         textContent,
-        pageCount: typeof parsed.numpages === 'number' ? parsed.numpages : undefined,
+        pageCount: typeof parsed.total === 'number' ? parsed.total : undefined,
         extractionStatus: 'ok',
       };
     } catch (error) {
