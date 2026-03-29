@@ -43,6 +43,8 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
     name: string; category: string; color: string;
     x: number; y: number; inputInfo: string;
   }>>([]);;
+  const [startNodePos, setStartNodePos] = useState({ x: 60, y: 80 });
+  const [endNodePos, setEndNodePos] = useState({ x: 900, y: 80 });
   const [canvasPan, setCanvasPan] = useState({ x: 0, y: 0 });
   const [canvasZoom, setCanvasZoom] = useState(100);
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
@@ -51,12 +53,14 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
   const [nodeSearch, setNodeSearch] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [hasUnsavedAgentChanges, setHasUnsavedAgentChanges] = useState(false);
   const [editingAgentId, setEditingAgentId] = useState<string | null>(null);
 
   // Canvas refs
   const canvasRef = useRef<HTMLDivElement>(null);
   const draggingNode = useRef<{ nodeId: string; startX: number; startY: number; originX: number; originY: number } | null>(null);
   const panningCanvas = useRef<{ startX: number; startY: number; originPanX: number; originPanY: number } | null>(null);
+  const hydratedAgentIdRef = useRef<string | null>(null);
 
   const selectedAgent = agentId && agentId !== 'new' ? agents.find(a => a.id === agentId) || null : null;
   const selectedState = selectedAgent ? agentStates[selectedAgent.id] : null;
@@ -77,6 +81,7 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
     setAgentCapabilities(ea.capabilities?.join(', ') || '');
     setAgentColor(ea.color || '#00D4FF');
     setEditingAgentId(editId);
+    setHasUnsavedAgentChanges(false);
 
     const hydrateEditCanvas = async () => {
       try {
@@ -85,39 +90,95 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
         const data = await res.json();
         const layout = Array.isArray(data.canvasLayout) ? data.canvasLayout : [];
         if (layout.length > 0) {
-          setCanvasNodes(layout.map((n: any, i: number) => ({
+          const startLayout = layout.find((n: any) => n?.refId === '__start__');
+          const endLayout = layout.find((n: any) => n?.refId === '__end__');
+          if (typeof startLayout?.x === 'number' && typeof startLayout?.y === 'number') {
+            setStartNodePos({ x: startLayout.x, y: startLayout.y });
+          }
+          if (typeof endLayout?.x === 'number' && typeof endLayout?.y === 'number') {
+            setEndNodePos({ x: endLayout.x, y: endLayout.y });
+          }
+
+          const pipelineLayout = layout.filter((n: any) => n?.refId !== '__start__' && n?.refId !== '__end__');
+          setCanvasNodes(pipelineLayout.map((n: any, i: number) => ({
             id: n.id || `cn-edit-${Date.now()}-${i}`,
             blockType: n.blockType === 'node' ? 'node' : 'workflow',
             refId: n.refId || '',
             name: n.name || 'Block',
             category: n.category || 'General',
             color: n.color || getCategoryColor(n.category || 'General'),
-            x: typeof n.x === 'number' ? n.x : (280 + Math.random() * 240),
-            y: typeof n.y === 'number' ? n.y : (80 + Math.random() * 200),
+            x: typeof n.x === 'number' ? n.x : 320,
+            y: typeof n.y === 'number' ? n.y : 80,
             inputInfo: n.inputInfo || '',
           })));
           return;
         }
-
-        const workflows = (data.workflows || []) as Array<{ workflow_id: string; name: string; category: string }>;
-        if (workflows.length === 0) return;
-        setCanvasNodes(workflows.map((wf, i) => ({
-          id: `wn-edit-${Date.now()}-${i}`,
-          blockType: 'workflow' as const,
-          refId: wf.workflow_id,
-          name: wf.name,
-          category: wf.category || 'General',
-          color: getCategoryColor(wf.category || 'General'),
-          x: 280 + Math.random() * 240,
-          y: 80 + Math.random() * 200,
-          inputInfo: '',
-        })));
       } catch {
         // Best effort hydration; keep current canvas if unavailable.
       }
     };
     hydrateEditCanvas();
   }, [agentId]);
+
+  // Hydrate canvas when navigating directly to an existing agent (/agents/:id)
+  useEffect(() => {
+    if (!agentId || agentId === 'new') {
+      hydratedAgentIdRef.current = null;
+      return;
+    }
+    // If opened via three-dot Edit (location.state), the other effect handles it
+    const state = location.state as { editAgent?: Agent } | null;
+    if (state?.editAgent) return;
+    // Avoid re-hydrating after refreshAgents() is called on save
+    if (hydratedAgentIdRef.current === agentId) return;
+
+    const agent = agents.find(a => a.id === agentId);
+    if (!agent) return; // agents not loaded yet — will retry when `agents` prop changes
+
+    hydratedAgentIdRef.current = agentId;
+    setAgentName(agent.name);
+    setAgentDescription(agent.description || '');
+    setAgentCapabilities(agent.capabilities?.join(', ') || '');
+    setAgentColor(agent.color || '#00D4FF');
+    setEditingAgentId(agentId);
+    setHasUnsavedAgentChanges(false);
+    setLastSaved(null);
+    setCanvasNodes([]);
+    setStartNodePos({ x: 60, y: 80 });
+    setEndNodePos({ x: 900, y: 80 });
+
+    const hydrateCanvas = async () => {
+      try {
+        const res = await fetch(`/api/agent/${agentId}/workflows`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const layout = Array.isArray(data.canvasLayout) ? data.canvasLayout : [];
+
+        const startAnchor = layout.find((n: any) => n?.refId === '__start__');
+        const endAnchor = layout.find((n: any) => n?.refId === '__end__');
+        if (typeof startAnchor?.x === 'number') setStartNodePos({ x: startAnchor.x, y: startAnchor.y });
+        if (typeof endAnchor?.x === 'number') setEndNodePos({ x: endAnchor.x, y: endAnchor.y });
+
+        const pipeline = layout.filter((n: any) => n?.refId !== '__start__' && n?.refId !== '__end__');
+        if (pipeline.length > 0) {
+          setCanvasNodes(pipeline.map((n: any, i: number) => ({
+            id: n.id || `cn-${agentId}-${i}`,
+            blockType: n.blockType === 'node' ? 'node' as const : 'workflow' as const,
+            refId: n.refId || '',
+            name: n.name || 'Block',
+            category: n.category || 'General',
+            color: n.color || getCategoryColor(n.category || 'General'),
+            x: typeof n.x === 'number' ? n.x : 320,
+            y: typeof n.y === 'number' ? n.y : 80,
+            inputInfo: n.inputInfo || '',
+          })));
+        }
+      } catch {
+        // best effort
+      }
+    };
+    hydrateCanvas();
+  }, [agentId, agents]);
 
   // ── Fetch workflows ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -194,8 +255,17 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
     { category: 'Output', color: '#06B6D4', nodes: ['JSON Export', 'CSV Export', 'PDF Report', 'Dashboard Update', 'Alert'] },
   ];
 
+  const getNextCanvasPosition = () => {
+    const index = canvasNodes.length;
+    return {
+      x: 320 + (index % 3) * 280,
+      y: 80 + Math.floor(index / 3) * 160,
+    };
+  };
+
   const addWorkflowToCanvas = (workflow: {id: string; name: string; category: string}) => {
     if (canvasNodes.some(n => n.blockType === 'workflow' && n.refId === workflow.id)) return;
+    const nextPos = getNextCanvasPosition();
     setCanvasNodes(prev => [...prev, {
       id: `wn-${Date.now()}`,
       blockType: 'workflow' as const,
@@ -203,13 +273,15 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
       name: workflow.name,
       category: workflow.category,
       color: getCategoryColor(workflow.category),
-      x: 280 + Math.random() * 240,
-      y: 80 + Math.random() * 200,
+      x: nextPos.x,
+      y: nextPos.y,
       inputInfo: '',
     }]);
+    setHasUnsavedAgentChanges(true);
   };
 
   const addNodeToCanvas = (nodeName: string, category: string, color: string) => {
+    const nextPos = getNextCanvasPosition();
     setCanvasNodes(prev => [...prev, {
       id: `nn-${Date.now()}`,
       blockType: 'node' as const,
@@ -217,15 +289,17 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
       name: nodeName,
       category,
       color,
-      x: 280 + Math.random() * 240,
-      y: 80 + Math.random() * 200,
+      x: nextPos.x,
+      y: nextPos.y,
       inputInfo: '',
     }]);
+    setHasUnsavedAgentChanges(true);
   };
 
   const removeNodeFromCanvas = (nodeId: string) => {
     setCanvasNodes(prev => prev.filter(n => n.id !== nodeId));
     setSelectedNode(null);
+    setHasUnsavedAgentChanges(true);
   };
 
   const handleSaveAgent = async () => {
@@ -242,7 +316,10 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
         canvasLayout: canvasNodes.map(n => ({
           id: n.id, blockType: n.blockType, refId: n.refId,
           name: n.name, category: n.category, x: n.x, y: n.y, inputInfo: n.inputInfo,
-        })),
+        })).concat([
+          { id: 'anchor-start', blockType: 'workflow' as const, refId: '__start__', name: 'Start', category: 'anchor', x: startNodePos.x, y: startNodePos.y, inputInfo: '' },
+          { id: 'anchor-end', blockType: 'workflow' as const, refId: '__end__', name: 'End', category: 'anchor', x: endNodePos.x, y: endNodePos.y, inputInfo: '' },
+        ]),
       },
     };
     try {
@@ -257,8 +334,12 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
           });
       if (res.ok) {
         setLastSaved(new Date());
+        setHasUnsavedAgentChanges(false);
         await refreshAgents();
-        setTimeout(() => navigate('/agents'), 300);
+        if (!editingAgentId) {
+          // Only navigate away when creating a new agent
+          setTimeout(() => navigate('/agents'), 300);
+        }
       } else {
         const d = await res.json().catch(() => ({}));
         alert(`Failed to save agent: ${d.message || res.status}`);
@@ -275,21 +356,7 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
     setAgentDescription(template.description);
     setAgentCapabilities(template.capabilities.join(', '));
     setAgentColor(template.color);
-
-    const matching = availableWorkflows.filter(
-      wf => wf.category?.toLowerCase() === (template.subtitle || '').toLowerCase()
-    );
-    setCanvasNodes(matching.map((wf, i) => ({
-      id: `wn-${Date.now()}-${i}`,
-      blockType: 'workflow' as const,
-      refId: wf.id,
-      name: wf.name,
-      category: wf.category,
-      color: getCategoryColor(wf.category),
-      x: 280 + Math.random() * 240,
-      y: 80 + Math.random() * 200,
-      inputInfo: '',
-    })));
+    setHasUnsavedAgentChanges(true);
 
     setShowTemplates(false);
     navigate('/agents/new');
@@ -357,17 +424,44 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
     setSelectedNode(nodeId);
   };
 
+  const handleAnchorMouseDown = (e: React.MouseEvent, anchor: 'start' | 'end') => {
+    e.stopPropagation();
+    const origin = anchor === 'start' ? startNodePos : endNodePos;
+    draggingNode.current = {
+      nodeId: anchor === 'start' ? '__start__' : '__end__',
+      startX: e.clientX,
+      startY: e.clientY,
+      originX: origin.x,
+      originY: origin.y,
+    };
+    setSelectedNode(null);
+  };
+
   const handleCanvasMouseMove = useCallback((e: React.MouseEvent) => {
     if (draggingNode.current) {
       const { nodeId, startX, startY, originX, originY } = draggingNode.current;
       const dx = e.clientX - startX;
       const dy = e.clientY - startY;
       const scale = canvasZoom / 100;
+
+      if (nodeId === '__start__') {
+        setStartNodePos({ x: originX + dx / scale, y: originY + dy / scale });
+        setHasUnsavedAgentChanges(true);
+        return;
+      }
+
+      if (nodeId === '__end__') {
+        setEndNodePos({ x: originX + dx / scale, y: originY + dy / scale });
+        setHasUnsavedAgentChanges(true);
+        return;
+      }
+
       setCanvasNodes(prev => prev.map(n =>
         n.id === nodeId
           ? { ...n, x: originX + dx / scale, y: originY + dy / scale }
           : n
       ));
+      setHasUnsavedAgentChanges(true);
     }
     if (panningCanvas.current) {
       setCanvasPan({
@@ -390,34 +484,67 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
   };
 
   // ══════════════════════════════════════════════════════════════════════════
-  // CANVAS VIEW — /agents/new (create)
+  // CANVAS VIEW — /agents/new (create) or /agents/:id (edit)
   // ══════════════════════════════════════════════════════════════════════════
-  if (agentId === 'new') {
+  if (agentId) {
     return (
       <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--bg-base)' }}>
         {/* ── Top Toolbar ────────────────────────────────────────────────── */}
         <div style={{
-          height: 56, display: 'flex', alignItems: 'center', padding: '0 20px', gap: 12,
+          height: 56, display: 'flex', alignItems: 'center', padding: '0 16px', gap: 12,
           borderBottom: '1px solid var(--border)', background: 'var(--bg-dock)', flexShrink: 0,
         }}>
           <button onClick={() => navigate('/agents')} style={{
             height: 36, padding: '0 12px', borderRadius: 4,
             border: '1px solid var(--border)', background: 'transparent',
             color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 14,
+            display: 'flex', alignItems: 'center', gap: 6,
           }}>← Back</button>
 
-          <div style={{ width: 1, height: 28, background: 'var(--border)' }} />
+          {selectedAgent && (
+            <div style={{
+              width: 34, height: 34, borderRadius: 8, background: agentColor,
+              display: 'grid', placeItems: 'center', color: '#fff',
+              fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700,
+              boxShadow: `0 3px 10px ${agentColor}70`, flexShrink: 0,
+            }}>{selectedAgent.icon}</div>
+          )}
 
-          <input
-            value={agentName}
-            onChange={e => setAgentName(e.target.value)}
-            placeholder="Agent Name..."
-            style={{
-              width: 260, height: 36, padding: '0 14px', fontSize: 14, fontWeight: 600,
-              background: 'var(--bg-input)', border: '1px solid var(--border)',
-              borderRadius: 4, color: 'var(--text-primary)', outline: 'none',
-            }}
-          />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, maxWidth: 420 }}>
+            <input
+              value={agentName}
+              onChange={e => { setAgentName(e.target.value); setHasUnsavedAgentChanges(true); }}
+              placeholder="Agent name..."
+              style={{
+                height: 32, padding: '0 12px', fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 700,
+                background: 'transparent', border: '1px solid transparent', flex: 1,
+                color: 'var(--text-primary)',
+              }}
+              onFocus={(e) => { e.target.style.border = '1px solid var(--border)'; e.target.style.background = 'var(--bg-tile)'; }}
+              onBlur={(e) => { e.target.style.border = '1px solid transparent'; e.target.style.background = 'transparent'; }}
+            />
+            {hasUnsavedAgentChanges && (
+              <div
+                title="Unsaved changes"
+                style={{ width: 8, height: 8, borderRadius: '50%', background: '#F59E0B', flexShrink: 0 }}
+              />
+            )}
+            {lastSaved && !hasUnsavedAgentChanges && (
+              <span
+                style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}
+                title={lastSaved.toLocaleString()}
+              >
+                Saved {(() => {
+                  const seconds = Math.floor((Date.now() - lastSaved.getTime()) / 1000);
+                  if (seconds < 60) return 'just now';
+                  const minutes = Math.floor(seconds / 60);
+                  if (minutes < 60) return `${minutes}m ago`;
+                  const hours = Math.floor(minutes / 60);
+                  return `${hours}h ago`;
+                })()}
+              </span>
+            )}
+          </div>
 
           <div style={{
             padding: '4px 10px', borderRadius: 4, fontSize: 10, fontWeight: 600,
@@ -435,12 +562,43 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
 
           <div style={{ flex: 1 }} />
 
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 11, color: 'var(--text-muted)' }}>
-            {lastSaved && <span>Saved {lastSaved.toLocaleTimeString()}</span>}
-          </div>
+          {editingAgentId && (
+            <>
+              <input
+                value={inputText}
+                onChange={e => setInputText(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') handleRun(); }}
+                placeholder="Run agent with input..."
+                style={{
+                  width: 260, height: 32, padding: '0 12px',
+                  background: 'var(--bg-input)', border: '1px solid var(--border)',
+                  borderRadius: 4, fontFamily: 'var(--font-body)', fontSize: 12,
+                  color: 'var(--text-primary)', outline: 'none',
+                }}
+              />
+              <button
+                onClick={handleRun}
+                disabled={selectedState?.status === 'processing'}
+                style={{
+                  height: 32, padding: '0 16px', borderRadius: 4, fontWeight: 600,
+                  fontFamily: 'var(--font-mono)', fontSize: 11,
+                  background: selectedState?.status === 'processing' ? 'var(--bg-tile)' : 'var(--accent-dim)',
+                  border: '1px solid var(--accent-border)',
+                  color: selectedState?.status === 'processing' ? 'var(--text-muted)' : 'var(--accent)',
+                  cursor: selectedState?.status === 'processing' ? 'wait' : 'pointer',
+                  display: 'flex', alignItems: 'center', gap: 6,
+                }}
+              >
+                <span>{selectedState?.status === 'processing' ? '■' : '▶'}</span>
+                <span>{selectedState?.status === 'processing' ? 'RUNNING...' : 'RUN'}</span>
+              </button>
+            </>
+          )}
+
+          <div style={{ width: 1, height: 24, background: 'var(--border)' }} />
 
           <button onClick={handleSaveAgent} disabled={!agentName.trim() || isSaving} style={{
-            height: 36, padding: '0 20px', borderRadius: 4, fontWeight: 600,
+            height: 32, padding: '0 16px', borderRadius: 4, fontWeight: 600,
             fontFamily: 'var(--font-mono)', fontSize: 12,
             background: agentName.trim() ? 'var(--accent-dim)' : 'var(--bg-tile)',
             border: '1px solid var(--accent-border)',
@@ -617,20 +775,19 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
                 <g transform={`translate(${canvasPan.x}, ${canvasPan.y}) scale(${canvasZoom / 100})`}>
                   {/* Auto-computed edges: INPUT → all blocks → OUTPUT (parallel) */}
                   {(() => {
-                    const INPUT_X = 60, INPUT_Y = 80, INPUT_H = 80;
-                    const outputX = canvasNodes.length > 0 ? Math.max(...canvasNodes.map(n => n.x)) + 300 : 500;
-                    const OUTPUT_Y = 80, OUTPUT_H = 80;
+                    const INPUT_X = startNodePos.x, INPUT_Y = startNodePos.y, INPUT_H = 80;
+                    const OUTPUT_X = endNodePos.x, OUTPUT_Y = endNodePos.y, OUTPUT_H = 80;
                     const conns: Array<{x1:number;y1:number;x2:number;y2:number}> = [];
                     const iy = INPUT_Y + INPUT_H / 2;
                     const oy = OUTPUT_Y + OUTPUT_H / 2;
                     if (canvasNodes.length === 0) {
-                      conns.push({ x1: INPUT_X + 200, y1: iy, x2: outputX, y2: oy });
+                      conns.push({ x1: INPUT_X + 200, y1: iy, x2: OUTPUT_X, y2: oy });
                     } else {
                       // Parallel: INPUT → each block, each block → OUTPUT
                       for (const node of canvasNodes) {
                         const ny = node.y + 40;
                         conns.push({ x1: INPUT_X + 200, y1: iy, x2: node.x, y2: ny });
-                        conns.push({ x1: node.x + 240, y1: ny, x2: outputX, y2: oy });
+                        conns.push({ x1: node.x + 240, y1: ny, x2: OUTPUT_X, y2: oy });
                       }
                     }
                     return conns.map((c, i) => {
@@ -647,15 +804,17 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
                 transform: `translate(${canvasPan.x}px, ${canvasPan.y}px) scale(${canvasZoom / 100})`,
                 transformOrigin: '0 0', zIndex: 2,
               }}>
-                {/* ── Fixed INPUT node (Chat / Data) ── */}
-                <div style={{
-                  position: 'absolute', left: 60, top: 80,
-                  width: 200, padding: '14px 16px',
-                  background: 'linear-gradient(135deg, rgba(59,130,246,0.15), rgba(0,212,255,0.1))',
-                  border: '2px solid #3B82F6',
-                  borderRadius: 10, boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
-                  userSelect: 'none', zIndex: 3,
-                }}>
+                {/* ── Required INPUT node (Chat / Data) ── */}
+                <div
+                  onMouseDown={e => handleAnchorMouseDown(e, 'start')}
+                  style={{
+                    position: 'absolute', left: startNodePos.x, top: startNodePos.y,
+                    width: 200, padding: '14px 16px',
+                    background: 'linear-gradient(135deg, rgba(59,130,246,0.15), rgba(0,212,255,0.1))',
+                    border: '2px solid #3B82F6',
+                    borderRadius: 10, boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
+                    userSelect: 'none', zIndex: 3, cursor: 'grab',
+                  }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
                     <div style={{ width: 32, height: 32, borderRadius: 7, background: '#3B82F6', display: 'grid', placeItems: 'center', color: '#fff', fontWeight: 700, fontSize: 14 }}>▶</div>
                     <div>
@@ -664,35 +823,34 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
                     </div>
                   </div>
                   <div style={{ fontSize: 10, color: 'var(--text-secondary)', lineHeight: 1.5 }}>User message or file upload triggers this agent</div>
+                  <div style={{ marginTop: 6, fontSize: 9, fontFamily: 'var(--font-mono)', color: '#93C5FD', textTransform: 'uppercase' }}>Required start node</div>
                   {/* Right handle */}
                   <div style={{ position: 'absolute', right: -8, top: '50%', transform: 'translateY(-50%)', width: 16, height: 16, borderRadius: '50%', background: '#3B82F6', border: '2px solid var(--bg-base)' }} />
                 </div>
 
-                {/* ── Fixed OUTPUT node (Niyanta) ── */}
-                {(() => {
-                  const outputX = 900;
-                  return (
-                    <div style={{
-                      position: 'absolute', left: outputX, top: 80,
-                      width: 200, padding: '14px 16px',
-                      background: 'rgba(124,58,237,0.15)',
-                      border: '2px solid #7C3AED',
-                      borderRadius: 10, boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
-                      userSelect: 'none', zIndex: 3,
-                    }}>
-                      {/* Left handle */}
-                      <div style={{ position: 'absolute', left: -8, top: '50%', transform: 'translateY(-50%)', width: 16, height: 16, borderRadius: '50%', background: '#7C3AED', border: '2px solid var(--bg-base)' }} />
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-                        <div style={{ width: 32, height: 32, borderRadius: 7, background: '#7C3AED', display: 'grid', placeItems: 'center', color: '#fff', fontWeight: 700, fontSize: 14 }}>N</div>
-                        <div>
-                          <div style={{ fontSize: 12, fontWeight: 700, color: '#A78BFA' }}>OUTPUT</div>
-                          <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>NIYANTA REPORT</div>
-                        </div>
-                      </div>
-                      <div style={{ fontSize: 10, color: 'var(--text-secondary)', lineHeight: 1.5 }}>Results and insights reported to Niyanta</div>
+                {/* ── Required OUTPUT node (Niyanta) ── */}
+                <div
+                  onMouseDown={e => handleAnchorMouseDown(e, 'end')}
+                  style={{
+                    position: 'absolute', left: endNodePos.x, top: endNodePos.y,
+                    width: 200, padding: '14px 16px',
+                    background: 'rgba(124,58,237,0.15)',
+                    border: '2px solid #7C3AED',
+                    borderRadius: 10, boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
+                    userSelect: 'none', zIndex: 3, cursor: 'grab',
+                  }}>
+                  {/* Left handle */}
+                  <div style={{ position: 'absolute', left: -8, top: '50%', transform: 'translateY(-50%)', width: 16, height: 16, borderRadius: '50%', background: '#7C3AED', border: '2px solid var(--bg-base)' }} />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+                    <div style={{ width: 32, height: 32, borderRadius: 7, background: '#7C3AED', display: 'grid', placeItems: 'center', color: '#fff', fontWeight: 700, fontSize: 14 }}>N</div>
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: '#A78BFA' }}>OUTPUT</div>
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>NIYANTA REPORT</div>
                     </div>
-                  );
-                })()}
+                  </div>
+                  <div style={{ fontSize: 10, color: 'var(--text-secondary)', lineHeight: 1.5 }}>Results and insights reported to Niyanta</div>
+                  <div style={{ marginTop: 6, fontSize: 9, fontFamily: 'var(--font-mono)', color: '#A78BFA', textTransform: 'uppercase' }}>Required end node</div>
+                </div>
 
                 {/* Pipeline Blocks (workflows + nodes) */}
                 {canvasNodes.map(node => (
@@ -731,7 +889,10 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
                     </div>
                     <textarea
                       value={node.inputInfo}
-                      onChange={e => setCanvasNodes(prev => prev.map(n => n.id === node.id ? { ...n, inputInfo: e.target.value } : n))}
+                      onChange={e => {
+                        setCanvasNodes(prev => prev.map(n => n.id === node.id ? { ...n, inputInfo: e.target.value } : n));
+                        setHasUnsavedAgentChanges(true);
+                      }}
                       onMouseDown={e => e.stopPropagation()}
                       placeholder="What data does this step need?"
                       rows={2}
@@ -782,7 +943,7 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
               </label>
               <textarea
                 value={agentDescription}
-                onChange={e => setAgentDescription(e.target.value)}
+                onChange={e => { setAgentDescription(e.target.value); setHasUnsavedAgentChanges(true); }}
                 placeholder="What does this agent do?"
                 rows={3}
                 style={{
@@ -797,7 +958,7 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
               </label>
               <textarea
                 value={agentCapabilities}
-                onChange={e => setAgentCapabilities(e.target.value)}
+                onChange={e => { setAgentCapabilities(e.target.value); setHasUnsavedAgentChanges(true); }}
                 placeholder="e.g. OCR, validation, reporting"
                 rows={2}
                 style={{
@@ -818,7 +979,7 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
               <label style={{
                 display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, cursor: 'pointer',
               }}>
-                <input type="checkbox" checked={reportToNiyanta} onChange={e => setReportToNiyanta(e.target.checked)} />
+                <input type="checkbox" checked={reportToNiyanta} onChange={e => { setReportToNiyanta(e.target.checked); setHasUnsavedAgentChanges(true); }} />
                 <div>
                   <div style={{ fontSize: 12, fontWeight: 500 }}>Report to Niyanta</div>
                   <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Send all processed data to Niyanta for oversight</div>
@@ -828,7 +989,7 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
               <label style={{
                 display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, cursor: 'pointer',
               }}>
-                <input type="checkbox" checked={autoProcess} onChange={e => setAutoProcess(e.target.checked)} />
+                <input type="checkbox" checked={autoProcess} onChange={e => { setAutoProcess(e.target.checked); setHasUnsavedAgentChanges(true); }} />
                 <div>
                   <div style={{ fontSize: 12, fontWeight: 500 }}>Auto-Process Data</div>
                   <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Agent automatically processes incoming data through workflows</div>
@@ -843,7 +1004,7 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
                 {['#00D4FF', '#059669', '#7C3AED', '#EC4899', '#F59E0B', '#EF4444', '#3B82F6', '#F97316'].map(c => (
                   <div
                     key={c}
-                    onClick={() => setAgentColor(c)}
+                    onClick={() => { setAgentColor(c); setHasUnsavedAgentChanges(true); }}
                     style={{
                       width: 24, height: 24, borderRadius: 6, background: c, cursor: 'pointer',
                       border: agentColor === c ? '2px solid #fff' : '2px solid transparent',
@@ -901,143 +1062,6 @@ const AgentConsole: React.FC<AgentConsoleProps> = ({
                     OUTPUT (Niyanta Report)
                   </div>
                 </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // ══════════════════════════════════════════════════════════════════════════
-  // INDIVIDUAL AGENT VIEW — /agents/:agentId (chat / detail)
-  // ══════════════════════════════════════════════════════════════════════════
-  if (selectedAgent) {
-    return (
-      <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-        {/* Toolbar */}
-        <div style={{
-          height: 56, display: 'flex', alignItems: 'center', padding: '0 20px', gap: 12,
-          borderBottom: '1px solid var(--border)', flexShrink: 0, background: 'var(--bg-dock)',
-        }}>
-          <button onClick={() => navigate('/agents')} style={{
-            height: 36, padding: '0 12px', borderRadius: 4,
-            border: '1px solid var(--border)', background: 'transparent',
-            color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 14,
-          }}>← Back</button>
-
-          <div style={{
-            width: 40, height: 40, borderRadius: 8, background: selectedAgent.color,
-            display: 'grid', placeItems: 'center', color: '#fff',
-            fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 700,
-            boxShadow: `0 4px 12px ${selectedAgent.glow}`,
-          }}>{selectedAgent.icon}</div>
-
-          <div>
-            <div style={{ fontFamily: 'var(--font-body)', fontSize: 15, fontWeight: 600 }}>{selectedAgent.name}</div>
-            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)' }}>{selectedAgent.subtitle}</div>
-          </div>
-
-          <div style={{ flex: 1 }} />
-
-          <input
-            value={inputText}
-            onChange={e => setInputText(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') handleRun(); }}
-            placeholder="Type your message..."
-            style={{
-              width: 350, height: 40, padding: '0 14px',
-              background: 'var(--bg-input)', border: '1px solid var(--border)',
-              borderRadius: 4, fontFamily: 'var(--font-body)', fontSize: 13,
-              color: 'var(--text-primary)', outline: 'none',
-            }}
-          />
-          <button onClick={handleRun} disabled={selectedState?.status === 'processing'} style={{
-            height: 40, padding: '0 20px', borderRadius: 4, fontWeight: 600,
-            border: '1px solid var(--accent-border)',
-            background: selectedState?.status === 'processing' ? 'var(--bg-tile)' : 'var(--accent-dim)',
-            color: selectedState?.status === 'processing' ? 'var(--text-muted)' : 'var(--accent)',
-            cursor: selectedState?.status === 'processing' ? 'wait' : 'pointer',
-            fontFamily: 'var(--font-mono)', fontSize: 12,
-          }}>{selectedState?.status === 'processing' ? 'PROCESSING...' : 'SEND'}</button>
-        </div>
-
-        {/* Main Content */}
-        <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-          {/* Chat Area */}
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--bg-base)' }}>
-            <div style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
-              {selectedState?.result ? (
-                <div style={{
-                  background: 'var(--bg-panel)', border: '1px solid var(--border)',
-                  borderRadius: 8, padding: 20,
-                }}>
-                  <div style={{
-                    fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)',
-                    textTransform: 'uppercase', marginBottom: 12,
-                  }}>
-                    AGENT RESPONSE
-                    {selectedState.processingTime && <span style={{ marginLeft: 8 }}>· {selectedState.processingTime}ms</span>}
-                  </div>
-                  <pre style={{
-                    fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-primary)',
-                    whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0, lineHeight: 1.6,
-                  }}>
-                    {typeof selectedState.result === 'string' ? selectedState.result : JSON.stringify(selectedState.result, null, 2)}
-                  </pre>
-                </div>
-              ) : (
-                <div style={{ height: '100%', display: 'grid', placeItems: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
-                  Send a message to {selectedAgent.name}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Right Panel - Linked Workflows */}
-          <div style={{
-            width: 320, borderLeft: '1px solid var(--border)', background: 'var(--bg-panel)',
-            display: 'flex', flexDirection: 'column', flexShrink: 0,
-          }}>
-            <div style={{
-              padding: '16px 20px', borderBottom: '1px solid var(--border)', background: 'rgba(0, 212, 255, 0.05)',
-            }}>
-              <div style={{
-                fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)',
-                textTransform: 'uppercase', marginBottom: 6, letterSpacing: '0.05em',
-              }}>LINKED WORKFLOWS</div>
-              <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                Workflows this agent can execute
-              </div>
-            </div>
-
-            <div style={{ flex: 1, overflowY: 'auto' }}>
-              {linkedWorkflows.length === 0 ? (
-                <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 12, lineHeight: 1.6 }}>
-                  No workflows linked yet.<br />Edit agent to add workflows.
-                </div>
-              ) : (
-                linkedWorkflows.map(wf => (
-                  <div key={wf.workflow_id} style={{
-                    padding: '16px 20px', borderBottom: '1px solid var(--border)', cursor: 'pointer',
-                  }}
-                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-tile-hover)')}
-                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                    onClick={() => window.open('/workflows', '_blank')}
-                  >
-                    <div style={{ fontWeight: 500, fontSize: 13, marginBottom: 6, color: 'var(--text-primary)' }}>
-                      {wf.name}
-                    </div>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8, lineHeight: 1.4 }}>
-                      {wf.category} · {wf.description || 'No description'}
-                    </div>
-                    <div style={{
-                      display: 'inline-block', padding: '3px 8px', borderRadius: 3,
-                      background: 'rgba(0, 255, 136, 0.1)', color: '#00ff88',
-                      fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 600,
-                    }}>CAN EXECUTE</div>
-                  </div>
-                ))
               )}
             </div>
           </div>

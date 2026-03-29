@@ -294,21 +294,6 @@ export const TemplateGallery: React.FC<TemplateGalleryProps> = ({ onTemplateSele
                       ))}
                     </div>
 
-                    {/* Use button (shows on hover/select) */}
-                    {isSelected && (
-                      <div style={{ padding: '0 16px 14px' }}>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); }}
-                          style={{
-                            width: '100%', height: 32, fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700,
-                            background: '#8B5CF6', border: 'none', color: 'white', borderRadius: 4, cursor: 'pointer',
-                            letterSpacing: '0.05em',
-                          }}
-                        >
-                          SELECT THIS TEMPLATE
-                        </button>
-                      </div>
-                    )}
                   </div>
                 );
               })}
