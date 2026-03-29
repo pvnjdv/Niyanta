@@ -21,6 +21,14 @@ interface NiyantaCommandConsoleProps {
 }
 
 type RoutedAgent = { agentId: string; label: string };
+type HistoryItem = {
+  id: string;
+  command: string;
+  outcome: string;
+  timestamp: string;
+  userTimestamp: string;
+  assistantTimestamp?: string;
+};
 
 const STORAGE_KEY = 'niyanta-command-chat-v2';
 
@@ -74,8 +82,8 @@ function detectAgents(input: string, attachments: ExtractedFileAttachment[]): Ro
   return Array.from(deduped.values());
 }
 
-function summarizeHistory(messages: ChatMessage[]) {
-  const items: Array<{ id: string; command: string; outcome: string; timestamp: string }> = [];
+function summarizeHistory(messages: ChatMessage[]): HistoryItem[] {
+  const items: HistoryItem[] = [];
   for (let index = 0; index < messages.length; index += 1) {
     const current = messages[index];
     if (current.role !== 'user') continue;
@@ -85,9 +93,20 @@ function summarizeHistory(messages: ChatMessage[]) {
       command: current.content || '(file attachment)',
       outcome: nextAssistant?.reports?.[1]?.value || nextAssistant?.content.split('\n')[0] || 'Pending outcome',
       timestamp: current.timestamp,
+      userTimestamp: current.timestamp,
+      assistantTimestamp: nextAssistant?.timestamp,
     });
   }
   return items.reverse().slice(0, 12);
+}
+
+function getLatestAssistantActivity(messages: ChatMessage[]): NiyantaActivityItem[] {
+  const latestAssistant = [...messages].reverse().find((message) => message.role === 'assistant' && message.activity && message.activity.length > 0);
+  return latestAssistant?.activity || [];
+}
+
+function isConversationalAssistantMessage(message: ChatMessage): boolean {
+  return Boolean(message.activity?.some((item) => item.id.startsWith('conversation-')));
 }
 
 function getStructuredLineTone(label: string, value: string): keyof typeof TONE_COLOR | null {
@@ -422,10 +441,30 @@ const NiyantaCommandConsole: React.FC<NiyantaCommandConsoleProps> = ({
     }
   };
 
-  const handleClear = () => {
+  const handleNewChat = () => {
     setMessages([]);
     setLiveActivity([]);
+    setInput('');
+    setPendingFiles([]);
+    setRunningAgents([]);
   };
+
+  const handleRemoveHistoryItem = useCallback((item: HistoryItem) => {
+    const next = messages.filter((message) => {
+      if (message.role === 'user' && message.timestamp === item.userTimestamp) {
+        return false;
+      }
+
+      if (item.assistantTimestamp && message.role === 'assistant' && message.timestamp === item.assistantTimestamp) {
+        return false;
+      }
+
+      return true;
+    });
+
+    setMessages(next);
+    setLiveActivity(getLatestAssistantActivity(next));
+  }, [messages]);
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selected = Array.from(event.target.files ?? []);
@@ -510,8 +549,18 @@ const NiyantaCommandConsole: React.FC<NiyantaCommandConsoleProps> = ({
   };
 
   const renderAssistantMessage = (msg: ChatMessage, index: number) => {
-    const isError = msg.content.startsWith('Niyanta failed') || msg.content.toLowerCase().includes('failed');
+    const isConversational = isConversationalAssistantMessage(msg);
+    const normalizedContent = msg.content.trim().toLowerCase();
+    const isError = !isConversational && (
+      normalizedContent.startsWith('niyanta failed')
+      || normalizedContent.startsWith('niyanta command failed')
+      || normalizedContent.startsWith('error:')
+    );
     const lines = msg.content.split('\n');
+    const paragraphs = msg.content
+      .split(/\n\s*\n/)
+      .map((block) => block.trim())
+      .filter(Boolean);
     return (
       <div key={`${msg.timestamp}-${index}`} style={{ display: 'grid', gap: 7, animation: 'slideIn 240ms ease both' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
@@ -522,59 +571,83 @@ const NiyantaCommandConsole: React.FC<NiyantaCommandConsoleProps> = ({
             {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
           </span>
         </div>
-        <div style={{ display: 'grid', gap: 5 }}>
-          {lines.map((line, lineIndex) => {
-            const trimmed = line.trim();
-            if (!trimmed) {
-              return <div key={`${msg.timestamp}-gap-${lineIndex}`} style={{ height: 2 }} />;
-            }
+        {isConversational ? (
+          <div style={{ display: 'grid', gap: 8 }}>
+            {(paragraphs.length > 0 ? paragraphs : [msg.content.trim()]).map((paragraph, paragraphIndex) => (
+              <div
+                key={`${msg.timestamp}-paragraph-${paragraphIndex}`}
+                style={{
+                  color: isError ? 'var(--status-danger)' : 'var(--text-primary)',
+                  fontSize: 13,
+                  lineHeight: 1.78,
+                  whiteSpace: 'pre-wrap',
+                  padding: '8px 10px',
+                  borderRadius: 10,
+                  border: `1px solid ${isError ? 'rgba(239,68,68,0.2)' : 'rgba(6,182,212,0.12)'}`,
+                  background: isError ? 'rgba(239,68,68,0.05)' : 'rgba(6,182,212,0.04)',
+                  animation: 'textLift 260ms ease both',
+                  animationDelay: `${paragraphIndex * 42}ms`,
+                }}
+              >
+                {paragraph}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gap: 5 }}>
+            {lines.map((line, lineIndex) => {
+              const trimmed = line.trim();
+              if (!trimmed) {
+                return <div key={`${msg.timestamp}-gap-${lineIndex}`} style={{ height: 2 }} />;
+              }
 
-            const fieldMatch = trimmed.match(/^([A-Za-z ]+):\s*(.+)$/);
-            if (fieldMatch) {
-              const label = fieldMatch[1].trim();
-              const value = fieldMatch[2].trim();
-              const tone = getStructuredLineTone(label, value);
+              const fieldMatch = trimmed.match(/^([A-Za-z ]+):\s*(.+)$/);
+              if (fieldMatch) {
+                const label = fieldMatch[1].trim();
+                const value = fieldMatch[2].trim();
+                const tone = getStructuredLineTone(label, value);
 
+                return (
+                  <div
+                    key={`${msg.timestamp}-field-${lineIndex}`}
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: '116px minmax(0, 1fr)',
+                      gap: 10,
+                      alignItems: 'start',
+                      animation: 'textLift 260ms ease both',
+                      animationDelay: `${lineIndex * 42}ms`,
+                    }}
+                  >
+                    <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.07em', color: tone ? TONE_COLOR[tone] : 'var(--text-muted)' }}>
+                      {label}
+                    </div>
+                    <div style={{ fontSize: 13, lineHeight: 1.7, color: tone ? TONE_COLOR[tone] : (isError ? 'var(--status-danger)' : 'var(--text-primary)') }}>
+                      {value}
+                    </div>
+                  </div>
+                );
+              }
+
+              const tone = getParagraphTone(trimmed);
               return (
                 <div
-                  key={`${msg.timestamp}-field-${lineIndex}`}
+                  key={`${msg.timestamp}-line-${lineIndex}`}
                   style={{
-                    display: 'grid',
-                    gridTemplateColumns: '116px minmax(0, 1fr)',
-                    gap: 10,
-                    alignItems: 'start',
+                    color: tone ? TONE_COLOR[tone] : (isError ? 'var(--status-danger)' : 'var(--text-primary)'),
+                    fontSize: 13,
+                    lineHeight: 1.72,
+                    whiteSpace: 'pre-wrap',
                     animation: 'textLift 260ms ease both',
                     animationDelay: `${lineIndex * 42}ms`,
                   }}
                 >
-                  <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.07em', color: tone ? TONE_COLOR[tone] : 'var(--text-muted)' }}>
-                    {label}
-                  </div>
-                  <div style={{ fontSize: 13, lineHeight: 1.7, color: tone ? TONE_COLOR[tone] : (isError ? 'var(--status-danger)' : 'var(--text-primary)') }}>
-                    {value}
-                  </div>
+                  {trimmed}
                 </div>
               );
-            }
-
-            const tone = getParagraphTone(trimmed);
-            return (
-              <div
-                key={`${msg.timestamp}-line-${lineIndex}`}
-                style={{
-                  color: tone ? TONE_COLOR[tone] : (isError ? 'var(--status-danger)' : 'var(--text-primary)'),
-                  fontSize: 13,
-                  lineHeight: 1.72,
-                  whiteSpace: 'pre-wrap',
-                  animation: 'textLift 260ms ease both',
-                  animationDelay: `${lineIndex * 42}ms`,
-                }}
-              >
-                {trimmed}
-              </div>
-            );
-          })}
-        </div>
+            })}
+          </div>
+        )}
         {renderReportGrid(msg)}
         {msg.activity && msg.activity.length > 0 && (
           <div style={{ borderLeft: '1px solid var(--border)', paddingLeft: 10, display: 'grid', gap: 0 }}>
@@ -671,9 +744,17 @@ const NiyantaCommandConsole: React.FC<NiyantaCommandConsoleProps> = ({
         <div style={panelLabel}>History</div>
         <div style={{ flex: 1, overflowY: 'auto', display: 'grid', gap: 5, alignContent: 'start' }}>
           {historyItems.length > 0 ? historyItems.map((item) => (
-            <button
+            <div
               key={item.id}
+              role="button"
+              tabIndex={0}
               onClick={() => setInput(item.command === '(file attachment)' ? '' : item.command)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  setInput(item.command === '(file attachment)' ? '' : item.command);
+                }
+              }}
               style={{
                 padding: '9px 10px',
                 borderRadius: 8,
@@ -686,8 +767,32 @@ const NiyantaCommandConsole: React.FC<NiyantaCommandConsoleProps> = ({
               onMouseEnter={(event) => { event.currentTarget.style.background = 'var(--bg-input)'; }}
               onMouseLeave={(event) => { event.currentTarget.style.background = 'var(--cc-surface-1)'; }}
             >
-              <div style={{ fontSize: 11, color: 'var(--text-primary)', lineHeight: 1.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {item.command}
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                <div style={{ flex: 1, minWidth: 0, fontSize: 11, color: 'var(--text-primary)', lineHeight: 1.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {item.command}
+                </div>
+                <button
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    handleRemoveHistoryItem(item);
+                  }}
+                  disabled={isSending}
+                  title="Remove from history"
+                  style={{
+                    width: 20,
+                    height: 20,
+                    borderRadius: 4,
+                    border: '1px solid var(--border)',
+                    background: 'transparent',
+                    color: 'var(--text-muted)',
+                    cursor: isSending ? 'not-allowed' : 'pointer',
+                    fontSize: 10,
+                    lineHeight: 1,
+                    flexShrink: 0,
+                  }}
+                >
+                  ✕
+                </button>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 4 }}>
                 <span style={{ fontSize: 10, color: 'var(--status-info)' }}>{item.outcome}</span>
@@ -695,7 +800,7 @@ const NiyantaCommandConsole: React.FC<NiyantaCommandConsoleProps> = ({
                   {new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </span>
               </div>
-            </button>
+            </div>
           )) : (
             <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.6 }}>
               Command history appears here after the first run.
@@ -840,26 +945,26 @@ const NiyantaCommandConsole: React.FC<NiyantaCommandConsoleProps> = ({
                 </div>
               </div>
             </div>
-            {messages.length > 0 && !isSending && (
-              <button
-                onClick={handleClear}
-                style={{
-                  height: 28,
-                  padding: '0 12px',
-                  borderRadius: 5,
-                  border: '1px solid var(--border)',
-                  background: 'transparent',
-                  color: 'var(--text-muted)',
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: 10,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.07em',
-                  cursor: 'pointer',
-                }}
-              >
-                ✕ Clear
-              </button>
-            )}
+            <button
+              onClick={handleNewChat}
+              disabled={isSending}
+              style={{
+                height: 28,
+                padding: '0 12px',
+                borderRadius: 5,
+                border: '1px solid var(--border)',
+                background: 'transparent',
+                color: 'var(--text-muted)',
+                fontFamily: 'var(--font-mono)',
+                fontSize: 10,
+                textTransform: 'uppercase',
+                letterSpacing: '0.07em',
+                cursor: isSending ? 'not-allowed' : 'pointer',
+                opacity: isSending ? 0.5 : 1,
+              }}
+            >
+              + New Chat
+            </button>
           </div>
 
           <div style={{ flex: 1, overflowY: 'auto', padding: '20px', display: 'grid', gap: 16, alignContent: 'start' }}>

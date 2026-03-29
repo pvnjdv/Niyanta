@@ -467,30 +467,31 @@ function buildLocalChatReply(message: string): string | null {
 
   if (/^(hi|hello|hey|good morning|good afternoon|good evening)\b/.test(normalized)) {
     return [
-      'Hello.',
+      'Hello. I can talk normally here, not only execute commands.',
       '',
-      'I can chat normally, run workflow scenarios, analyse uploaded files, and handle approval actions.',
+      'Ask me a plain question if you want a direct answer. If you want me to take action, tell me what to run or upload a file and I will route it.',
+    ].join('\n');
+  }
+
+  if (/(talk frankly|speak frankly|talk normally|speak normally|chat normally|be direct|just talk|talk like normal ai)/i.test(normalized)) {
+    return [
+      'Sure. I can keep this direct and conversational.',
       '',
-      'Try one of these:',
-      'Chat: ask what is active or what I can do.',
-      'Command: process an invoice, create a procurement request, or onboard an employee.',
-      'Approval: type "approve latest" or "reject latest: <reason>".',
+      'Ask whatever you want in plain language. If you want action, say what should be done and I will switch into command mode only when it makes sense.',
     ].join('\n');
   }
 
   if (/(what can you do|help|capabilities|how can you help)/i.test(normalized)) {
     return [
-      'I can handle both normal chat and agentic operations.',
+      'I can do both normal conversation and operational execution from this screen.',
       '',
-      'Chat: answer workflow, audit, and operations questions in plain language.',
-      'Scenarios: invoice auto-approval, invoice escalation, procurement, HR onboarding, and document intake.',
-      'Files: accept uploads, extract text when possible, and route the document into the right workflow.',
-      'Approvals: guide you to Approvals or accept typed approval commands directly here.',
+      'Ask normally when you want a direct answer about workflows, audits, approvals, or system state.',
+      'Give me a task when you want me to run a workflow, process a document, or handle an approval action.',
     ].join('\n');
   }
 
   if (/^(thanks|thank you|ok thanks|great thanks)\b/.test(normalized)) {
-    return 'You are welcome. I can keep chatting, run a workflow, or clear a pending approval whenever you are ready.';
+    return 'You are welcome. Keep chatting normally if you want an answer, or give me a task when you want action.';
   }
 
   return null;

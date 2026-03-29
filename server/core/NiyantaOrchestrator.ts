@@ -515,6 +515,7 @@ Live system context:
 ${systemContextSummary}
 
 Respond in plain text with short titled sections when useful.
+If the user is greeting you, making small talk, or explicitly asks to talk normally or frankly, reply like a normal helpful AI in natural paragraphs without section headings.
 Prefer this structure when the query is operational:
 Situation
 What I'm Seeing
