@@ -1389,6 +1389,455 @@
   }
   /* ── end Scene 4 ────────────────────────────────────────── */
 
+  /* ── Scene 5: Agent Processing Loop ─────────────────────── */
+  .agent-scene {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background:
+      radial-gradient(circle at 50% 50%, rgba(120, 175, 255, 0.07) 0%, rgba(120, 175, 255, 0.02) 24%, rgba(11, 11, 11, 0) 58%),
+      var(--bg);
+  }
+
+  .agent-layout {
+    position: relative;
+    z-index: 2;
+    width: min(92vw, 1100px);
+    height: min(84vh, 780px);
+  }
+
+  /* ── Vertical rail: the single lane for request + response ── */
+  .agent-rail {
+    position: absolute;
+    left: 50%;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    transform: translateX(-50%);
+    background: rgba(255, 255, 255, 0.06);
+    z-index: 1;
+    opacity: 0;
+    transition: opacity 0.6s ease;
+  }
+
+  .agent-scene.rail-visible .agent-rail {
+    opacity: 1;
+  }
+
+  /* ── Faint background agents ── */
+  .bg-agents {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+  }
+
+  .bg-agent-node {
+    position: absolute;
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: rgba(255, 255, 255, 0.01);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255, 255, 255, 0.16);
+    font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
+    font-size: 0.56rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    opacity: 0;
+    transition: opacity 0.8s ease;
+    transition-delay: var(--bd, 0s);
+  }
+
+  .agent-scene.is-visible .bg-agent-node {
+    opacity: 1;
+  }
+
+  /* ── Central active agent node ── */
+  .active-agent-wrap {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 4;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+  }
+
+  .active-agent-node {
+    width: 160px;
+    height: 160px;
+    border-radius: 50%;
+    border: 2px solid rgba(120, 175, 255, 0.22);
+    background: radial-gradient(circle at 50% 50%, rgba(120, 175, 255, 0.16), rgba(120, 175, 255, 0.04));
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    opacity: 0;
+    transform: scale(0.88);
+    transition: opacity 0.8s ease, transform 0.8s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.6s ease, box-shadow 0.6s ease;
+  }
+
+  .agent-scene.agent-active .active-agent-node {
+    opacity: 1;
+    transform: scale(1);
+    border-color: rgba(120, 175, 255, 0.5);
+    box-shadow: 0 0 56px rgba(120, 175, 255, 0.22), inset 0 0 40px rgba(120, 175, 255, 0.09);
+    animation: agentPulse 2.8s ease-in-out infinite;
+  }
+
+  .active-agent-node::before,
+  .active-agent-node::after {
+    content: "";
+    position: absolute;
+    border-radius: 50%;
+    border: 1px solid rgba(120, 175, 255, 0.1);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.8s ease;
+  }
+
+  .active-agent-node::before { inset: -22px; }
+  .active-agent-node::after  { inset: -44px; border-color: rgba(120, 175, 255, 0.05); }
+
+  .agent-scene.agent-active .active-agent-node::before,
+  .agent-scene.agent-active .active-agent-node::after {
+    opacity: 1;
+    animation: engineRing 3s ease-in-out infinite;
+  }
+
+  .agent-scene.agent-active .active-agent-node::after {
+    animation-delay: 0.6s;
+  }
+
+  .agent-node-label {
+    color: rgba(255, 255, 255, 0.92);
+    font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
+    font-size: 0.82rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+
+  .agent-node-sub {
+    color: rgba(120, 175, 255, 0.7);
+    font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
+    font-size: 0.52rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+
+  /* ── Request packet: flows downward into agent ── */
+  .req-packet {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 5;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .req-arrow {
+    width: 1px;
+    height: 60px;
+    background: linear-gradient(to bottom, rgba(120, 175, 255, 0), rgba(120, 175, 255, 0.6));
+    position: relative;
+  }
+
+  .req-arrow::after {
+    content: "";
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 8px solid rgba(120, 175, 255, 0.7);
+  }
+
+  .req-pill {
+    padding: 0.52rem 1rem;
+    border: 1px solid rgba(120, 175, 255, 0.22);
+    border-radius: 999px;
+    background: rgba(120, 175, 255, 0.07);
+    color: rgba(220, 238, 255, 0.94);
+    font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.1em;
+    white-space: nowrap;
+    box-shadow: 0 0 16px rgba(120, 175, 255, 0.18);
+  }
+
+  .req-label {
+    color: rgba(255, 255, 255, 0.38);
+    font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
+    font-size: 0.52rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+
+  /* Positioned above agent, starts hidden, animates down */
+  .req-packet {
+    top: 8%;
+    transition: top 1.2s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.6s ease;
+  }
+
+  .agent-scene.req-visible .req-packet {
+    opacity: 1;
+  }
+
+  .agent-scene.req-traveling .req-packet {
+    top: 28%;
+  }
+
+  /* ── Capability tiles: left panel ── */
+  .cap-panel {
+    position: absolute;
+    left: 3%;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 3;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    width: 230px;
+  }
+
+  .cap-tile {
+    padding: 1rem 1.2rem;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 16px;
+    background: linear-gradient(160deg, rgba(18, 22, 28, 0.86), rgba(10, 12, 16, 0.9));
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    opacity: 0;
+    transform: translateX(-16px);
+    transition: opacity 0.6s ease, transform 0.7s cubic-bezier(0.22, 1, 0.36, 1),
+                border-color 0.5s ease, box-shadow 0.5s ease;
+    transition-delay: var(--cd, 0s);
+  }
+
+  .agent-scene.caps-visible .cap-tile {
+    opacity: 0.32;
+    transform: translateX(0);
+  }
+
+  .cap-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.18);
+    flex-shrink: 0;
+    transition: background 0.4s ease, box-shadow 0.4s ease;
+  }
+
+  .cap-text {
+    color: rgba(255, 255, 255, 0.46);
+    font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    transition: color 0.4s ease;
+  }
+
+  .cap-tile.is-processing {
+    opacity: 1 !important;
+    border-color: rgba(120, 175, 255, 0.22);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4), inset 0 0 20px rgba(120, 175, 255, 0.05);
+  }
+
+  .cap-tile.is-processing .cap-dot {
+    background: rgba(120, 175, 255, 0.9);
+    box-shadow: 0 0 10px rgba(120, 175, 255, 0.6);
+    animation: statusPulse 1.4s ease-in-out infinite;
+  }
+
+  .cap-tile.is-processing .cap-text {
+    color: rgba(200, 228, 255, 0.92);
+  }
+
+  .cap-tile.is-done {
+    opacity: 0.7 !important;
+    border-color: rgba(120, 175, 255, 0.1);
+  }
+
+  .cap-tile.is-done .cap-dot {
+    background: rgba(120, 175, 255, 0.5);
+    box-shadow: none;
+  }
+
+  .cap-tile.is-done .cap-text {
+    color: rgba(180, 215, 255, 0.6);
+  }
+
+  /* ── Response packet: flows upward from agent ── */
+  .res-packet {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 5;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .res-arrow {
+    width: 1px;
+    height: 60px;
+    background: linear-gradient(to top, rgba(120, 175, 255, 0), rgba(120, 175, 255, 0.6));
+    position: relative;
+  }
+
+  .res-arrow::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-bottom: 8px solid rgba(120, 175, 255, 0.7);
+  }
+
+  .res-pill {
+    padding: 0.52rem 1rem;
+    border: 1px solid rgba(120, 175, 255, 0.3);
+    border-radius: 999px;
+    background: rgba(120, 175, 255, 0.1);
+    color: rgba(220, 238, 255, 0.96);
+    font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.1em;
+    white-space: nowrap;
+    box-shadow: 0 0 20px rgba(120, 175, 255, 0.24);
+  }
+
+  .res-label {
+    color: rgba(255, 255, 255, 0.38);
+    font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
+    font-size: 0.52rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+
+  /* Positioned below agent, animates upward */
+  .res-packet {
+    bottom: 28%;
+    flex-direction: column-reverse; /* arrow points up, pill above */
+    transition: bottom 1.2s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.6s ease;
+  }
+
+  .agent-scene.res-visible .res-packet {
+    opacity: 1;
+  }
+
+  .agent-scene.res-traveling .res-packet {
+    bottom: 52%;
+  }
+
+  /* ── Forward arrow: response redirects downward to next stage ── */
+  .fwd-packet {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: 5%;
+    z-index: 5;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    opacity: 0;
+    transition: opacity 0.8s ease;
+  }
+
+  .agent-scene.fwd-visible .fwd-packet {
+    opacity: 1;
+  }
+
+  .fwd-label {
+    color: rgba(255, 255, 255, 0.36);
+    font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
+    font-size: 0.52rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+
+  .fwd-arrow {
+    width: 1px;
+    height: 50px;
+    background: linear-gradient(to bottom, rgba(120, 175, 255, 0.5), rgba(120, 175, 255, 0));
+    position: relative;
+  }
+
+  .fwd-arrow::after {
+    content: "";
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 8px solid rgba(120, 175, 255, 0.5);
+  }
+
+  .fwd-dest {
+    color: rgba(180, 215, 255, 0.72);
+    font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
+    font-size: 0.62rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  /* ── Final text ── */
+  .agent-final {
+    position: absolute;
+    inset: 0;
+    z-index: 6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    opacity: 0;
+  }
+
+  .agent-scene.agent-final-visible .agent-final {
+    animation: messageReveal 1s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+
+  .agent-final span {
+    font-size: clamp(2.4rem, 5vw, 4.8rem);
+    font-weight: 400;
+    color: rgba(255, 255, 255, 0.94);
+    letter-spacing: 0.04em;
+    text-shadow: 0 0 40px rgba(120, 175, 255, 0.16);
+  }
+
+  @keyframes agentPulse {
+    0%,100% {
+      box-shadow: 0 0 40px rgba(120, 175, 255, 0.18), inset 0 0 32px rgba(120, 175, 255, 0.07);
+      border-color: rgba(120, 175, 255, 0.42);
+    }
+    50% {
+      box-shadow: 0 0 80px rgba(120, 175, 255, 0.38), inset 0 0 56px rgba(120, 175, 255, 0.15);
+      border-color: rgba(120, 175, 255, 0.72);
+    }
+  }
+  /* ── end Scene 5 ────────────────────────────────────────── */
+
   @media (max-width: 980px) {
     .logs {
       top: 32px;
@@ -1732,6 +2181,74 @@
       </div>
     </section>
 
+    <!-- Scene 5: Agent Processing Loop -->
+    <section class="scene agent-scene" id="sceneAgent" aria-label="Agent processing loop animation">
+      <div class="scan-layer" aria-hidden="true"></div>
+
+      <!-- Faint background agents -->
+      <div class="bg-agents" aria-hidden="true">
+        <div class="bg-agent-node" style="top:12%;left:8%;--bd:0.1s;">HR</div>
+        <div class="bg-agent-node" style="top:12%;right:8%;--bd:0.2s;">Finance</div>
+        <div class="bg-agent-node" style="top:50%;left:5%;--bd:0.15s;">Security</div>
+        <div class="bg-agent-node" style="top:50%;right:5%;--bd:0.25s;">Procurement</div>
+        <div class="bg-agent-node" style="bottom:12%;left:9%;--bd:0.3s;">Meeting</div>
+        <div class="bg-agent-node" style="bottom:12%;right:9%;--bd:0.35s;">Workflow</div>
+      </div>
+
+      <!-- Vertical rail -->
+      <div class="agent-rail" id="agentRail" aria-hidden="true"></div>
+
+      <!-- Request packet (top, flows down) -->
+      <div class="req-packet" id="reqPacket" aria-hidden="true">
+        <div class="req-label">request</div>
+        <div class="req-pill">access_request</div>
+        <div class="req-arrow"></div>
+      </div>
+
+      <!-- Active agent node (centre) -->
+      <div class="active-agent-wrap" aria-hidden="true">
+        <div class="active-agent-node" id="activeAgentNode">
+          <div class="agent-node-label">IT Agent</div>
+          <div class="agent-node-sub">access · policy · lookup</div>
+        </div>
+      </div>
+
+      <!-- Capability tiles (left panel) -->
+      <div class="cap-panel" aria-hidden="true">
+        <div class="cap-tile" id="cap0" style="--cd:0.08s;">
+          <div class="cap-dot"></div>
+          <div class="cap-text">Access validation</div>
+        </div>
+        <div class="cap-tile" id="cap1" style="--cd:0.16s;">
+          <div class="cap-dot"></div>
+          <div class="cap-text">Policy check</div>
+        </div>
+        <div class="cap-tile" id="cap2" style="--cd:0.24s;">
+          <div class="cap-dot"></div>
+          <div class="cap-text">System lookup</div>
+        </div>
+      </div>
+
+      <!-- Response packet (bottom, flows up) -->
+      <div class="res-packet" id="resPacket" aria-hidden="true">
+        <div class="res-arrow"></div>
+        <div class="res-pill">validated_request</div>
+        <div class="res-label">response</div>
+      </div>
+
+      <!-- Forward arrow (down to workflow engine) -->
+      <div class="fwd-packet" id="fwdPacket" aria-hidden="true">
+        <div class="fwd-label">→ Workflow engine</div>
+        <div class="fwd-arrow"></div>
+        <div class="fwd-dest">next stage</div>
+      </div>
+
+      <!-- Final text -->
+      <div class="agent-final" id="agentFinal">
+        <span>Right agent. Right task.</span>
+      </div>
+    </section>
+
   <div class="audio-hooks" aria-hidden="true">
     <audio id="audioAmbient" preload="none" loop></audio>
     <audio id="audioTyping" preload="none"></audio>
@@ -1753,6 +2270,7 @@
     var SCENE_TWO_START = 9000;
     var SCENE_THREE_START = 18200;
     var SCENE_FOUR_START = 28600;
+    var SCENE_FIVE_START = 38000;
 
     var SCENE_TWO_TIMINGS = {
       split: 2000,
@@ -1781,6 +2299,21 @@
       final:   7800    /* "One system decides everything" */
     };
 
+    var SCENE_FIVE_TIMINGS = {
+      rail:       300,
+      agent:      800,
+      req:       1800,
+      reqTravel: 2600,
+      caps:      3400,
+      cap0:      4200,
+      cap1:      5400,
+      cap2:      6400,
+      res:       7400,
+      resTravel: 8200,
+      fwd:       9200,
+      final:    10400
+    };
+
     var LOG_LINES = [
       { text: '[INIT] Booting Niyanta Core...', speed: 62 },
       { text: '[LOAD] Agents initialized', speed: 70 },
@@ -1791,6 +2324,7 @@
     var sceneSplit = document.getElementById('sceneSplit');
     var sceneIntent = document.getElementById('sceneIntent');
     var sceneCommand = document.getElementById('sceneCommand');
+    var sceneAgent   = document.getElementById('sceneAgent');
     var logs = document.getElementById('logs');
     var network = document.getElementById('network');
     var titleBlock = document.getElementById('titleBlock');
@@ -1855,6 +2389,19 @@
     var didCmdFinal = false;
     var cmdParticlePhase = 0; /* 0=idle 1=core->agent 2=agent->wf */
     var cmdParticleStart = 0;
+
+    var agentStartedAt = null;
+    var agentStarted   = false;
+    var didA5Rail      = false;
+    var didA5Agent     = false;
+    var didA5Req       = false;
+    var didA5ReqTravel = false;
+    var didA5Caps      = false;
+    var didA5Cap       = [false, false, false];
+    var didA5Res       = false;
+    var didA5ResTravel = false;
+    var didA5Fwd       = false;
+    var didA5Final     = false;
     var topStalled = false;
     var bottomLooping = false;
 
@@ -2145,6 +2692,81 @@
       intentFinal.classList.add('is-visible');
     }
 
+    function revealSceneFive() {
+      if (agentStarted) { return; }
+      agentStarted   = true;
+      agentStartedAt = performance.now();
+      sceneCommand.classList.add('is-exiting');
+      sceneAgent.classList.add('is-visible');
+    }
+
+    function tickAgentScene(timestamp) {
+      if (!agentStarted) { return; }
+      var elapsed = timestamp - agentStartedAt;
+      var s = sceneAgent;
+
+      if (!didA5Rail && elapsed >= SCENE_FIVE_TIMINGS.rail) {
+        didA5Rail = true;
+        s.classList.add('rail-visible');
+      }
+      if (!didA5Agent && elapsed >= SCENE_FIVE_TIMINGS.agent) {
+        didA5Agent = true;
+        s.classList.add('agent-active');
+      }
+      if (!didA5Req && elapsed >= SCENE_FIVE_TIMINGS.req) {
+        didA5Req = true;
+        s.classList.add('req-visible');
+      }
+      if (!didA5ReqTravel && elapsed >= SCENE_FIVE_TIMINGS.reqTravel) {
+        didA5ReqTravel = true;
+        s.classList.add('req-traveling');
+      }
+      if (!didA5Caps && elapsed >= SCENE_FIVE_TIMINGS.caps) {
+        didA5Caps = true;
+        s.classList.add('caps-visible');
+      }
+
+      /* Capability tiles activate sequentially */
+      var capIds = ['cap0', 'cap1', 'cap2'];
+      var capKeys = ['cap0', 'cap1', 'cap2'];
+      for (var i = 0; i < 3; i++) {
+        if (!didA5Cap[i] && elapsed >= SCENE_FIVE_TIMINGS[capKeys[i]]) {
+          didA5Cap[i] = true;
+          /* Mark previous tile as done */
+          if (i > 0) {
+            var prev = document.getElementById('cap' + (i - 1));
+            if (prev) { prev.classList.remove('is-processing'); prev.classList.add('is-done'); }
+          }
+          var cur = document.getElementById('cap' + i);
+          if (cur) { cur.classList.add('is-processing'); }
+        }
+      }
+      /* Mark last cap done when res appears */
+      if (didA5Cap[2] && !didA5Res) {
+        var last = document.getElementById('cap2');
+        if (last && last.classList.contains('is-processing') && elapsed >= SCENE_FIVE_TIMINGS.res) {
+          last.classList.remove('is-processing'); last.classList.add('is-done');
+        }
+      }
+
+      if (!didA5Res && elapsed >= SCENE_FIVE_TIMINGS.res) {
+        didA5Res = true;
+        s.classList.add('res-visible');
+      }
+      if (!didA5ResTravel && elapsed >= SCENE_FIVE_TIMINGS.resTravel) {
+        didA5ResTravel = true;
+        s.classList.add('res-traveling');
+      }
+      if (!didA5Fwd && elapsed >= SCENE_FIVE_TIMINGS.fwd) {
+        didA5Fwd = true;
+        s.classList.add('fwd-visible');
+      }
+      if (!didA5Final && elapsed >= SCENE_FIVE_TIMINGS.final) {
+        didA5Final = true;
+        s.classList.add('agent-final-visible');
+      }
+    }
+
     function revealSceneFour() {
       if (cmdStarted) { return; }
       cmdStarted = true;
@@ -2349,6 +2971,10 @@
         revealSceneFour();
       }
 
+      if (!agentStarted && timestamp >= SCENE_FIVE_START) {
+        revealSceneFive();
+      }
+
       if (splitStarted) {
         tickSplitScene(timestamp);
       }
@@ -2359,6 +2985,10 @@
 
       if (cmdStarted) {
         tickCommandScene(timestamp);
+      }
+
+      if (agentStarted) {
+        tickAgentScene(timestamp);
       }
 
       window.requestAnimationFrame(render);
@@ -2379,6 +3009,9 @@
       },
       showSceneFourNow: function () {
         revealSceneFour();
+      },
+      showSceneFiveNow: function () {
+        revealSceneFive();
       },
       branchIndex: branchIndex
     };
