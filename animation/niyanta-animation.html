@@ -2203,6 +2203,425 @@
 
   /* ── end Scene 6 ────────────────────────────────────────── */
 
+  /* ── Scene 7: Failure, Recovery, Continuation ───────────── */
+  .s7-scene {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background:
+      radial-gradient(circle at 50% 46%, rgba(255, 90, 80, 0.05) 0%, rgba(0,0,0,0) 52%),
+      var(--bg);
+    transition: background 1.2s ease;
+  }
+  .s7-scene.is-recovered {
+    background:
+      radial-gradient(circle at 50% 46%, rgba(120, 200, 130, 0.06) 0%, rgba(0,0,0,0) 52%),
+      var(--bg);
+  }
+
+  .s7-canvas {
+    position: relative;
+    width: min(92vw, 900px);
+    height: min(86vh, 760px);
+    opacity: 0;
+    transform: scale(0.96);
+    transition: opacity 0.8s ease, transform 0.9s cubic-bezier(0.22,1,0.36,1);
+  }
+  .s7-scene.is-visible .s7-canvas { opacity: 1; transform: scale(1); }
+
+  /* ── SVG layer ── */
+  .s7-svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+    pointer-events: none;
+  }
+
+  .s7-edge {
+    fill: none;
+    stroke: rgba(255,255,255,0.10);
+    stroke-width: 1.5;
+  }
+  .s7-edge.is-active { stroke: rgba(120,200,130,0.45); stroke-width: 2; }
+  .s7-edge.is-failed { stroke: rgba(255,90,80,0.20); stroke-dasharray: 5 4; stroke-width: 1; }
+  .s7-edge.is-dim    { stroke: rgba(255,255,255,0.04); }
+  .s7-edge.is-done   { stroke: rgba(120,200,130,0.20); stroke-width: 1.5; }
+
+  /* ── Workflow nodes ── */
+  .s7-node {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    width: 140px;
+    padding: 14px 16px;
+    border-radius: 20px;
+    border: 1.5px solid rgba(255,255,255,0.07);
+    background: linear-gradient(160deg, rgba(16,20,16,0.94), rgba(10,12,10,0.97));
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    opacity: 0;
+    transition: opacity 0.7s ease, border-color 0.5s ease,
+                box-shadow 0.5s ease, transform 0.8s cubic-bezier(0.22,1,0.36,1);
+  }
+  .s7-scene.is-visible .s7-node { opacity: 0.26; }
+
+  .s7-node.is-active {
+    opacity: 1 !important;
+    border-color: rgba(120,200,130,0.45);
+    box-shadow: 0 0 44px rgba(120,200,130,0.22), inset 0 0 22px rgba(120,200,130,0.08);
+    animation: s7NodePulse 2.4s ease-in-out infinite;
+  }
+  .s7-node.is-failed {
+    opacity: 1 !important;
+    border-color: rgba(255,90,80,0.55);
+    box-shadow: 0 0 44px rgba(255,90,80,0.28), inset 0 0 22px rgba(255,90,80,0.10);
+    transform: translate(-50%, calc(-50% - 14px)) !important; /* detach lift */
+    animation: s7FailPulse 1.8s ease-in-out infinite;
+  }
+  .s7-node.is-recovering {
+    opacity: 1 !important;
+    border-color: rgba(100,160,255,0.45);
+    box-shadow: 0 0 44px rgba(100,160,255,0.20), inset 0 0 22px rgba(100,160,255,0.08);
+    transform: translate(-50%, calc(-50% - 14px)) !important;
+    animation: s7RecoverPulse 2s ease-in-out infinite;
+  }
+  .s7-node.is-recovered {
+    opacity: 1 !important;
+    border-color: rgba(120,200,130,0.55);
+    box-shadow: 0 0 52px rgba(120,200,130,0.30), inset 0 0 28px rgba(120,200,130,0.12);
+    transform: translate(-50%, -50%) !important; /* back to original */
+    animation: s7NodePulse 2.4s ease-in-out infinite;
+  }
+  .s7-node.is-done {
+    opacity: 0.5 !important;
+    border-color: rgba(120,200,130,0.14);
+    box-shadow: none;
+    animation: none;
+    transform: translate(-50%, -50%) !important;
+  }
+  .s7-node.is-dim {
+    opacity: 0.14 !important;
+    animation: none;
+  }
+
+  @keyframes s7NodePulse {
+    0%,100% { box-shadow: 0 0 36px rgba(120,200,130,0.18), inset 0 0 18px rgba(120,200,130,0.06); border-color: rgba(120,200,130,0.38); }
+    50%     { box-shadow: 0 0 66px rgba(120,200,130,0.38), inset 0 0 36px rgba(120,200,130,0.14); border-color: rgba(120,200,130,0.65); }
+  }
+  @keyframes s7FailPulse {
+    0%,100% { box-shadow: 0 0 36px rgba(255,90,80,0.22), inset 0 0 18px rgba(255,90,80,0.08); border-color: rgba(255,90,80,0.44); }
+    50%     { box-shadow: 0 0 66px rgba(255,90,80,0.44), inset 0 0 36px rgba(255,90,80,0.16); border-color: rgba(255,90,80,0.72); }
+  }
+  @keyframes s7RecoverPulse {
+    0%,100% { box-shadow: 0 0 36px rgba(100,160,255,0.16), inset 0 0 18px rgba(100,160,255,0.07); border-color: rgba(100,160,255,0.36); }
+    50%     { box-shadow: 0 0 60px rgba(100,160,255,0.34), inset 0 0 32px rgba(100,160,255,0.13); border-color: rgba(100,160,255,0.62); }
+  }
+
+  .s7-node-type {
+    font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
+    font-size: 0.48rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(120,200,130,0.5);
+    transition: color 0.5s ease;
+  }
+  .s7-node.is-failed    .s7-node-type { color: rgba(255,90,80,0.6); }
+  .s7-node.is-recovering .s7-node-type { color: rgba(100,160,255,0.6); }
+  .s7-node.is-recovered  .s7-node-type { color: rgba(120,200,130,0.6); }
+
+  .s7-node-label {
+    font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.1em;
+    color: rgba(255,255,255,0.82);
+    text-align: center;
+    transition: color 0.5s ease;
+  }
+  .s7-node.is-failed    .s7-node-label { color: rgba(255,180,170,0.92); }
+  .s7-node.is-recovering .s7-node-label { color: rgba(170,200,255,0.92); }
+  .s7-node.is-recovered  .s7-node-label { color: rgba(200,240,200,0.92); }
+
+  /* ── State capsule ── */
+  .s7-capsule {
+    position: absolute;
+    padding: 0.44rem 0.88rem;
+    border: 1px solid rgba(120,200,130,0.26);
+    border-radius: 999px;
+    background: rgba(18,30,18,0.88);
+    color: rgba(190,230,190,0.94);
+    font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
+    font-size: 0.64rem;
+    letter-spacing: 0.09em;
+    white-space: nowrap;
+    box-shadow: 0 2px 16px rgba(120,200,130,0.14);
+    pointer-events: none;
+    z-index: 10;
+    transform: translate(-50%, -50%);
+    opacity: 0;
+    transition: opacity 0.5s ease, left 1.2s cubic-bezier(0.22,1,0.36,1), top 1.2s cubic-bezier(0.22,1,0.36,1), border-color 0.5s ease, color 0.5s ease, background 0.5s ease, box-shadow 0.5s ease;
+  }
+  .s7-capsule.is-error {
+    border-color: rgba(255,90,80,0.36);
+    background: rgba(30,14,12,0.90);
+    color: rgba(255,180,170,0.94);
+    box-shadow: 0 2px 16px rgba(255,90,80,0.18);
+  }
+  .s7-capsule.is-recovery {
+    border-color: rgba(100,160,255,0.32);
+    background: rgba(12,18,32,0.90);
+    color: rgba(170,200,255,0.94);
+    box-shadow: 0 2px 16px rgba(100,160,255,0.16);
+  }
+  .s7-capsule.is-corrected {
+    border-color: rgba(120,200,130,0.38);
+    background: rgba(14,24,14,0.90);
+    color: rgba(190,240,190,0.96);
+    box-shadow: 0 2px 20px rgba(120,200,130,0.22);
+  }
+
+  /* ── Error label (shows near node on failure) ── */
+  .s7-error-label {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
+    font-size: 0.62rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: rgba(255,120,110,0.88);
+    opacity: 0;
+    transition: opacity 0.5s ease;
+    pointer-events: none;
+    z-index: 8;
+    white-space: nowrap;
+  }
+
+  /* ── Detection label (appears after error) ── */
+  .s7-detect-label {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
+    font-size: 0.58rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(180,200,255,0.72);
+    opacity: 0;
+    transition: opacity 0.4s ease;
+    pointer-events: none;
+    z-index: 8;
+    white-space: nowrap;
+  }
+
+  /* ── Retry Engine panel ── */
+  .s7-retry-panel {
+    position: absolute;
+    width: 220px;
+    padding: 16px 18px 14px;
+    border: 1px solid rgba(100,160,255,0.18);
+    border-radius: 18px;
+    background: linear-gradient(160deg, rgba(12,18,30,0.95), rgba(8,12,22,0.97));
+    box-shadow: 0 4px 32px rgba(0,0,0,0.5), inset 0 0 20px rgba(100,160,255,0.04);
+    opacity: 0;
+    transform: translate(-50%, 0) scale(0.92);
+    transition: opacity 0.6s ease, transform 0.7s cubic-bezier(0.22,1,0.36,1);
+    pointer-events: none;
+    z-index: 9;
+  }
+  .s7-retry-panel.is-visible {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+
+  .s7-retry-title {
+    font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
+    font-size: 0.56rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: rgba(100,160,255,0.72);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .s7-retry-title::before {
+    content: "";
+    display: inline-block;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: rgba(100,160,255,0.7);
+    box-shadow: 0 0 6px rgba(100,160,255,0.5);
+    flex-shrink: 0;
+  }
+
+  .s7-retry-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .s7-retry-step {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    opacity: 0.18;
+    transition: opacity 0.4s ease;
+  }
+  .s7-retry-step.is-active  { opacity: 1; }
+  .s7-retry-step.is-done    { opacity: 0.48; }
+
+  .s7-step-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.14);
+    flex-shrink: 0;
+    transition: background 0.4s ease, box-shadow 0.4s ease;
+  }
+  .s7-retry-step.is-active .s7-step-dot {
+    background: rgba(100,160,255,0.9);
+    box-shadow: 0 0 8px rgba(100,160,255,0.6);
+    animation: statusPulse 1.2s ease-in-out infinite;
+  }
+  .s7-retry-step.is-done .s7-step-dot {
+    background: rgba(100,160,255,0.4);
+  }
+
+  .s7-step-text {
+    font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
+    font-size: 0.62rem;
+    letter-spacing: 0.08em;
+    color: rgba(200,220,255,0.82);
+  }
+  .s7-retry-step.is-done .s7-step-text { color: rgba(160,190,255,0.46); }
+
+  .s7-retry-result {
+    margin-top: 12px;
+    padding: 8px 12px;
+    border: 1px solid rgba(120,200,130,0.22);
+    border-radius: 10px;
+    background: rgba(14,24,14,0.7);
+    font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
+    font-size: 0.64rem;
+    letter-spacing: 0.1em;
+    color: rgba(180,240,180,0.88);
+    opacity: 0;
+    transition: opacity 0.5s ease;
+  }
+  .s7-retry-result.is-visible { opacity: 1; }
+
+  /* ── Recovery flow dot: travels from panel back into node ── */
+  .s7-recovery-dot {
+    position: absolute;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: rgba(100,160,255,0.9);
+    box-shadow: 0 0 14px rgba(100,160,255,0.7);
+    pointer-events: none;
+    opacity: 0;
+    z-index: 11;
+    transform: translate(-50%,-50%);
+    transition: opacity 0.3s ease;
+    will-change: top, left;
+  }
+
+  /* ── Execution dot ── */
+  .s7-exec-dot {
+    position: absolute;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: rgba(120,200,130,0.9);
+    box-shadow: 0 0 14px rgba(120,200,130,0.7);
+    pointer-events: none;
+    opacity: 0;
+    z-index: 11;
+    transform: translate(-50%,-50%);
+    transition: opacity 0.3s ease;
+    will-change: top, left;
+  }
+
+  /* ── Final text overlay ── */
+  .s7-final {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    opacity: 0;
+    z-index: 14;
+  }
+  .s7-scene.s7-final-visible .s7-final {
+    animation: messageReveal 1s cubic-bezier(0.22,1,0.36,1) forwards;
+  }
+  .s7-final span {
+    font-size: clamp(2.2rem, 4.6vw, 4.4rem);
+    font-weight: 400;
+    color: rgba(255,255,255,0.94);
+    letter-spacing: 0.04em;
+    text-shadow: 0 0 40px rgba(120,200,130,0.16);
+  }
+
+  /* ── Node status icon (check/x) ── */
+  .s7-node-icon {
+    position: absolute;
+    top: -10px;
+    right: -10px;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.4s ease, background 0.4s ease;
+    z-index: 3;
+  }
+  .s7-node-icon svg {
+    width: 12px;
+    height: 12px;
+    stroke-width: 2.5;
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .s7-node-icon.is-error {
+    opacity: 1;
+    background: rgba(200,50,40,0.9);
+    box-shadow: 0 0 10px rgba(255,90,80,0.5);
+  }
+  .s7-node-icon.is-error svg { stroke: rgba(255,255,255,0.9); }
+  .s7-node-icon.is-ok {
+    opacity: 1;
+    background: rgba(40,140,60,0.9);
+    box-shadow: 0 0 10px rgba(120,200,130,0.5);
+  }
+  .s7-node-icon.is-ok svg { stroke: rgba(255,255,255,0.9); }
+
+  /* ── header label ── */
+  .s7-header {
+    position: absolute;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
+    font-size: 0.52rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.22);
+    white-space: nowrap;
+    opacity: 0;
+    transition: opacity 0.6s ease;
+    z-index: 8;
+  }
+  .s7-scene.is-visible .s7-header { opacity: 1; }
+
+  /* ── end Scene 7 ────────────────────────────────────────── */
+
   @media (max-width: 980px) {
     .logs {
       top: 32px;
@@ -2724,6 +3143,94 @@
       </div>
     </section>
 
+    <!-- Scene 7: Failure Detection, Recovery & Continuation -->
+    <section class="scene s7-scene" id="sceneS7" aria-label="Failure recovery animation">
+      <div class="scan-layer" aria-hidden="true"></div>
+
+      <div class="s7-canvas" id="s7Canvas" aria-hidden="true">
+
+        <div class="s7-header">Autonomous recovery · workflow engine</div>
+
+        <!-- SVG edges -->
+        <!-- N-prev(162,289) → N-active(450,289) → N-next(738,289) -->
+        <svg class="s7-svg" viewBox="0 0 900 760" preserveAspectRatio="none">
+          <path id="s7Edge01" class="s7-edge is-done"
+                d="M162,289 C260,289 340,289 450,289"/>
+          <path id="s7Edge12" class="s7-edge"
+                d="M450,289 C560,289 640,289 738,289"/>
+        </svg>
+
+        <!-- N-prev: Validate (already done) -->
+        <div class="s7-node is-done" id="s7N0" style="left:18%;top:38%;">
+          <span class="s7-node-type">validate</span>
+          <span class="s7-node-label">Validate</span>
+          <div class="s7-node-icon is-ok">
+            <svg viewBox="0 0 12 12"><polyline points="2,6 5,9 10,3"/></svg>
+          </div>
+        </div>
+
+        <!-- N-active: Enrich (will fail + recover) -->
+        <div class="s7-node" id="s7N1" style="left:50%;top:38%;">
+          <span class="s7-node-type">enrich</span>
+          <span class="s7-node-label">Enrich</span>
+          <div class="s7-node-icon" id="s7N1Icon">
+            <svg id="s7N1IconSvg" viewBox="0 0 12 12"><polyline points="2,6 5,9 10,3"/></svg>
+          </div>
+        </div>
+
+        <!-- N-next: Approve (waiting) -->
+        <div class="s7-node" id="s7N2" style="left:82%;top:38%;">
+          <span class="s7-node-type">action</span>
+          <span class="s7-node-label">Approve</span>
+        </div>
+
+        <!-- State capsule -->
+        <div class="s7-capsule" id="s7Capsule" style="left:50%;top:38%;">validated: true</div>
+
+        <!-- Error label: shown below node on failure -->
+        <div class="s7-error-label" id="s7ErrorLabel" style="left:50%;top:54%;">
+          ✕ &nbsp;validation failed
+        </div>
+
+        <!-- Detection label -->
+        <div class="s7-detect-label" id="s7DetectLabel" style="left:50%;top:61%;">
+          detecting issue...
+        </div>
+
+        <!-- Retry Engine panel (below active node) -->
+        <div class="s7-retry-panel" id="s7RetryPanel" style="left:50%;top:72%;">
+          <div class="s7-retry-title">Retry Engine</div>
+          <div class="s7-retry-steps">
+            <div class="s7-retry-step" id="s7Step0">
+              <div class="s7-step-dot"></div>
+              <span class="s7-step-text">detecting missing fields</span>
+            </div>
+            <div class="s7-retry-step" id="s7Step1">
+              <div class="s7-step-dot"></div>
+              <span class="s7-step-text">fetching fallback data</span>
+            </div>
+            <div class="s7-retry-step" id="s7Step2">
+              <div class="s7-step-dot"></div>
+              <span class="s7-step-text">applying correction</span>
+            </div>
+          </div>
+          <div class="s7-retry-result" id="s7RetryResult">data corrected</div>
+        </div>
+
+        <!-- Recovery flow dot (travels from panel back to node) -->
+        <div class="s7-recovery-dot" id="s7RecoveryDot"></div>
+
+        <!-- Execution dot (travels along edges) -->
+        <div class="s7-exec-dot" id="s7ExecDot"></div>
+
+        <!-- Final overlay -->
+        <div class="s7-final" id="s7Final">
+          <span>It fixes itself and continues</span>
+        </div>
+
+      </div>
+    </section>
+
   <div class="audio-hooks" aria-hidden="true">
     <audio id="audioAmbient" preload="none" loop></audio>
     <audio id="audioTyping" preload="none"></audio>
@@ -2746,7 +3253,8 @@
     var SCENE_THREE_START = 18200;
     var SCENE_FOUR_START = 28600;
     var SCENE_FIVE_START = 38000;
-    var SCENE_SIX_START  = 50000;
+    var SCENE_SIX_START   = 50000;
+    var SCENE_SEVEN_START = 62000;
 
     var SCENE_TWO_TIMINGS = {
       split: 2000,
@@ -2824,6 +3332,38 @@
     };
     var TRAVEL_DUR = 900; /* ms for each dot travel segment */
 
+    /*
+     * Scene 7 phases (elapsed ms from s7StartedAt):
+     *   400  – Enrich node activates (processing), capsule "validated: true"
+     *  1600  – FAILURE: node→red, capsule stops, error label appears
+     *  3200  – Detection: "detecting issue..." label
+     *  4200  – Detection update: "missing data"
+     *  5200  – Retry panel slides in
+     *  5900  – Step 0 "detecting missing fields" active
+     *  7000  – Step 1 "fetching fallback data" active
+     *  8100  – Step 2 "applying correction" active
+     *  9200  – "data corrected" result shown, recovery dot travels back to node
+     * 10200  – Node reintegrates (green), panel fades, edge reconnects
+     * 11200  – Capsule "data corrected" continues, edge12 activates, N-next activates
+     * 12800  – Final text
+     */
+    var SCENE_SEVEN_TIMINGS = {
+      active:      400,
+      fail:       1600,
+      detect:     3200,
+      cause:      4200,
+      panel:      5200,
+      step0:      5900,
+      step1:      7000,
+      step2:      8100,
+      result:     9200,
+      reintegrate:10200,
+      resume:    11200,
+      final:     12800
+    };
+    var S7_RECOVERY_DUR = 800; /* ms for recovery dot travel */
+    var S7_RESUME_DUR   = 900;
+
     var LOG_LINES = [
       { text: '[INIT] Booting Niyanta Core...', speed: 62 },
       { text: '[LOAD] Agents initialized', speed: 70 },
@@ -2836,6 +3376,7 @@
     var sceneCommand = document.getElementById('sceneCommand');
     var sceneAgent   = document.getElementById('sceneAgent');
     var sceneWFE     = document.getElementById('sceneWFE');
+    var sceneS7      = document.getElementById('sceneS7');
     var logs = document.getElementById('logs');
     var network = document.getElementById('network');
     var titleBlock = document.getElementById('titleBlock');
@@ -2919,6 +3460,14 @@
     var wfeDotPhase  = 0;     /* 0=idle 1=01 2=12 3=23 4=34a */
     var wfeDotStart  = 0;
     var wfePhases    = {};    /* boolean flags keyed by phase name */
+
+    var s7StartedAt  = null;
+    var s7Started    = false;
+    var s7Phases     = {};
+    var s7RecDotPhase = 0;   /* 0=idle 1=travelling */
+    var s7RecDotStart = 0;
+    var s7ResDotPhase = 0;   /* 0=idle 1=travelling edge12 */
+    var s7ResDotStart = 0;
     var topStalled = false;
     var bottomLooping = false;
 
@@ -3208,6 +3757,220 @@
       didIntentFinal = true;
       intentFinal.classList.add('is-visible');
     }
+
+    /* ── Scene 7 helpers ─────────────────────────────────── */
+
+    function s7Phase(key) { return !!s7Phases[key]; }
+    function s7Mark(key)  { s7Phases[key] = true; }
+
+    function s7SetEdge(id, cls) {
+      var el = document.getElementById(id);
+      if (el) { el.setAttribute('class', 's7-edge ' + cls); }
+    }
+
+    function s7NodeState(id, cls) {
+      var el = document.getElementById(id);
+      if (!el) { return; }
+      /* remove all state classes */
+      el.classList.remove('is-active','is-failed','is-recovering','is-recovered','is-done','is-dim');
+      if (cls) { el.classList.add(cls); }
+    }
+
+    function s7ShowCapsule(text, pctX, pctY, colorCls) {
+      var c = document.getElementById('s7Capsule');
+      if (!c) { return; }
+      c.textContent = text;
+      c.style.left = pctX + '%';
+      c.style.top  = pctY + '%';
+      c.className  = 's7-capsule ' + (colorCls || '');
+      c.style.opacity = '1';
+    }
+
+    function s7HideCapsule() {
+      var c = document.getElementById('s7Capsule');
+      if (c) { c.style.opacity = '0'; }
+    }
+
+    /* Linear interpolation along a line between two % points */
+    function s7LerpDot(dotId, x0, y0, x1, y1, t) {
+      var dot = document.getElementById(dotId);
+      if (!dot) { return; }
+      dot.style.left    = (x0 + (x1 - x0) * t) + '%';
+      dot.style.top     = (y0 + (y1 - y0) * t) + '%';
+      dot.style.opacity = '1';
+    }
+
+    function s7HideDot(dotId) {
+      var d = document.getElementById(dotId);
+      if (d) { d.style.opacity = '0'; }
+    }
+
+    function revealSceneSeven() {
+      if (s7Started) { return; }
+      s7Started   = true;
+      s7StartedAt = performance.now();
+      sceneWFE.classList.add('is-exiting');
+      sceneS7.classList.add('is-visible');
+    }
+
+    function tickS7Scene(timestamp) {
+      if (!s7Started) { return; }
+      var el = timestamp - s7StartedAt;
+      var T  = SCENE_SEVEN_TIMINGS;
+
+      /* ── 1. Active: Enrich processing ── */
+      if (!s7Phase('active') && el >= T.active) {
+        s7Mark('active');
+        s7NodeState('s7N1', 'is-active');
+        s7ShowCapsule('validated: true', 50, 29, '');
+      }
+
+      /* ── 2. Failure ── */
+      if (!s7Phase('fail') && el >= T.fail) {
+        s7Mark('fail');
+        s7NodeState('s7N1', 'is-failed');
+        s7HideCapsule();
+        /* error icon on node */
+        var icon = document.getElementById('s7N1Icon');
+        if (icon) {
+          icon.classList.add('is-error');
+          var svg = document.getElementById('s7N1IconSvg');
+          if (svg) { svg.innerHTML = '<line x1="2" y1="2" x2="10" y2="10"/><line x1="10" y1="2" x2="2" y2="10"/>'; }
+        }
+        /* error edge weakens */
+        s7SetEdge('s7Edge12', 'is-failed');
+        /* show error label */
+        var eLabel = document.getElementById('s7ErrorLabel');
+        if (eLabel) { eLabel.style.opacity = '1'; }
+        /* show capsule as error */
+        s7ShowCapsule('validation failed', 50, 38, 'is-error');
+      }
+
+      /* ── 3. Detection overlay ── */
+      if (!s7Phase('detect') && el >= T.detect) {
+        s7Mark('detect');
+        s7HideCapsule();
+        var dLabel = document.getElementById('s7DetectLabel');
+        if (dLabel) { dLabel.style.opacity = '1'; dLabel.textContent = 'detecting issue...'; }
+      }
+
+      /* ── 4. Cause revealed ── */
+      if (!s7Phase('cause') && el >= T.cause) {
+        s7Mark('cause');
+        var dLabel2 = document.getElementById('s7DetectLabel');
+        if (dLabel2) { dLabel2.textContent = 'cause: missing data'; }
+        /* hide error label */
+        var eLabel2 = document.getElementById('s7ErrorLabel');
+        if (eLabel2) { eLabel2.style.opacity = '0'; }
+      }
+
+      /* ── 5. Retry panel appears ── */
+      if (!s7Phase('panel') && el >= T.panel) {
+        s7Mark('panel');
+        var panel = document.getElementById('s7RetryPanel');
+        if (panel) { panel.classList.add('is-visible'); }
+        /* node transitions to recovering */
+        s7NodeState('s7N1', 'is-recovering');
+        var dLabel3 = document.getElementById('s7DetectLabel');
+        if (dLabel3) { dLabel3.style.opacity = '0'; }
+      }
+
+      /* ── 6. Step 0 active ── */
+      if (!s7Phase('step0') && el >= T.step0) {
+        s7Mark('step0');
+        var s0 = document.getElementById('s7Step0');
+        if (s0) { s0.classList.add('is-active'); }
+      }
+
+      /* ── 7. Step 1 active ── */
+      if (!s7Phase('step1') && el >= T.step1) {
+        s7Mark('step1');
+        var s0b = document.getElementById('s7Step0');
+        if (s0b) { s0b.classList.remove('is-active'); s0b.classList.add('is-done'); }
+        var s1 = document.getElementById('s7Step1');
+        if (s1) { s1.classList.add('is-active'); }
+      }
+
+      /* ── 8. Step 2 active ── */
+      if (!s7Phase('step2') && el >= T.step2) {
+        s7Mark('step2');
+        var s1b = document.getElementById('s7Step1');
+        if (s1b) { s1b.classList.remove('is-active'); s1b.classList.add('is-done'); }
+        var s2 = document.getElementById('s7Step2');
+        if (s2) { s2.classList.add('is-active'); }
+      }
+
+      /* ── 9. Result + recovery dot starts travelling to node ── */
+      if (!s7Phase('result') && el >= T.result) {
+        s7Mark('result');
+        var s2b = document.getElementById('s7Step2');
+        if (s2b) { s2b.classList.remove('is-active'); s2b.classList.add('is-done'); }
+        var result = document.getElementById('s7RetryResult');
+        if (result) { result.classList.add('is-visible'); }
+        /* start recovery dot travel: panel(50%,72%) → node(50%,38%) */
+        s7RecDotPhase = 1;
+        s7RecDotStart = timestamp;
+      }
+
+      /* Animate recovery dot */
+      if (s7RecDotPhase === 1) {
+        var tRec = Math.min(1, (timestamp - s7RecDotStart) / S7_RECOVERY_DUR);
+        s7LerpDot('s7RecoveryDot', 50, 68, 50, 38, tRec);
+        if (tRec >= 1) { s7RecDotPhase = 0; s7HideDot('s7RecoveryDot'); }
+      }
+
+      /* ── 10. Reintegrate: node → green, panel hides, edge reconnects ── */
+      if (!s7Phase('reintegrate') && el >= T.reintegrate) {
+        s7Mark('reintegrate');
+        s7NodeState('s7N1', 'is-recovered');
+        s7SetEdge('s7Edge12', 'is-active');
+        /* swap error icon → check */
+        var icon2 = document.getElementById('s7N1Icon');
+        if (icon2) {
+          icon2.classList.remove('is-error');
+          icon2.classList.add('is-ok');
+          var svg2 = document.getElementById('s7N1IconSvg');
+          if (svg2) { svg2.innerHTML = '<polyline points="2,6 5,9 10,3"/>'; }
+        }
+        /* panel fades */
+        var panel2 = document.getElementById('s7RetryPanel');
+        if (panel2) { panel2.style.opacity = '0'; panel2.style.transform = 'translate(-50%,0) scale(0.95)'; }
+        sceneS7.classList.add('is-recovered');
+        /* show corrected capsule on node */
+        s7ShowCapsule('data corrected', 50, 38, 'is-corrected');
+      }
+
+      /* ── 11. Resume: exec dot travels edge12, N-next activates ── */
+      if (!s7Phase('resume') && el >= T.resume) {
+        s7Mark('resume');
+        s7NodeState('s7N1', 'is-done');
+        s7HideCapsule();
+        /* exec dot travels from node(50%,38%) → N-next(82%,38%) */
+        s7ResDotPhase = 1;
+        s7ResDotStart = timestamp;
+      }
+
+      if (s7ResDotPhase === 1) {
+        var tRes = Math.min(1, (timestamp - s7ResDotStart) / S7_RESUME_DUR);
+        s7LerpDot('s7ExecDot', 50, 38, 82, 38, tRes);
+        if (tRes >= 1) {
+          s7ResDotPhase = 0;
+          s7HideDot('s7ExecDot');
+          /* N-next activates */
+          s7NodeState('s7N2', 'is-active');
+          s7SetEdge('s7Edge12', 'is-done');
+          s7ShowCapsule('status: approved', 82, 29, '');
+        }
+      }
+
+      /* ── 12. Final text ── */
+      if (!s7Phase('final') && el >= T.final) {
+        s7Mark('final');
+        s7HideCapsule();
+        sceneS7.classList.add('s7-final-visible');
+      }
+    }
+    /* ── end Scene 7 ──────────────────────────────────── */
 
     /* ── Scene 6 helpers ─────────────────────────────────── */
 
@@ -3743,6 +4506,10 @@
         revealSceneSix();
       }
 
+      if (!s7Started && timestamp >= SCENE_SEVEN_START) {
+        revealSceneSeven();
+      }
+
       if (splitStarted) {
         tickSplitScene(timestamp);
       }
@@ -3761,6 +4528,10 @@
 
       if (wfeStarted) {
         tickWFEScene(timestamp);
+      }
+
+      if (s7Started) {
+        tickS7Scene(timestamp);
       }
 
       window.requestAnimationFrame(render);
@@ -3787,6 +4558,9 @@
       },
       showSceneSixNow: function () {
         revealSceneSix();
+      },
+      showSceneSevenNow: function () {
+        revealSceneSeven();
       },
       branchIndex: branchIndex
     };
