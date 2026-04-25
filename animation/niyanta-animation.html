@@ -2622,6 +2622,329 @@
 
   /* ── end Scene 7 ────────────────────────────────────────── */
 
+  /* ── Scene 8: Auditability & Business Impact ─────────────── */
+  .s8-scene {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background:
+      radial-gradient(circle at 50% 48%, rgba(160,190,255,0.06) 0%, rgba(0,0,0,0) 54%),
+      var(--bg);
+  }
+
+  .s8-canvas {
+    position: relative;
+    width: min(94vw, 960px);
+    height: min(88vh, 780px);
+    opacity: 0;
+    transform: scale(0.96);
+    transition: opacity 0.8s ease, transform 0.9s cubic-bezier(0.22,1,0.36,1);
+  }
+  .s8-scene.is-visible .s8-canvas { opacity: 1; transform: scale(1); }
+
+  .s8-header {
+    position: absolute;
+    top: 18px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
+    font-size: 0.52rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.22);
+    white-space: nowrap;
+    opacity: 0;
+    transition: opacity 0.6s ease;
+    z-index: 6;
+  }
+  .s8-scene.is-visible .s8-header { opacity: 1; }
+
+  /* ── Phase 1: Three source tiles ── */
+  .s8-sources {
+    position: absolute;
+    top: 12%;
+    left: 0; right: 0;
+    display: flex;
+    justify-content: center;
+    gap: 36px;
+    pointer-events: none;
+    z-index: 4;
+  }
+
+  .s8-source-tile {
+    width: 220px;
+    padding: 18px 20px 14px;
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 18px;
+    background: linear-gradient(160deg, rgba(18,22,32,0.94), rgba(10,12,20,0.97));
+    opacity: 0;
+    transform: translateY(14px);
+    transition: opacity 0.7s ease, transform 0.8s cubic-bezier(0.22,1,0.36,1),
+                border-color 0.5s ease, box-shadow 0.5s ease;
+    transition-delay: var(--sd, 0s);
+  }
+  .s8-source-tile.is-visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  .s8-source-tile.is-merging {
+    opacity: 0;
+    transform: translateY(60px) scale(0.88);
+    transition: opacity 0.7s ease, transform 0.8s cubic-bezier(0.55,0,1,0.45);
+  }
+
+  .s8-tile-title {
+    font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
+    font-size: 0.58rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(160,190,255,0.65);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+  .s8-tile-title::before {
+    content: "";
+    display: inline-block;
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: rgba(160,190,255,0.6);
+    flex-shrink: 0;
+  }
+
+  .s8-log-entry {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 0;
+    opacity: 0;
+    transform: translateX(-6px);
+    transition: opacity 0.4s ease, transform 0.5s cubic-bezier(0.22,1,0.36,1);
+    transition-delay: var(--ld, 0s);
+  }
+  .s8-log-entry.is-visible {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  .s8-log-dot {
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: rgba(160,190,255,0.36);
+    flex-shrink: 0;
+  }
+
+  .s8-log-text {
+    font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
+    font-size: 0.62rem;
+    letter-spacing: 0.07em;
+    color: rgba(200,215,255,0.68);
+  }
+
+  /* ── Phase 2: Unified timeline ── */
+  .s8-timeline {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 480px;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    opacity: 0;
+    transition: opacity 0.5s ease;
+    z-index: 5;
+    pointer-events: none;
+  }
+  .s8-timeline.is-visible { opacity: 1; }
+
+  .s8-tl-title {
+    font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
+    font-size: 0.5rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: rgba(160,190,255,0.5);
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .s8-tl-title::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: rgba(160,190,255,0.1);
+  }
+
+  .s8-tl-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 8px 0;
+    opacity: 0;
+    transform: translateX(-10px);
+    transition: opacity 0.45s ease, transform 0.55s cubic-bezier(0.22,1,0.36,1),
+                background 0.4s ease, border-radius 0.4s ease;
+    position: relative;
+  }
+  .s8-tl-row.is-visible {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  .s8-tl-row.is-highlighted {
+    background: rgba(160,190,255,0.06);
+    border-radius: 10px;
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+
+  /* Vertical connector line between rows */
+  .s8-tl-row::before {
+    content: "";
+    position: absolute;
+    left: 22px;
+    top: 28px;
+    bottom: -8px;
+    width: 1px;
+    background: rgba(255,255,255,0.06);
+  }
+  .s8-tl-row:last-child::before { display: none; }
+
+  .s8-tl-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    border: 1.5px solid rgba(160,190,255,0.28);
+    background: rgba(160,190,255,0.08);
+    flex-shrink: 0;
+    margin-top: 4px;
+    transition: border-color 0.4s ease, background 0.4s ease, box-shadow 0.4s ease;
+  }
+  .s8-tl-row.is-highlighted .s8-tl-dot {
+    border-color: rgba(160,190,255,0.7);
+    background: rgba(160,190,255,0.22);
+    box-shadow: 0 0 8px rgba(160,190,255,0.4);
+  }
+  .s8-tl-row.is-recovery .s8-tl-dot {
+    border-color: rgba(255,90,80,0.5);
+    background: rgba(255,90,80,0.12);
+  }
+  .s8-tl-row.is-success .s8-tl-dot {
+    border-color: rgba(120,200,130,0.6);
+    background: rgba(120,200,130,0.14);
+    box-shadow: 0 0 8px rgba(120,200,130,0.3);
+  }
+
+  .s8-tl-time {
+    font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
+    font-size: 0.58rem;
+    letter-spacing: 0.08em;
+    color: rgba(255,255,255,0.24);
+    flex-shrink: 0;
+    min-width: 52px;
+    line-height: 1.6;
+  }
+
+  .s8-tl-content {
+    flex: 1;
+  }
+
+  .s8-tl-event {
+    font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
+    font-size: 0.68rem;
+    letter-spacing: 0.08em;
+    color: rgba(220,230,255,0.78);
+    line-height: 1.5;
+  }
+  .s8-tl-row.is-highlighted .s8-tl-event { color: rgba(200,218,255,0.96); }
+  .s8-tl-row.is-recovery .s8-tl-event    { color: rgba(255,170,160,0.86); }
+  .s8-tl-row.is-success .s8-tl-event     { color: rgba(180,240,190,0.9); }
+
+  .s8-tl-reason {
+    font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
+    font-size: 0.58rem;
+    letter-spacing: 0.08em;
+    color: rgba(160,190,255,0.58);
+    margin-top: 2px;
+    opacity: 0;
+    transition: opacity 0.5s ease;
+  }
+  .s8-tl-row.is-highlighted .s8-tl-reason { opacity: 1; }
+
+  /* ── Phase 3: Insights row ── */
+  .s8-insights {
+    position: absolute;
+    bottom: 8%;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 20px;
+    opacity: 0;
+    transition: opacity 0.6s ease;
+    z-index: 5;
+    pointer-events: none;
+    white-space: nowrap;
+  }
+  .s8-insights.is-visible { opacity: 1; }
+
+  .s8-insight-chip {
+    padding: 0.52rem 1.1rem;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 999px;
+    background: rgba(16,20,30,0.88);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 0.5s ease, transform 0.6s cubic-bezier(0.22,1,0.36,1);
+    transition-delay: var(--id, 0s);
+  }
+  .s8-insights.is-visible .s8-insight-chip { opacity: 1; transform: translateY(0); }
+
+  .s8-insight-chip.is-green  { border-color: rgba(120,200,130,0.22); }
+  .s8-insight-chip.is-blue   { border-color: rgba(160,190,255,0.22); }
+  .s8-insight-chip.is-amber  { border-color: rgba(255,200,100,0.22); }
+
+  .s8-chip-label {
+    font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
+    font-size: 0.58rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.3);
+  }
+  .s8-chip-value {
+    font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    color: rgba(220,235,255,0.9);
+  }
+  .s8-insight-chip.is-green  .s8-chip-value { color: rgba(180,240,190,0.9); }
+  .s8-insight-chip.is-amber  .s8-chip-value { color: rgba(255,220,140,0.9); }
+
+  /* ── Final text overlay ── */
+  .s8-final {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    opacity: 0;
+    z-index: 14;
+  }
+  .s8-scene.s8-final-visible .s8-final {
+    animation: messageReveal 1.2s cubic-bezier(0.22,1,0.36,1) forwards;
+  }
+  .s8-final span {
+    font-size: clamp(2.2rem, 4.6vw, 4.4rem);
+    font-weight: 400;
+    color: rgba(255,255,255,0.94);
+    letter-spacing: 0.04em;
+    text-shadow: 0 0 40px rgba(160,190,255,0.18);
+  }
+  /* ── end Scene 8 ────────────────────────────────────────── */
+
   @media (max-width: 980px) {
     .logs {
       top: 32px;
@@ -3231,6 +3554,137 @@
       </div>
     </section>
 
+    <!-- Scene 8: Auditability, Log Unification & Business Impact -->
+    <section class="scene s8-scene" id="sceneS8" aria-label="Auditability and business impact animation">
+      <div class="scan-layer" aria-hidden="true"></div>
+
+      <div class="s8-canvas" id="s8Canvas" aria-hidden="true">
+
+        <div class="s8-header">Auditability · unified trace · accountability</div>
+
+        <!-- Phase 1: Three source log tiles -->
+        <div class="s8-sources" id="s8Sources">
+
+          <div class="s8-source-tile" id="s8TileA" style="--sd:0.05s;">
+            <div class="s8-tile-title">Agent Logs</div>
+            <div class="s8-log-entry" id="s8A0" style="--ld:0.1s;">
+              <div class="s8-log-dot"></div>
+              <span class="s8-log-text">agent selected</span>
+            </div>
+            <div class="s8-log-entry" id="s8A1" style="--ld:0.4s;">
+              <div class="s8-log-dot"></div>
+              <span class="s8-log-text">access request routed</span>
+            </div>
+          </div>
+
+          <div class="s8-source-tile" id="s8TileB" style="--sd:0.18s;">
+            <div class="s8-tile-title">Workflow Logs</div>
+            <div class="s8-log-entry" id="s8B0" style="--ld:0.1s;">
+              <div class="s8-log-dot"></div>
+              <span class="s8-log-text">workflow started</span>
+            </div>
+            <div class="s8-log-entry" id="s8B1" style="--ld:0.4s;">
+              <div class="s8-log-dot"></div>
+              <span class="s8-log-text">recovery triggered</span>
+            </div>
+          </div>
+
+          <div class="s8-source-tile" id="s8TileC" style="--sd:0.32s;">
+            <div class="s8-tile-title">Niyanta Logs</div>
+            <div class="s8-log-entry" id="s8C0" style="--ld:0.1s;">
+              <div class="s8-log-dot"></div>
+              <span class="s8-log-text">intent detected</span>
+            </div>
+            <div class="s8-log-entry" id="s8C1" style="--ld:0.4s;">
+              <div class="s8-log-text s8-log-dot"></div>
+              <span class="s8-log-text">decision made</span>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Phase 2: Unified timeline (hidden until merge) -->
+        <div class="s8-timeline" id="s8Timeline">
+          <div class="s8-tl-title">unified trace</div>
+
+          <div class="s8-tl-row" id="s8R0">
+            <div class="s8-tl-dot"></div>
+            <span class="s8-tl-time">12:01</span>
+            <div class="s8-tl-content">
+              <div class="s8-tl-event">intent detected</div>
+            </div>
+          </div>
+
+          <div class="s8-tl-row" id="s8R1">
+            <div class="s8-tl-dot"></div>
+            <span class="s8-tl-time">12:02</span>
+            <div class="s8-tl-content">
+              <div class="s8-tl-event">agent selected</div>
+            </div>
+          </div>
+
+          <div class="s8-tl-row" id="s8R2">
+            <div class="s8-tl-dot"></div>
+            <span class="s8-tl-time">12:03</span>
+            <div class="s8-tl-content">
+              <div class="s8-tl-event">workflow started</div>
+            </div>
+          </div>
+
+          <div class="s8-tl-row is-recovery" id="s8R3">
+            <div class="s8-tl-dot"></div>
+            <span class="s8-tl-time">12:04</span>
+            <div class="s8-tl-content">
+              <div class="s8-tl-event">validation failed · recovery applied</div>
+            </div>
+          </div>
+
+          <div class="s8-tl-row is-highlighted" id="s8R4">
+            <div class="s8-tl-dot"></div>
+            <span class="s8-tl-time">12:05</span>
+            <div class="s8-tl-content">
+              <div class="s8-tl-event">decision: auto_approve</div>
+              <div class="s8-tl-reason">reason: risk_score = low</div>
+            </div>
+          </div>
+
+          <div class="s8-tl-row is-success" id="s8R5">
+            <div class="s8-tl-dot"></div>
+            <span class="s8-tl-time">12:06</span>
+            <div class="s8-tl-content">
+              <div class="s8-tl-event">approved · status: complete</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Phase 3: Insight chips -->
+        <div class="s8-insights" id="s8Insights">
+          <div class="s8-insight-chip is-blue" style="--id:0.0s;">
+            <span class="s8-chip-label">Time saved</span>
+            <span class="s8-chip-value">8 min</span>
+          </div>
+          <div class="s8-insight-chip is-green" style="--id:0.18s;">
+            <span class="s8-chip-label">Automation</span>
+            <span class="s8-chip-value">92%</span>
+          </div>
+          <div class="s8-insight-chip is-green" style="--id:0.36s;">
+            <span class="s8-chip-label">Recovery</span>
+            <span class="s8-chip-value">success</span>
+          </div>
+          <div class="s8-insight-chip is-amber" style="--id:0.54s;">
+            <span class="s8-chip-label">Cost saved</span>
+            <span class="s8-chip-value">₹2.5L/yr</span>
+          </div>
+        </div>
+
+        <!-- Final overlay -->
+        <div class="s8-final" id="s8Final">
+          <span>Autonomy with accountability</span>
+        </div>
+
+      </div>
+    </section>
+
   <div class="audio-hooks" aria-hidden="true">
     <audio id="audioAmbient" preload="none" loop></audio>
     <audio id="audioTyping" preload="none"></audio>
@@ -3255,6 +3709,7 @@
     var SCENE_FIVE_START = 38000;
     var SCENE_SIX_START   = 50000;
     var SCENE_SEVEN_START = 62000;
+    var SCENE_EIGHT_START = 76000;
 
     var SCENE_TWO_TIMINGS = {
       split: 2000,
@@ -3364,6 +3819,38 @@
     var S7_RECOVERY_DUR = 800; /* ms for recovery dot travel */
     var S7_RESUME_DUR   = 900;
 
+    /*
+     * Scene 8 phases (elapsed ms from s8StartedAt):
+     *   300  – tiles appear (CSS transition-delay handles stagger)
+     *   700  – tile A log entries appear
+     *  1100  – tile B log entries appear
+     *  1500  – tile C log entries appear
+     *  2800  – tiles merge out, timeline fades in
+     *  3200  – timeline row 0 appears
+     *  3700  – row 1
+     *  4200  – row 2
+     *  4700  – row 3 (recovery, red)
+     *  5200  – row 4 (decision highlight + reason)
+     *  5800  – row 5 (success, green)
+     *  7200  – insights appear
+     *  9800  – final text
+     */
+    var SCENE_EIGHT_TIMINGS = {
+      tiles:    300,
+      logsA:    700,
+      logsB:   1100,
+      logsC:   1500,
+      merge:   2800,
+      tl0:     3200,
+      tl1:     3700,
+      tl2:     4200,
+      tl3:     4700,
+      tl4:     5200,
+      tl5:     5800,
+      insights:7200,
+      final:   9800
+    };
+
     var LOG_LINES = [
       { text: '[INIT] Booting Niyanta Core...', speed: 62 },
       { text: '[LOAD] Agents initialized', speed: 70 },
@@ -3377,6 +3864,7 @@
     var sceneAgent   = document.getElementById('sceneAgent');
     var sceneWFE     = document.getElementById('sceneWFE');
     var sceneS7      = document.getElementById('sceneS7');
+    var sceneS8      = document.getElementById('sceneS8');
     var logs = document.getElementById('logs');
     var network = document.getElementById('network');
     var titleBlock = document.getElementById('titleBlock');
@@ -3468,6 +3956,10 @@
     var s7RecDotStart = 0;
     var s7ResDotPhase = 0;   /* 0=idle 1=travelling edge12 */
     var s7ResDotStart = 0;
+
+    var s8StartedAt   = null;
+    var s8Started     = false;
+    var s8Phases      = {};
     var topStalled = false;
     var bottomLooping = false;
 
@@ -3757,6 +4249,82 @@
       didIntentFinal = true;
       intentFinal.classList.add('is-visible');
     }
+
+    /* ── Scene 8 helpers ─────────────────────────────────── */
+
+    function s8Phase(key) { return !!s8Phases[key]; }
+    function s8Mark(key)  { s8Phases[key] = true; }
+
+    function s8Show(id) {
+      var el = document.getElementById(id);
+      if (el) { el.classList.add('is-visible'); }
+    }
+
+    function revealSceneEight() {
+      if (s8Started) { return; }
+      s8Started   = true;
+      s8StartedAt = performance.now();
+      sceneS7.classList.add('is-exiting');
+      sceneS8.classList.add('is-visible');
+    }
+
+    function tickS8Scene(timestamp) {
+      if (!s8Started) { return; }
+      var el = timestamp - s8StartedAt;
+      var T  = SCENE_EIGHT_TIMINGS;
+
+      /* ── Tiles appear ── */
+      if (!s8Phase('tiles') && el >= T.tiles) {
+        s8Mark('tiles');
+        ['s8TileA','s8TileB','s8TileC'].forEach(function(id) { s8Show(id); });
+      }
+
+      /* ── Log entries per tile ── */
+      if (!s8Phase('logsA') && el >= T.logsA) {
+        s8Mark('logsA');
+        s8Show('s8A0'); s8Show('s8A1');
+      }
+      if (!s8Phase('logsB') && el >= T.logsB) {
+        s8Mark('logsB');
+        s8Show('s8B0'); s8Show('s8B1');
+      }
+      if (!s8Phase('logsC') && el >= T.logsC) {
+        s8Mark('logsC');
+        s8Show('s8C0'); s8Show('s8C1');
+      }
+
+      /* ── Merge: tiles collapse, timeline appears ── */
+      if (!s8Phase('merge') && el >= T.merge) {
+        s8Mark('merge');
+        ['s8TileA','s8TileB','s8TileC'].forEach(function(id) {
+          var t = document.getElementById(id);
+          if (t) { t.classList.add('is-merging'); }
+        });
+        /* Show timeline after tiles start fading */
+        setTimeout(function() { s8Show('s8Timeline'); }, 400);
+      }
+
+      /* ── Timeline rows appear sequentially ── */
+      if (!s8Phase('tl0') && el >= T.tl0) { s8Mark('tl0'); s8Show('s8R0'); }
+      if (!s8Phase('tl1') && el >= T.tl1) { s8Mark('tl1'); s8Show('s8R1'); }
+      if (!s8Phase('tl2') && el >= T.tl2) { s8Mark('tl2'); s8Show('s8R2'); }
+      if (!s8Phase('tl3') && el >= T.tl3) { s8Mark('tl3'); s8Show('s8R3'); }
+      if (!s8Phase('tl4') && el >= T.tl4) { s8Mark('tl4'); s8Show('s8R4'); }
+      if (!s8Phase('tl5') && el >= T.tl5) { s8Mark('tl5'); s8Show('s8R5'); }
+
+      /* ── Insights appear ── */
+      if (!s8Phase('insights') && el >= T.insights) {
+        s8Mark('insights');
+        s8Show('s8Insights');
+      }
+
+      /* ── Final text ── */
+      if (!s8Phase('final') && el >= T.final) {
+        s8Mark('final');
+        sceneS8.classList.add('s8-final-visible');
+      }
+    }
+    /* ── end Scene 8 ──────────────────────────────────── */
 
     /* ── Scene 7 helpers ─────────────────────────────────── */
 
@@ -4510,6 +5078,10 @@
         revealSceneSeven();
       }
 
+      if (!s8Started && timestamp >= SCENE_EIGHT_START) {
+        revealSceneEight();
+      }
+
       if (splitStarted) {
         tickSplitScene(timestamp);
       }
@@ -4532,6 +5104,10 @@
 
       if (s7Started) {
         tickS7Scene(timestamp);
+      }
+
+      if (s8Started) {
+        tickS8Scene(timestamp);
       }
 
       window.requestAnimationFrame(render);
@@ -4561,6 +5137,9 @@
       },
       showSceneSevenNow: function () {
         revealSceneSeven();
+      },
+      showSceneEightNow: function () {
+        revealSceneEight();
       },
       branchIndex: branchIndex
     };
