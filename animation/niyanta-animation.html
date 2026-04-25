@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Niyanta Boot Sequence</title>
+<style>
+  :root {
+    --bg: #0B0B0B;
+    --grid: rgba(255, 255, 255, 0.035);
+    --text: #FFFFFF;
+    --muted: #8A8A8A;
+    --accent: #78AFFF;
+    --accent-soft: rgba(120, 175, 255, 0.14);
+    --accent-line: rgba(120, 175, 255, 0.36);
+    --accent-glow: rgba(120, 175, 255, 0.48);
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html,
+  body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: var(--bg);
+    color: var(--text);
+  }
+
+  body {
+    font-family: "Inter", "Poppins", "Segoe UI", Arial, sans-serif;
+  }
+
+  /* Boot screen */
+  .boot-screen {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background:
+      radial-gradient(circle at 50% 52%, rgba(120, 175, 255, 0.06) 0%, rgba(120, 175, 255, 0.02) 18%, rgba(11, 11, 11, 0) 46%),
+      radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.015) 0%, rgba(11, 11, 11, 0) 58%),
+      var(--bg);
+    isolation: isolate;
+  }
+
+  .boot-screen::before,
+  .boot-screen::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+
+  .boot-screen::before {
+    background-image:
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 56px 56px;
+    opacity: 0.34;
+    z-index: 0;
+  }
+
+  .boot-screen::after {
+    background:
+      radial-gradient(circle at 50% 50%, rgba(120, 175, 255, 0.05) 0%, rgba(120, 175, 255, 0.015) 24%, rgba(11, 11, 11, 0) 56%),
+      radial-gradient(circle at 50% 50%, rgba(11, 11, 11, 0) 58%, rgba(11, 11, 11, 0.48) 100%);
+    animation: ambientDrift 14s ease-in-out infinite alternate;
+    z-index: 0;
+  }
+
+  .scan-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    background: linear-gradient(to bottom, rgba(255, 255, 255, 0.012), rgba(255, 255, 255, 0));
+    opacity: 0.25;
+  }
+
+  /* Logs */
+  .logs {
+    position: absolute;
+    top: 48px;
+    left: 56px;
+    z-index: 4;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 320px;
+    opacity: 0;
+    transition: opacity 0.5s ease;
+  }
+
+  .logs.is-visible {
+    opacity: 1;
+  }
+
+  .log-line {
+    min-height: 1.2em;
+    color: var(--muted);
+    font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
+    font-size: 0.88rem;
+    letter-spacing: 0.08em;
+    white-space: pre-wrap;
+  }
+
+  .log-line.is-complete,
+  .log-line.is-active {
+    color: var(--text);
+  }
+
+  .cursor {
+    display: inline-block;
+    margin-left: 0.08em;
+    color: var(--accent);
+    animation: blink 0.6s steps(1, end) infinite;
+  }
+
+  /* Network */
+  .network-wrap {
+    position: relative;
+    z-index: 2;
+    width: min(48vw, 520px);
+    aspect-ratio: 1;
+    opacity: 0;
+    transform: scale(0.98);
+    transition: opacity 0.9s ease, transform 0.9s ease;
+  }
+
+  .network-wrap.is-visible {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  .network-svg {
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+  }
+
+  .network-line {
+    fill: none;
+    stroke: var(--accent-line);
+    stroke-width: 1.1;
+    stroke-linecap: round;
+    stroke-dasharray: 170;
+    stroke-dashoffset: 170;
+    opacity: 0.8;
+  }
+
+  .network-wrap.is-visible .network-line.line-1 {
+    animation: drawLine 0.9s ease-in-out 0.06s forwards;
+  }
+
+  .network-wrap.is-visible .network-line.line-2 {
+    animation: drawLine 0.9s ease-in-out 0.26s forwards;
+  }
+
+  .network-wrap.is-visible .network-line.line-3 {
+    animation: drawLine 0.9s ease-in-out 0.46s forwards;
+  }
+
+  .network-wrap.is-visible .network-line.line-4 {
+    animation: drawLine 0.9s ease-in-out 0.66s forwards;
+  }
+
+  .network-node {
+    fill: rgba(11, 11, 11, 0.96);
+    stroke: rgba(255, 255, 255, 0.22);
+    stroke-width: 1.1;
+    opacity: 0;
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+
+  .network-wrap.is-visible .network-node.node-core {
+    animation: nodeIn 0.7s ease 0.02s forwards;
+  }
+
+  .network-wrap.is-visible .network-node.node-a {
+    animation: nodeIn 0.7s ease 0.34s forwards;
+  }
+
+  .network-wrap.is-visible .network-node.node-b {
+    animation: nodeIn 0.7s ease 0.52s forwards;
+  }
+
+  .network-wrap.is-visible .network-node.node-c {
+    animation: nodeIn 0.7s ease 0.7s forwards;
+  }
+
+  .network-wrap.is-visible .network-node.node-d {
+    animation: nodeIn 0.7s ease 0.88s forwards;
+  }
+
+  .network-wrap.is-active .network-node {
+    stroke: rgba(180, 214, 255, 0.62);
+    fill: rgba(120, 175, 255, 0.1);
+    filter: drop-shadow(0 0 10px rgba(120, 175, 255, 0.18));
+  }
+
+  .network-wrap.is-active .node-core {
+    fill: rgba(120, 175, 255, 0.16);
+    stroke: rgba(210, 231, 255, 0.82);
+    animation: corePulse 2.6s ease-in-out infinite;
+  }
+
+  .network-wrap.is-active .network-line {
+    stroke: rgba(155, 201, 255, 0.54);
+  }
+
+  /* Title */
+  .title-block {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .title-block.is-visible {
+    animation: titleReveal 1s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+
+  .title-inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    text-align: center;
+    transform: translateY(6px);
+  }
+
+  .title-main {
+    font-size: clamp(3rem, 9vw, 6.2rem);
+    font-weight: 500;
+    letter-spacing: 0.34em;
+    text-indent: 0.34em;
+    color: var(--text);
+    text-shadow: 0 0 16px rgba(120, 175, 255, 0.12);
+  }
+
+  .title-sub {
+    font-size: clamp(0.74rem, 1.3vw, 1rem);
+    font-weight: 400;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .title-rule {
+    width: 74px;
+    height: 1px;
+    background: linear-gradient(to right, rgba(120, 175, 255, 0), rgba(120, 175, 255, 0.58), rgba(120, 175, 255, 0));
+    box-shadow: 0 0 10px rgba(120, 175, 255, 0.12);
+  }
+
+  /* Audio hooks */
+  .audio-hooks {
+    display: none;
+  }
+
+  @keyframes ambientDrift {
+    0% {
+      transform: scale(1) translate3d(0, 0, 0);
+      opacity: 0.92;
+    }
+    100% {
+      transform: scale(1.04) translate3d(0, -1.4%, 0);
+      opacity: 1;
+    }
+  }
+
+  @keyframes blink {
+    0%,
+    48% {
+      opacity: 1;
+    }
+    49%,
+    100% {
+      opacity: 0;
+    }
+  }
+
+  @keyframes drawLine {
+    from {
+      stroke-dashoffset: 170;
+    }
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+
+  @keyframes nodeIn {
+    from {
+      opacity: 0;
+      transform: scale(0.72);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  @keyframes corePulse {
+    0%,
+    100% {
+      filter: drop-shadow(0 0 10px rgba(120, 175, 255, 0.2));
+    }
+    50% {
+      filter: drop-shadow(0 0 20px rgba(120, 175, 255, 0.34));
+    }
+  }
+
+  @keyframes titleReveal {
+    from {
+      opacity: 0;
+      transform: scale(0.985);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  @media (max-width: 900px) {
+    .logs {
+      top: 32px;
+      left: 24px;
+      right: 24px;
+      min-width: 0;
+    }
+
+    .network-wrap {
+      width: min(72vw, 420px);
+    }
+
+    .title-main {
+      letter-spacing: 0.22em;
+      text-indent: 0.22em;
+    }
+
+    .title-sub {
+      max-width: 84vw;
+      line-height: 1.6;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .boot-screen::after,
+    .cursor,
+    .network-wrap.is-active .node-core,
+    .title-block.is-visible,
+    .network-wrap,
+    .logs {
+      animation: none !important;
+      transition: none !important;
+    }
+  }
+</style>
+</head>
+<body>
+  <!-- Boot screen -->
+  <main class="boot-screen" aria-label="Niyanta boot sequence">
+    <div class="scan-layer" aria-hidden="true"></div>
+
+    <!-- Logs -->
+    <section class="logs" id="logs" aria-live="polite">
+      <div class="log-line" data-log-index="0"></div>
+      <div class="log-line" data-log-index="1"></div>
+      <div class="log-line" data-log-index="2"></div>
+    </section>
+
+    <!-- Network -->
+    <section class="network-wrap" id="network" aria-hidden="true">
+      <svg class="network-svg" viewBox="0 0 520 520" role="img" aria-label="Niyanta core network">
+        <line class="network-line line-1" x1="260" y1="260" x2="260" y2="126"></line>
+        <line class="network-line line-2" x1="260" y1="260" x2="388" y2="182"></line>
+        <line class="network-line line-3" x1="260" y1="260" x2="372" y2="360"></line>
+        <line class="network-line line-4" x1="260" y1="260" x2="144" y2="344"></line>
+
+        <circle class="network-node node-core" cx="260" cy="260" r="12"></circle>
+        <circle class="network-node node-a" cx="260" cy="126" r="7"></circle>
+        <circle class="network-node node-b" cx="388" cy="182" r="7"></circle>
+        <circle class="network-node node-c" cx="372" cy="360" r="7"></circle>
+        <circle class="network-node node-d" cx="144" cy="344" r="7"></circle>
+      </svg>
+    </section>
+
+    <!-- Title -->
+    <section class="title-block" id="titleBlock" aria-hidden="true">
+      <div class="title-inner">
+        <div class="title-main">NIYANTA</div>
+        <div class="title-rule"></div>
+        <div class="title-sub">Autonomous Enterprise Workflow System</div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Audio hooks -->
+  <div class="audio-hooks" aria-hidden="true">
+    <audio id="audioAmbient" preload="none" loop></audio>
+    <audio id="audioTyping" preload="none"></audio>
+    <audio id="audioPulse" preload="none"></audio>
+  </div>
+
+<script>
+  (function () {
+    'use strict';
+
+    var TIMINGS = {
+      firstLog: 2000,
+      secondLog: 4000,
+      thirdLog: 6000,
+      title: 7000
+    };
+
+    var LOG_LINES = [
+      { text: '[INIT] Booting Niyanta Core...', speed: 62 },
+      { text: '[LOAD] Agents initialized', speed: 70 },
+      { text: '[STATUS] System ready', speed: 48 }
+    ];
+
+    var logs = document.getElementById('logs');
+    var network = document.getElementById('network');
+    var titleBlock = document.getElementById('titleBlock');
+    var logNodes = Array.prototype.slice.call(document.querySelectorAll('.log-line'));
+
+    var audioElements = {
+      ambient: document.getElementById('audioAmbient'),
+      typing: document.getElementById('audioTyping'),
+      pulse: document.getElementById('audioPulse')
+    };
+
+    function wait(ms) {
+      return new Promise(function (resolve) {
+        window.setTimeout(resolve, ms);
+      });
+    }
+
+    function removeCursor() {
+      var current = document.querySelector('.cursor');
+      if (current && current.parentNode) {
+        current.parentNode.removeChild(current);
+      }
+    }
+
+    function attachCursor(target) {
+      var cursor = document.createElement('span');
+      cursor.className = 'cursor';
+      cursor.textContent = '_';
+      target.appendChild(cursor);
+      return cursor;
+    }
+
+    function safePlay(audio) {
+      if (!audio || !audio.getAttribute('src')) {
+        return;
+      }
+
+      try {
+        audio.currentTime = 0;
+        var playPromise = audio.play();
+        if (playPromise && typeof playPromise.catch === 'function') {
+          playPromise.catch(function () {});
+        }
+      } catch (_error) {
+        return;
+      }
+    }
+
+    window.niyantaAudio = {
+      setSources: function (sources) {
+        if (!sources || typeof sources !== 'object') {
+          return;
+        }
+
+        if (sources.ambient) {
+          audioElements.ambient.src = sources.ambient;
+        }
+
+        if (sources.typing) {
+          audioElements.typing.src = sources.typing;
+        }
+
+        if (sources.pulse) {
+          audioElements.pulse.src = sources.pulse;
+        }
+      },
+      startAmbient: function () {
+        safePlay(audioElements.ambient);
+      },
+      stopAmbient: function () {
+        if (!audioElements.ambient) {
+          return;
+        }
+
+        audioElements.ambient.pause();
+        audioElements.ambient.currentTime = 0;
+      },
+      playTyping: function () {
+        safePlay(audioElements.typing);
+      },
+      playPulse: function () {
+        safePlay(audioElements.pulse);
+      }
+    };
+
+    async function typeLine(target, entry) {
+      removeCursor();
+      target.textContent = '';
+      target.classList.add('is-active');
+
+      var cursor = attachCursor(target);
+      var chars = entry.text.split('');
+
+      for (var index = 0; index < chars.length; index += 1) {
+        cursor.insertAdjacentText('beforebegin', chars[index]);
+        window.niyantaAudio.playTyping();
+        await wait(entry.speed);
+      }
+
+      target.classList.remove('is-active');
+      target.classList.add('is-complete');
+    }
+
+    function runSequence() {
+      window.setTimeout(function () {
+        logs.classList.add('is-visible');
+        typeLine(logNodes[0], LOG_LINES[0]);
+      }, TIMINGS.firstLog);
+
+      window.setTimeout(function () {
+        network.classList.add('is-visible');
+        typeLine(logNodes[1], LOG_LINES[1]);
+      }, TIMINGS.secondLog);
+
+      window.setTimeout(function () {
+        network.classList.add('is-active');
+        typeLine(logNodes[2], LOG_LINES[2]);
+      }, TIMINGS.thirdLog);
+
+      window.setTimeout(function () {
+        titleBlock.classList.add('is-visible');
+        window.niyantaAudio.playPulse();
+      }, TIMINGS.title);
+    }
+
+    runSequence();
+  })();
+</script>
+</body>
+</html>
