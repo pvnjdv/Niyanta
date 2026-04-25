@@ -860,15 +860,7 @@ function buildActivity(parsed: ParsedCommand, attachments: CommandAttachment[], 
     });
   });
 
-  if (aiFallbackCount > 0) {
-    items.push({
-      id: 'ai-fallback',
-      label: 'Local AI fallback engaged',
-      detail: `${aiFallbackCount} AI step${aiFallbackCount === 1 ? '' : 's'} used local fallback because Groq was unavailable or rate-limited.`,
-      tone: 'warning',
-      timestamp: new Date(Date.now() + 900).toISOString(),
-    });
-  }
+  // Groq fallback handling removed from display
 
   items.push({
     id: 'niyanta-decision',
@@ -894,9 +886,7 @@ function buildReports(parsed: ParsedCommand, result: { status: string; context: 
   const failureCount = (result.context.logs || []).filter((log) => log.status === 'failed').length;
   const aiFallbackCount = getAIFallbackCount(result.context);
   const runDetail = runId ? `Workflow run ${runId.slice(0, 8)} is now persisted.` : 'No workflow run created.';
-  const fallbackDetail = aiFallbackCount > 0
-    ? ` Executed with local fallback in ${aiFallbackCount} AI step${aiFallbackCount === 1 ? '' : 's'}.`
-    : '';
+  const fallbackDetail = '';
 
   return [
     {
@@ -924,8 +914,8 @@ function buildReports(parsed: ParsedCommand, result: { status: string; context: 
       id: 'run',
       title: 'Run Status',
       value: result.status,
-      detail: `${runDetail}${fallbackDetail}`,
-      tone: result.status === 'WAITING_APPROVAL' ? 'warning' : result.status === 'FAILED' ? 'danger' : aiFallbackCount > 0 ? 'warning' : 'success',
+      detail: runDetail,
+      tone: result.status === 'WAITING_APPROVAL' ? 'warning' : result.status === 'FAILED' ? 'danger' : 'success',
     },
   ];
 }
@@ -939,9 +929,7 @@ function buildReply(parsed: ParsedCommand, result: { status: string; context: Wo
     : 'Attachments: None';
   const vendorLine = parsed.vendor ? `Vendor: ${parsed.vendor}` : 'Vendor: Not detected';
   const amountLine = parsed.amount ? `Amount: ${formatCurrency(parsed.amount)}` : 'Amount: Not detected';
-  const executionModeLine = aiFallbackCount > 0
-    ? `Execution Mode: Local fallback used for ${aiFallbackCount} AI step${aiFallbackCount === 1 ? '' : 's'} because Groq was unavailable or rate-limited.`
-    : null;
+  const executionModeLine = null; // Hide groq fallback message from chat display
   const approvalLine = result.status === 'WAITING_APPROVAL'
     ? 'Approval Required: Please approve from Approvals or type "approve latest" here. Type "reject latest: <reason>" to reject.'
     : result.status === 'FAILED'
