@@ -1051,6 +1051,344 @@
     50% { opacity: 1; transform: scale(1.45); }
   }
 
+  /* ── Scene 4: Command Centre ─────────────────────────────── */
+  .command-scene {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background:
+      radial-gradient(circle at 50% 50%, rgba(120, 175, 255, 0.07) 0%, rgba(120, 175, 255, 0.02) 22%, rgba(11, 11, 11, 0) 56%),
+      var(--bg);
+  }
+
+  /* SVG canvas that holds the whole composition */
+  .cmd-canvas {
+    position: relative;
+    z-index: 2;
+    width: min(92vw, 1200px);
+    height: min(82vh, 760px);
+  }
+
+  .cmd-svg {
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+  }
+
+  /* Connection lines: Niyanta → agents and agent → workflow */
+  .cmd-line {
+    fill: none;
+    stroke: rgba(255, 255, 255, 0.1);
+    stroke-width: 1.4;
+    stroke-linecap: round;
+    stroke-dasharray: 400;
+    stroke-dashoffset: 400;
+    opacity: 0;
+    transition: opacity 0.5s ease, stroke 0.6s ease;
+  }
+
+  .command-scene.agents-dim .cmd-line {
+    opacity: 0.28;
+    animation: lineReveal 0.9s ease forwards;
+    animation-delay: var(--ld, 0s);
+  }
+
+  .cmd-line.is-chosen-line {
+    stroke: rgba(120, 175, 255, 0.72);
+    stroke-width: 2;
+    opacity: 0;
+    stroke-dasharray: 500;
+    stroke-dashoffset: 500;
+  }
+
+  .command-scene.is-deciding .cmd-line.is-chosen-line {
+    opacity: 1;
+    animation: lineReveal 1s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+
+  .cmd-line.is-workflow-line {
+    stroke: rgba(120, 175, 255, 0.52);
+    stroke-width: 1.8;
+    opacity: 0;
+    stroke-dasharray: 360;
+    stroke-dashoffset: 360;
+  }
+
+  .command-scene.is-handoff .cmd-line.is-workflow-line {
+    opacity: 1;
+    animation: lineReveal 1s cubic-bezier(0.22, 1, 0.36, 1) 0.2s forwards;
+  }
+
+  /* Flow particle that travels Niyanta → agent → workflow */
+  .cmd-particle {
+    fill: rgba(200, 228, 255, 0.95);
+    r: 5;
+    opacity: 0;
+    filter: drop-shadow(0 0 10px rgba(120, 175, 255, 0.7));
+  }
+
+  .command-scene.is-handoff .cmd-particle {
+    opacity: 1;
+  }
+
+  /* Central Niyanta node */
+  .cmd-core {
+    fill: rgba(11, 11, 11, 0.96);
+    stroke: rgba(120, 175, 255, 0.3);
+    stroke-width: 1.8;
+    opacity: 0;
+    transition: opacity 0.8s ease, stroke 0.6s ease, fill 0.6s ease;
+  }
+
+  .command-scene.core-visible .cmd-core {
+    opacity: 1;
+    animation: cmdCoreIn 0.9s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+
+  .command-scene.is-deciding .cmd-core {
+    stroke: rgba(120, 175, 255, 0.7);
+    fill: rgba(120, 175, 255, 0.07);
+    animation: cmdCorePulse 1.6s ease-in-out 2;
+  }
+
+  /* Core outer ring */
+  .cmd-core-ring {
+    fill: none;
+    stroke: rgba(120, 175, 255, 0.12);
+    stroke-width: 1;
+    opacity: 0;
+    transform-box: fill-box;
+    transform-origin: center;
+    transition: opacity 0.8s ease;
+  }
+
+  .command-scene.core-visible .cmd-core-ring {
+    opacity: 1;
+    animation: cmdRingPulse 3.2s ease-in-out infinite;
+  }
+
+  .cmd-core-ring.ring-2 {
+    stroke: rgba(120, 175, 255, 0.06);
+    animation-delay: 0.7s !important;
+  }
+
+  /* Agent nodes (dim by default) */
+  .cmd-agent {
+    fill: rgba(11, 11, 11, 0.96);
+    stroke: rgba(255, 255, 255, 0.14);
+    stroke-width: 1.3;
+    opacity: 0;
+    transition: opacity 0.6s ease, stroke 0.7s ease, fill 0.7s ease, filter 0.7s ease;
+  }
+
+  .command-scene.agents-dim .cmd-agent {
+    opacity: 0.36;
+  }
+
+  .cmd-agent.is-chosen-agent {
+    transition: opacity 0.6s ease, stroke 0.6s ease, fill 0.6s ease, filter 0.6s ease;
+  }
+
+  .command-scene.is-deciding .cmd-agent.is-chosen-agent {
+    opacity: 1;
+    stroke: rgba(180, 215, 255, 0.9);
+    fill: rgba(120, 175, 255, 0.12);
+    filter: drop-shadow(0 0 18px rgba(120, 175, 255, 0.36));
+  }
+
+  /* Workflow node blocks */
+  .cmd-wf {
+    fill: rgba(11, 11, 11, 0.92);
+    stroke: rgba(255, 255, 255, 0.1);
+    stroke-width: 1.1;
+    rx: 6;
+    opacity: 0;
+    transition: opacity 0.5s ease, stroke 0.6s ease, fill 0.6s ease;
+  }
+
+  .command-scene.agents-dim .cmd-wf {
+    opacity: 0.22;
+  }
+
+  .command-scene.is-handoff .cmd-wf.is-chosen-wf {
+    opacity: 1;
+    stroke: rgba(140, 195, 255, 0.6);
+    fill: rgba(120, 175, 255, 0.08);
+    filter: drop-shadow(0 0 10px rgba(120, 175, 255, 0.2));
+  }
+
+  /* SVG text labels */
+  .cmd-label {
+    fill: rgba(255, 255, 255, 0.28);
+    font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-anchor: middle;
+    text-transform: uppercase;
+    opacity: 0;
+    transition: opacity 0.5s ease, fill 0.7s ease;
+  }
+
+  .command-scene.agents-dim .cmd-label {
+    opacity: 0.5;
+  }
+
+  .command-scene.is-deciding .cmd-label.is-chosen-label {
+    fill: rgba(200, 228, 255, 0.92);
+    opacity: 1;
+  }
+
+  .cmd-core-label {
+    fill: rgba(255, 255, 255, 0.94);
+    font-family: "Inter", "Segoe UI", Arial, sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: 0.28em;
+    text-anchor: middle;
+    opacity: 0;
+    transition: opacity 0.8s ease;
+  }
+
+  .command-scene.core-visible .cmd-core-label {
+    opacity: 1;
+  }
+
+  /* Incoming intent card (top-left) */
+  .cmd-intent-card {
+    position: absolute;
+    top: 10%;
+    left: 3%;
+    width: 230px;
+    padding: 1.2rem 1.4rem 1.1rem;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 18px;
+    background: linear-gradient(160deg, rgba(18, 22, 28, 0.9), rgba(10, 12, 16, 0.94));
+    box-shadow: 0 8px 36px rgba(0, 0, 0, 0.48);
+    opacity: 0;
+    transform: translateX(-24px);
+    transition: opacity 0.8s ease, transform 0.9s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.6s ease;
+  }
+
+  .command-scene.input-visible .cmd-intent-card {
+    opacity: 1;
+    transform: translateX(0);
+    border-color: rgba(120, 175, 255, 0.16);
+  }
+
+  .cmd-card-head {
+    color: rgba(255, 255, 255, 0.38);
+    font-size: 0.56rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
+    margin-bottom: 0.88rem;
+  }
+
+  .cmd-card-row {
+    display: grid;
+    grid-template-columns: 72px 1fr;
+    gap: 10px;
+    margin-bottom: 0.54rem;
+    font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+  }
+
+  .cmd-card-key {
+    color: rgba(255, 255, 255, 0.4);
+  }
+
+  .cmd-card-val {
+    color: rgba(220, 238, 255, 0.94);
+  }
+
+  /* "Routing to" status badge (below intent card) */
+  .cmd-routing {
+    position: absolute;
+    top: 10%;
+    left: 3%;
+    width: 230px;
+    margin-top: calc(10% + 170px);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity 0.7s ease, transform 0.7s ease;
+  }
+
+  .command-scene.is-deciding .cmd-routing {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .cmd-routing-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: rgba(120, 175, 255, 0.9);
+    box-shadow: 0 0 10px rgba(120, 175, 255, 0.6);
+    flex-shrink: 0;
+    animation: statusPulse 1.4s ease-in-out infinite;
+  }
+
+  .cmd-routing-text {
+    color: rgba(180, 215, 255, 0.82);
+    font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
+    font-size: 0.66rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  /* Final centred close text */
+  .cmd-final {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    opacity: 0;
+  }
+
+  .command-scene.cmd-final-visible .cmd-final {
+    animation: messageReveal 1s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+
+  .cmd-final span {
+    font-size: clamp(2.4rem, 5vw, 4.8rem);
+    font-weight: 400;
+    color: rgba(255, 255, 255, 0.94);
+    letter-spacing: 0.04em;
+    text-shadow: 0 0 40px rgba(120, 175, 255, 0.16);
+  }
+
+  @keyframes lineReveal {
+    from { stroke-dashoffset: 500; }
+    to   { stroke-dashoffset: 0; }
+  }
+
+  @keyframes cmdCoreIn {
+    from { transform: scale(0.82); opacity: 0; }
+    to   { transform: scale(1);    opacity: 1; }
+  }
+
+  @keyframes cmdCorePulse {
+    0%,100% {
+      filter: drop-shadow(0 0 14px rgba(120, 175, 255, 0.22));
+    }
+    50% {
+      filter: drop-shadow(0 0 40px rgba(120, 175, 255, 0.5));
+    }
+  }
+
+  @keyframes cmdRingPulse {
+    0%,100% { transform: scale(1);    opacity: 0.7; }
+    50%      { transform: scale(1.06); opacity: 1;   }
+  }
+  /* ── end Scene 4 ────────────────────────────────────────── */
+
   @media (max-width: 980px) {
     .logs {
       top: 32px;
@@ -1310,6 +1648,90 @@
     </section>
   </main>
 
+    <!-- Scene 4: Command Centre -->
+    <section class="scene command-scene" id="sceneCommand" aria-label="Niyanta command centre animation">
+      <div class="scan-layer" aria-hidden="true"></div>
+
+      <!-- Incoming intent card -->
+      <div class="cmd-intent-card" id="cmdIntentCard" aria-hidden="true">
+        <div class="cmd-card-head">Structured intent</div>
+        <div class="cmd-card-row">
+          <div class="cmd-card-key">intent</div>
+          <div class="cmd-card-val">approve_request</div>
+        </div>
+        <div class="cmd-card-row">
+          <div class="cmd-card-key">entity</div>
+          <div class="cmd-card-val">access</div>
+        </div>
+        <div class="cmd-card-row">
+          <div class="cmd-card-key">priority</div>
+          <div class="cmd-card-val">high</div>
+        </div>
+      </div>
+
+      <!-- Routing badge -->
+      <div class="cmd-routing" id="cmdRouting" aria-hidden="true">
+        <div class="cmd-routing-dot"></div>
+        <div class="cmd-routing-text">Routing → IT Agent</div>
+      </div>
+
+      <!-- Main SVG composition -->
+      <section class="cmd-canvas" aria-hidden="true">
+        <svg class="cmd-svg" viewBox="0 0 1000 680" role="img" aria-label="Niyanta command centre">
+          <defs>
+            <!-- Particle motion paths -->
+            <path id="cmdMotionCore"    d="M 500 340 L 680 200"></path>
+            <path id="cmdMotionAgent"   d="M 680 200 L 820 200"></path>
+          </defs>
+
+          <!-- Dim connection lines: core → agents (drawn at agents-dim stage) -->
+          <line class="cmd-line" id="cmdLineHR"       x1="500" y1="340" x2="320" y2="200" style="--ld:0.05s;"></line>
+          <line class="cmd-line" id="cmdLineIT"       x1="500" y1="340" x2="680" y2="200" style="--ld:0.10s;"></line>
+          <line class="cmd-line" id="cmdLineFinance"  x1="500" y1="340" x2="680" y2="480" style="--ld:0.15s;"></line>
+          <line class="cmd-line" id="cmdLineSecurity" x1="500" y1="340" x2="320" y2="480" style="--ld:0.20s;"></line>
+
+          <!-- Chosen path: IT Agent highlighted line (deciding stage) -->
+          <line class="cmd-line is-chosen-line" id="cmdChosenLine" x1="500" y1="340" x2="680" y2="200"></line>
+
+          <!-- Workflow connection from IT Agent (handoff stage) -->
+          <line class="cmd-line is-workflow-line" id="cmdWFLine" x1="680" y1="200" x2="840" y2="200"></line>
+
+          <!-- Outer pulse rings on Niyanta core -->
+          <circle class="cmd-core-ring"       cx="500" cy="340" r="72"></circle>
+          <circle class="cmd-core-ring ring-2" cx="500" cy="340" r="96"></circle>
+
+          <!-- Niyanta central node -->
+          <circle class="cmd-core" id="cmdCore" cx="500" cy="340" r="52"></circle>
+          <text class="cmd-core-label" id="cmdCoreLabel" x="500" y="344">NIYANTA</text>
+
+          <!-- Agent nodes -->
+          <circle class="cmd-agent" id="agentHR"       cx="320" cy="200" r="30"></circle>
+          <text   class="cmd-label" id="labelHR"        x="320" y="204">HR</text>
+
+          <circle class="cmd-agent is-chosen-agent" id="agentIT" cx="680" cy="200" r="30"></circle>
+          <text   class="cmd-label is-chosen-label"  id="labelIT" x="680" y="204">IT</text>
+
+          <circle class="cmd-agent" id="agentFinance"  cx="680" cy="480" r="30"></circle>
+          <text   class="cmd-label" id="labelFinance"   x="680" y="484">Finance</text>
+
+          <circle class="cmd-agent" id="agentSecurity" cx="320" cy="480" r="30"></circle>
+          <text   class="cmd-label" id="labelSecurity"  x="320" y="484">Security</text>
+
+          <!-- Workflow block (right of IT Agent) -->
+          <rect class="cmd-wf is-chosen-wf" id="cmdWF" x="840" y="170" width="120" height="60"></rect>
+          <text class="cmd-label is-chosen-label" id="labelWF" x="900" y="204">Workflow</text>
+
+          <!-- Animated flow particle -->
+          <circle class="cmd-particle" id="cmdParticle" cx="500" cy="340" r="5"></circle>
+        </svg>
+      </section>
+
+      <!-- Final text -->
+      <div class="cmd-final" id="cmdFinal">
+        <span>One system decides everything</span>
+      </div>
+    </section>
+
   <div class="audio-hooks" aria-hidden="true">
     <audio id="audioAmbient" preload="none" loop></audio>
     <audio id="audioTyping" preload="none"></audio>
@@ -1330,6 +1752,8 @@
 
     var SCENE_TWO_START = 9000;
     var SCENE_THREE_START = 18200;
+    var SCENE_FOUR_START = 28600;
+
     var SCENE_TWO_TIMINGS = {
       split: 2000,
       topFailure: 3800,
@@ -1348,6 +1772,15 @@
       finalText: 8600
     };
 
+    var SCENE_FOUR_TIMINGS = {
+      core:     400,   /* Niyanta node appears */
+      input:   1400,   /* intent card slides in */
+      agents:  2600,   /* dim agent ring reveals */
+      decide:  4200,   /* decision pulse + chosen line + IT highlight */
+      handoff: 5800,   /* particle travels, workflow lights up */
+      final:   7800    /* "One system decides everything" */
+    };
+
     var LOG_LINES = [
       { text: '[INIT] Booting Niyanta Core...', speed: 62 },
       { text: '[LOAD] Agents initialized', speed: 70 },
@@ -1357,6 +1790,7 @@
     var sceneBoot = document.getElementById('sceneBoot');
     var sceneSplit = document.getElementById('sceneSplit');
     var sceneIntent = document.getElementById('sceneIntent');
+    var sceneCommand = document.getElementById('sceneCommand');
     var logs = document.getElementById('logs');
     var network = document.getElementById('network');
     var titleBlock = document.getElementById('titleBlock');
@@ -1410,6 +1844,17 @@
     var didIntentDomainTwo = false;
     var didIntentFinal = false;
     var midSettled = false;
+
+    var cmdStartedAt = null;
+    var cmdStarted = false;
+    var didCmdCore = false;
+    var didCmdInput = false;
+    var didCmdAgents = false;
+    var didCmdDecide = false;
+    var didCmdHandoff = false;
+    var didCmdFinal = false;
+    var cmdParticlePhase = 0; /* 0=idle 1=core->agent 2=agent->wf */
+    var cmdParticleStart = 0;
     var topStalled = false;
     var bottomLooping = false;
 
@@ -1700,6 +2145,93 @@
       intentFinal.classList.add('is-visible');
     }
 
+    function revealSceneFour() {
+      if (cmdStarted) { return; }
+      cmdStarted = true;
+      cmdStartedAt = performance.now();
+      sceneIntent.classList.add('is-exiting');
+      sceneCommand.classList.add('is-visible');
+    }
+
+    function activateCmdCore() {
+      if (didCmdCore) { return; }
+      didCmdCore = true;
+      sceneCommand.classList.add('core-visible');
+    }
+
+    function activateCmdInput() {
+      if (didCmdInput) { return; }
+      didCmdInput = true;
+      sceneCommand.classList.add('input-visible');
+    }
+
+    function activateCmdAgents() {
+      if (didCmdAgents) { return; }
+      didCmdAgents = true;
+      sceneCommand.classList.add('agents-dim');
+    }
+
+    function activateCmdDecide() {
+      if (didCmdDecide) { return; }
+      didCmdDecide = true;
+      sceneCommand.classList.add('is-deciding');
+    }
+
+    function activateCmdHandoff() {
+      if (didCmdHandoff) { return; }
+      didCmdHandoff = true;
+      sceneCommand.classList.add('is-handoff');
+      cmdParticlePhase = 1;
+      cmdParticleStart = performance.now();
+    }
+
+    function activateCmdFinal() {
+      if (didCmdFinal) { return; }
+      didCmdFinal = true;
+      sceneCommand.classList.add('cmd-final-visible');
+    }
+
+    function tickCmdParticle(now) {
+      if (cmdParticlePhase === 0) { return; }
+      var cmdParticle = document.getElementById('cmdParticle');
+      var coreMotion  = document.getElementById('cmdMotionCore');
+      var agentMotion = document.getElementById('cmdMotionAgent');
+      if (!cmdParticle || !coreMotion || !agentMotion) { return; }
+
+      var elapsed = now - cmdParticleStart;
+      var legDur  = 900; /* ms per leg */
+
+      if (cmdParticlePhase === 1) {
+        var t = clamp(elapsed / legDur, 0, 1);
+        setParticle(cmdParticle, coreMotion, easeInOutCubic(t));
+        if (t >= 1) {
+          cmdParticlePhase = 2;
+          cmdParticleStart = now;
+        }
+      } else if (cmdParticlePhase === 2) {
+        var t2 = clamp(elapsed / legDur, 0, 1);
+        setParticle(cmdParticle, agentMotion, easeInOutCubic(t2));
+        if (t2 >= 1) {
+          cmdParticlePhase = 0;
+          cmdParticle.setAttribute('opacity', '0');
+        }
+      }
+    }
+
+    function tickCommandScene(timestamp) {
+      if (!cmdStarted) { return; }
+      var elapsed = timestamp - cmdStartedAt;
+
+      if (elapsed >= SCENE_FOUR_TIMINGS.core)    { activateCmdCore();    }
+      if (elapsed >= SCENE_FOUR_TIMINGS.input)   { activateCmdInput();   }
+      if (elapsed >= SCENE_FOUR_TIMINGS.agents)  { activateCmdAgents();  }
+      if (elapsed >= SCENE_FOUR_TIMINGS.decide)  { activateCmdDecide();  }
+      if (elapsed >= SCENE_FOUR_TIMINGS.handoff) { activateCmdHandoff(); }
+      if (elapsed >= SCENE_FOUR_TIMINGS.final)   { activateCmdFinal();   }
+
+      tickCmdParticle(timestamp);
+    }
+
     function updateTopParticle(elapsed) {
       var holdProgress = 0.405;
 
@@ -1813,12 +2345,20 @@
         revealSceneThree();
       }
 
+      if (!cmdStarted && timestamp >= SCENE_FOUR_START) {
+        revealSceneFour();
+      }
+
       if (splitStarted) {
         tickSplitScene(timestamp);
       }
 
       if (intentStarted) {
         tickIntentScene(timestamp);
+      }
+
+      if (cmdStarted) {
+        tickCommandScene(timestamp);
       }
 
       window.requestAnimationFrame(render);
@@ -1836,6 +2376,9 @@
       },
       showSceneThreeNow: function () {
         revealSceneThree();
+      },
+      showSceneFourNow: function () {
+        revealSceneFour();
       },
       branchIndex: branchIndex
     };
