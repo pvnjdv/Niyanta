@@ -1838,6 +1838,371 @@
   }
   /* ── end Scene 5 ────────────────────────────────────────── */
 
+  /* ── Scene 6: Workflow Engine ────────────────────────────── */
+  .wfe-scene {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background:
+      radial-gradient(circle at 50% 48%, rgba(160, 200, 120, 0.06) 0%, rgba(0,0,0,0) 55%),
+      var(--bg);
+  }
+
+  .wfe-canvas {
+    position: relative;
+    width: min(90vw, 880px);
+    height: min(88vh, 760px);
+    opacity: 0;
+    transform: scale(0.96);
+    transition: opacity 0.8s ease, transform 0.9s cubic-bezier(0.22,1,0.36,1);
+  }
+  .wfe-scene.is-visible .wfe-canvas { opacity: 1; transform: scale(1); }
+
+  /* SVG edges */
+  .wfe-svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+    pointer-events: none;
+  }
+
+  .wfe-edge {
+    fill: none;
+    stroke: rgba(255,255,255,0.08);
+    stroke-width: 1.5;
+    stroke-dasharray: 6 5;
+    transition: stroke 0.5s ease, stroke-dasharray 0.4s ease, stroke-width 0.4s ease;
+  }
+
+  .wfe-edge.is-active {
+    stroke: rgba(160, 200, 120, 0.5);
+    stroke-dasharray: none;
+    stroke-width: 2;
+    animation: edgeFlow 0.6s ease forwards;
+  }
+
+  .wfe-edge.is-done {
+    stroke: rgba(160, 200, 120, 0.22);
+    stroke-dasharray: none;
+    stroke-width: 1.5;
+  }
+
+  .wfe-edge.is-dim {
+    stroke: rgba(255,255,255,0.03);
+  }
+
+  @keyframes edgeFlow {
+    0%   { stroke-dashoffset: 24; stroke-dasharray: 6 5; }
+    100% { stroke-dashoffset: 0;  stroke-dasharray: none; }
+  }
+
+  /* Nodes */
+  .wfe-node {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    width: 144px;
+    min-height: 72px;
+    padding: 14px 18px;
+    border-radius: 20px;
+    border: 1.5px solid rgba(255,255,255,0.07);
+    background: linear-gradient(160deg, rgba(18,22,16,0.92), rgba(10,12,10,0.96));
+    opacity: 0;
+    transition: opacity 0.7s ease, border-color 0.5s ease, box-shadow 0.5s ease, background 0.5s ease;
+    box-sizing: border-box;
+  }
+
+  .wfe-scene.is-visible .wfe-node { opacity: 0.28; }
+
+  .wfe-node.is-active {
+    opacity: 1 !important;
+    border-color: rgba(160, 200, 120, 0.5);
+    background: linear-gradient(160deg, rgba(28,38,18,0.97), rgba(14,20,10,0.98));
+    box-shadow: 0 0 48px rgba(160,200,120,0.24), inset 0 0 24px rgba(160,200,120,0.08);
+    animation: wfeNodePulse 2.2s ease-in-out infinite;
+  }
+
+  .wfe-node.is-done {
+    opacity: 0.55 !important;
+    border-color: rgba(160, 200, 120, 0.15);
+    box-shadow: none;
+    animation: none;
+  }
+
+  .wfe-node.is-dim {
+    opacity: 0.12 !important;
+    border-color: rgba(255,255,255,0.04);
+  }
+
+  /* Decision node is diamond-shaped via clip-path */
+  .wfe-node.is-decision {
+    border-radius: 8px;
+    clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+    width: 136px;
+    height: 136px;
+    padding: 0;
+    border: none; /* border doesn't work with clip-path; use outline via box-shadow on wrapper */
+  }
+
+  /* We use a wrapper for the decision node to preserve border */
+  .wfe-node-decision-wrap {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    width: 140px;
+    height: 140px;
+    opacity: 0;
+    transition: opacity 0.7s ease;
+  }
+  .wfe-scene.is-visible .wfe-node-decision-wrap { opacity: 0.28; }
+  .wfe-node-decision-wrap.is-active { opacity: 1 !important; }
+  .wfe-node-decision-wrap.is-done   { opacity: 0.55 !important; }
+
+  .wfe-decision-diamond {
+    width: 100%;
+    height: 100%;
+    clip-path: polygon(50% 4%, 96% 50%, 50% 96%, 4% 50%);
+    background: linear-gradient(160deg, rgba(28,38,18,0.97), rgba(14,20,10,0.98));
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 4px;
+    transition: background 0.5s ease, box-shadow 0.5s ease;
+  }
+
+  .wfe-node-decision-wrap.is-active .wfe-decision-diamond {
+    box-shadow: 0 0 56px rgba(160,200,120,0.28), 0 0 0 1.5px rgba(160,200,120,0.45);
+    animation: wfeNodePulse 2.2s ease-in-out infinite;
+  }
+
+  .wfe-node-decision-wrap.is-done .wfe-decision-diamond {
+    box-shadow: 0 0 0 1.5px rgba(160,200,120,0.12);
+  }
+
+  @keyframes wfeNodePulse {
+    0%,100% { box-shadow: 0 0 40px rgba(160,200,120,0.20), inset 0 0 20px rgba(160,200,120,0.06); }
+    50%     { box-shadow: 0 0 72px rgba(160,200,120,0.40), inset 0 0 40px rgba(160,200,120,0.14); }
+  }
+
+  .wfe-node-type {
+    font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
+    font-size: 0.5rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(160, 200, 120, 0.5);
+  }
+
+  .wfe-node-label {
+    font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.1em;
+    color: rgba(255,255,255,0.82);
+    text-align: center;
+    line-height: 1.3;
+  }
+
+  .wfe-node.is-active  .wfe-node-label { color: rgba(255,255,255,0.96); }
+  .wfe-node.is-done    .wfe-node-label { color: rgba(255,255,255,0.52); }
+  .wfe-node-decision-wrap.is-active .wfe-node-label { color: rgba(255,255,255,0.96); }
+  .wfe-node-decision-wrap.is-done   .wfe-node-label { color: rgba(255,255,255,0.52); }
+
+  /* Branch labels on edges */
+  .wfe-branch-label {
+    font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
+    font-size: 0.54rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    fill: rgba(255,255,255,0.22);
+    transition: fill 0.5s ease;
+  }
+  .wfe-branch-label.is-active  { fill: rgba(160,200,120,0.8); }
+  .wfe-branch-label.is-dim     { fill: rgba(255,255,255,0.06); }
+
+  /* State capsule: floating data label that moves between nodes */
+  .wfe-capsule {
+    position: absolute;
+    left: 0; top: 0;
+    padding: 0.46rem 0.9rem;
+    border: 1px solid rgba(160,200,120,0.28);
+    border-radius: 999px;
+    background: rgba(30,44,18,0.88);
+    color: rgba(200,230,170,0.94);
+    font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
+    font-size: 0.66rem;
+    letter-spacing: 0.08em;
+    white-space: nowrap;
+    box-shadow: 0 2px 20px rgba(160,200,120,0.18);
+    pointer-events: none;
+    opacity: 0;
+    z-index: 10;
+    transform: translate(-50%, -50%);
+    transition: opacity 0.4s ease;
+    will-change: top, left;
+  }
+
+  /* Execution dot: small orb that travels along edges */
+  .wfe-dot {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: rgba(160,200,120,0.9);
+    box-shadow: 0 0 16px rgba(160,200,120,0.7);
+    pointer-events: none;
+    opacity: 0;
+    z-index: 11;
+    transform: translate(-50%, -50%);
+    transition: opacity 0.3s ease;
+    will-change: top, left;
+  }
+
+  /* Branch indicator: shown inside decision node */
+  .wfe-decision-value {
+    position: absolute;
+    font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
+    font-size: 0.6rem;
+    letter-spacing: 0.1em;
+    color: rgba(160,200,120,0.9);
+    text-align: center;
+    opacity: 0;
+    transition: opacity 0.5s ease;
+    pointer-events: none;
+    z-index: 8;
+  }
+
+  /* Final glow burst */
+  .wfe-final-glow {
+    position: absolute;
+    transform: translate(-50%,-50%);
+    width: 0;
+    height: 0;
+    border-radius: 50%;
+    background: rgba(160,200,120,0.18);
+    pointer-events: none;
+    z-index: 5;
+    transition: width 1s cubic-bezier(0.22,1,0.36,1), height 1s cubic-bezier(0.22,1,0.36,1), opacity 1s ease;
+    opacity: 0;
+  }
+
+  .wfe-final-glow.is-burst {
+    width: 320px;
+    height: 320px;
+    opacity: 0;
+    animation: wfeBurst 1.4s cubic-bezier(0.22,1,0.36,1) forwards;
+  }
+
+  @keyframes wfeBurst {
+    0%   { width: 0;     height: 0;     opacity: 0.7; }
+    100% { width: 360px; height: 360px; opacity: 0; }
+  }
+
+  /* Completion check */
+  .wfe-check {
+    position: absolute;
+    transform: translate(-50%,-50%);
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 2px solid rgba(160,200,120,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 9;
+    transition: opacity 0.6s ease;
+  }
+
+  .wfe-check svg {
+    width: 18px;
+    height: 18px;
+    stroke: rgba(160,200,120,0.9);
+    stroke-width: 2.5;
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  /* Final text overlay */
+  .wfe-final {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    opacity: 0;
+    z-index: 12;
+  }
+
+  .wfe-scene.wfe-final-visible .wfe-final {
+    animation: messageReveal 1s cubic-bezier(0.22,1,0.36,1) forwards;
+  }
+
+  .wfe-final span {
+    font-size: clamp(2.4rem, 5vw, 4.8rem);
+    font-weight: 400;
+    color: rgba(255,255,255,0.94);
+    letter-spacing: 0.04em;
+    text-shadow: 0 0 40px rgba(160,200,120,0.18);
+  }
+
+  /* Progress header */
+  .wfe-header {
+    position: absolute;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    opacity: 0;
+    transition: opacity 0.6s ease;
+    white-space: nowrap;
+    z-index: 8;
+  }
+
+  .wfe-scene.is-visible .wfe-header { opacity: 1; }
+
+  .wfe-header-label {
+    font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
+    font-size: 0.52rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.28);
+  }
+
+  .wfe-step-indicator {
+    display: flex;
+    gap: 8px;
+  }
+
+  .wfe-step-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.14);
+    transition: background 0.4s ease, box-shadow 0.4s ease;
+  }
+
+  .wfe-step-dot.is-active {
+    background: rgba(160,200,120,0.9);
+    box-shadow: 0 0 8px rgba(160,200,120,0.6);
+  }
+
+  .wfe-step-dot.is-done {
+    background: rgba(160,200,120,0.4);
+  }
+
+  /* ── end Scene 6 ────────────────────────────────────────── */
+
   @media (max-width: 980px) {
     .logs {
       top: 32px;
@@ -2249,6 +2614,116 @@
       </div>
     </section>
 
+    <!-- Scene 6: Workflow Engine Execution -->
+    <section class="scene wfe-scene" id="sceneWFE" aria-label="Workflow engine execution animation">
+      <div class="scan-layer" aria-hidden="true"></div>
+
+      <div class="wfe-canvas" id="wfeCanvas" aria-hidden="true">
+
+        <!-- Progress header -->
+        <div class="wfe-header">
+          <span class="wfe-header-label">Workflow · execution</span>
+          <div class="wfe-step-indicator">
+            <div class="wfe-step-dot" id="wsd0"></div>
+            <div class="wfe-step-dot" id="wsd1"></div>
+            <div class="wfe-step-dot" id="wsd2"></div>
+            <div class="wfe-step-dot" id="wsd3"></div>
+            <div class="wfe-step-dot" id="wsd4"></div>
+          </div>
+        </div>
+
+        <!-- SVG edges (drawn first, behind nodes) -->
+        <!-- Coords match node centres at their % positions within 880×760 -->
+        <svg class="wfe-svg" viewBox="0 0 880 760" preserveAspectRatio="none">
+          <!-- N0(440,76) → N1(246,243) -->
+          <path id="edge01" class="wfe-edge"
+                d="M440,76 C350,120 280,180 246,243"/>
+          <!-- N1(246,243) → N2(634,243) -->
+          <path id="edge12" class="wfe-edge"
+                d="M246,243 C360,200 520,200 634,243"/>
+          <!-- N2(634,243) → N3(440,418) -->
+          <path id="edge23" class="wfe-edge"
+                d="M634,243 C600,300 520,360 440,418"/>
+          <!-- N3(440,418) → N4(246,578) Auto Approve -->
+          <path id="edge34a" class="wfe-edge"
+                d="M440,418 C380,470 310,520 246,578"/>
+          <!-- N3(440,418) → N5(634,578) Requires Approval -->
+          <path id="edge34b" class="wfe-edge"
+                d="M440,418 C500,470 570,520 634,578"/>
+
+          <!-- Branch labels -->
+          <text class="wfe-branch-label" id="blabelA" x="302" y="528">auto_approve</text>
+          <text class="wfe-branch-label" id="blabelB" x="548" y="528">requires_approval</text>
+        </svg>
+
+        <!-- Node 0: Input (top centre) -->
+        <div class="wfe-node" id="wfeN0" style="left:50%;top:10%;">
+          <span class="wfe-node-type">trigger</span>
+          <span class="wfe-node-label">Input</span>
+        </div>
+
+        <!-- Node 1: Extract (mid left) -->
+        <div class="wfe-node" id="wfeN1" style="left:28%;top:32%;">
+          <span class="wfe-node-type">transform</span>
+          <span class="wfe-node-label">Enrich</span>
+        </div>
+
+        <!-- Node 2: Validate (mid right) -->
+        <div class="wfe-node" id="wfeN2" style="left:72%;top:32%;">
+          <span class="wfe-node-type">validate</span>
+          <span class="wfe-node-label">Validate</span>
+        </div>
+
+        <!-- Node 3: Decision (centre) — diamond wrapper -->
+        <div class="wfe-node-decision-wrap" id="wfeN3w" style="left:50%;top:55%;">
+          <div class="wfe-decision-diamond">
+            <span class="wfe-node-type">decision</span>
+            <span class="wfe-node-label">Route</span>
+          </div>
+        </div>
+
+        <!-- Decision value label (appears during decision pause) -->
+        <div class="wfe-decision-value" id="wfeDecisionVal"
+             style="left:50%;top:67%;transform:translate(-50%,-50%);">
+          decision: auto_approve
+        </div>
+
+        <!-- Node 4: Auto Approve (bottom left — active branch) -->
+        <div class="wfe-node" id="wfeN4" style="left:28%;top:76%;">
+          <span class="wfe-node-type">action</span>
+          <span class="wfe-node-label">Auto<br>Approve</span>
+        </div>
+
+        <!-- Node 5: Requires Approval (bottom right — dim branch) -->
+        <div class="wfe-node" id="wfeN5" style="left:72%;top:76%;">
+          <span class="wfe-node-type">action</span>
+          <span class="wfe-node-label">Requires<br>Approval</span>
+        </div>
+
+        <!-- State capsule -->
+        <div class="wfe-capsule" id="wfeCapsule">access_request · high</div>
+
+        <!-- Execution dot -->
+        <div class="wfe-dot" id="wfeDot"></div>
+
+        <!-- Final glow burst (centred on Auto Approve node) -->
+        <div class="wfe-final-glow" id="wfeFinalGlow" style="left:28%;top:76%;"></div>
+
+        <!-- Completion check mark -->
+        <div class="wfe-check" id="wfeCheck" style="left:28%;top:76%;">
+          <svg viewBox="0 0 18 18">
+            <polyline points="3,9 7,13 15,5"/>
+          </svg>
+        </div>
+
+        <!-- Final overlay -->
+        <div class="wfe-final" id="wfeFinal">
+          <span>Every step is controlled</span>
+        </div>
+
+      </div>
+    </section>
+
   <div class="audio-hooks" aria-hidden="true">
     <audio id="audioAmbient" preload="none" loop></audio>
     <audio id="audioTyping" preload="none"></audio>
@@ -2271,6 +2746,7 @@
     var SCENE_THREE_START = 18200;
     var SCENE_FOUR_START = 28600;
     var SCENE_FIVE_START = 38000;
+    var SCENE_SIX_START  = 50000;
 
     var SCENE_TWO_TIMINGS = {
       split: 2000,
@@ -2314,6 +2790,40 @@
       final:    10400
     };
 
+    /*
+     * Scene 6: Workflow Engine
+     *
+     * Phases (elapsed ms from wfeStartedAt):
+     *  0:    reveal canvas
+     *  400:  Node 0 Input activates  — capsule appears: "access_request · high"
+     *  1400: dot travels edge01 (800ms)
+     *  2200: Node 1 Enrich activates — capsule: "risk_score: low"
+     *  3200: dot travels edge12 (800ms)
+     *  4000: Node 2 Validate activates — capsule: "validated: true"
+     *  5000: dot travels edge23 (800ms)
+     *  5800: Decision node activates — capsule: "risk_score: low"
+     *  7000: decision pause — show decision value label
+     *  7800: dot travels edge34a (1000ms), edge34b dims
+     *  8800: Node 4 Auto Approve activates — capsule: "status: approved"
+     *  9600: glow burst + check appears
+     * 11000: final text
+     */
+    var SCENE_SIX_TIMINGS = {
+      n0:        400,
+      travel01: 1400,
+      n1:       2200,
+      travel12: 3200,
+      n2:       4000,
+      travel23: 5000,
+      n3:       5800,
+      decide:   7000,
+      travel34: 7800,
+      n4:       8800,
+      burst:    9600,
+      final:   11000
+    };
+    var TRAVEL_DUR = 900; /* ms for each dot travel segment */
+
     var LOG_LINES = [
       { text: '[INIT] Booting Niyanta Core...', speed: 62 },
       { text: '[LOAD] Agents initialized', speed: 70 },
@@ -2325,6 +2835,7 @@
     var sceneIntent = document.getElementById('sceneIntent');
     var sceneCommand = document.getElementById('sceneCommand');
     var sceneAgent   = document.getElementById('sceneAgent');
+    var sceneWFE     = document.getElementById('sceneWFE');
     var logs = document.getElementById('logs');
     var network = document.getElementById('network');
     var titleBlock = document.getElementById('titleBlock');
@@ -2402,6 +2913,12 @@
     var didA5ResTravel = false;
     var didA5Fwd       = false;
     var didA5Final     = false;
+
+    var wfeStartedAt = null;
+    var wfeStarted   = false;
+    var wfeDotPhase  = 0;     /* 0=idle 1=01 2=12 3=23 4=34a */
+    var wfeDotStart  = 0;
+    var wfePhases    = {};    /* boolean flags keyed by phase name */
     var topStalled = false;
     var bottomLooping = false;
 
@@ -2692,6 +3209,253 @@
       intentFinal.classList.add('is-visible');
     }
 
+    /* ── Scene 6 helpers ─────────────────────────────────── */
+
+    function wfeActivateNode(id, state) {
+      var el = document.getElementById(id);
+      if (!el) { return; }
+      el.classList.remove('is-active');
+      void el.offsetWidth; /* reflow to restart animation */
+      el.classList.add('is-active');
+      if (state !== undefined) {
+        el.dataset.state = state;
+      }
+    }
+
+    function wfeDoneNode(id) {
+      var el = document.getElementById(id);
+      if (!el) { return; }
+      el.classList.remove('is-active');
+      el.classList.add('is-done');
+    }
+
+    function wfeSetCapsule(text, pctX, pctY) {
+      var cap = document.getElementById('wfeCapsule');
+      if (!cap) { return; }
+      cap.textContent = text;
+      cap.style.left = pctX + '%';
+      cap.style.top  = pctY + '%';
+      cap.style.opacity = '1';
+    }
+
+    function wfeHideCapsule() {
+      var cap = document.getElementById('wfeCapsule');
+      if (cap) { cap.style.opacity = '0'; }
+    }
+
+    function wfeSetEdge(id, cls) {
+      var el = document.getElementById(id);
+      if (!el) { return; }
+      el.setAttribute('class', 'wfe-edge ' + cls);
+    }
+
+    function wfeStepDot(idx, cls) {
+      var el = document.getElementById('wsd' + idx);
+      if (!el) { return; }
+      el.className = 'wfe-step-dot ' + (cls || '');
+    }
+
+    function getPathPoint(pathId, t) {
+      /* t: 0–1 fraction along path. Returns {x,y} in SVG units. */
+      var path = document.getElementById(pathId);
+      if (!path) { return { x: 0, y: 0 }; }
+      var len = path.getTotalLength();
+      return path.getPointAtLength(len * t);
+    }
+
+    function svgToPercent(pt, svgW, svgH) {
+      /* Convert SVG viewBox coords to % of canvas */
+      return { x: (pt.x / svgW) * 100, y: (pt.y / svgH) * 100 };
+    }
+
+    function wfeMoveDot(pathId, t) {
+      var dot = document.getElementById('wfeDot');
+      if (!dot) { return; }
+      var pt = getPathPoint(pathId, t);
+      var pct = svgToPercent(pt, 880, 760);
+      dot.style.left = pct.x + '%';
+      dot.style.top  = pct.y + '%';
+      dot.style.opacity = '1';
+    }
+
+    function wfeHideDot() {
+      var dot = document.getElementById('wfeDot');
+      if (dot) { dot.style.opacity = '0'; }
+    }
+
+    function wfePhaseDone(key) {
+      return !!wfePhases[key];
+    }
+
+    function wfeMarkPhase(key) {
+      wfePhases[key] = true;
+    }
+
+    function revealSceneSix() {
+      if (wfeStarted) { return; }
+      wfeStarted   = true;
+      wfeStartedAt = performance.now();
+      sceneAgent.classList.add('is-exiting');
+      sceneWFE.classList.add('is-visible');
+    }
+
+    function tickWFEScene(timestamp) {
+      if (!wfeStarted) { return; }
+      var el = timestamp - wfeStartedAt;
+      var T  = SCENE_SIX_TIMINGS;
+
+      /* ── Step 0: Input node activates ── */
+      if (!wfePhaseDone('n0') && el >= T.n0) {
+        wfeMarkPhase('n0');
+        wfeActivateNode('wfeN0');
+        wfeSetCapsule('access_request · high', 50, 10);
+        wfeStepDot(0, 'is-active');
+      }
+
+      /* ── Dot travels edge01 ── */
+      if (!wfePhaseDone('travel01_start') && el >= T.travel01) {
+        wfeMarkPhase('travel01_start');
+        wfeDotPhase  = 1;
+        wfeDotStart  = timestamp;
+        wfeHideCapsule();
+        wfeDoneNode('wfeN0');
+        wfeSetEdge('edge01', 'is-active');
+        wfeStepDot(0, 'is-done');
+      }
+      if (wfeDotPhase === 1) {
+        var t01 = Math.min(1, (timestamp - wfeDotStart) / TRAVEL_DUR);
+        wfeMoveDot('edge01', t01);
+        if (t01 >= 1) { wfeDotPhase = 0; }
+      }
+
+      /* ── Step 1: Enrich node activates ── */
+      if (!wfePhaseDone('n1') && el >= T.n1) {
+        wfeMarkPhase('n1');
+        wfeSetEdge('edge01', 'is-done');
+        wfeHideDot();
+        wfeActivateNode('wfeN1');
+        wfeSetCapsule('risk_score: low', 28, 32);
+        wfeStepDot(1, 'is-active');
+      }
+
+      /* ── Dot travels edge12 ── */
+      if (!wfePhaseDone('travel12_start') && el >= T.travel12) {
+        wfeMarkPhase('travel12_start');
+        wfeDotPhase = 2;
+        wfeDotStart = timestamp;
+        wfeHideCapsule();
+        wfeDoneNode('wfeN1');
+        wfeSetEdge('edge12', 'is-active');
+        wfeStepDot(1, 'is-done');
+      }
+      if (wfeDotPhase === 2) {
+        var t12 = Math.min(1, (timestamp - wfeDotStart) / TRAVEL_DUR);
+        wfeMoveDot('edge12', t12);
+        if (t12 >= 1) { wfeDotPhase = 0; }
+      }
+
+      /* ── Step 2: Validate node activates ── */
+      if (!wfePhaseDone('n2') && el >= T.n2) {
+        wfeMarkPhase('n2');
+        wfeSetEdge('edge12', 'is-done');
+        wfeHideDot();
+        wfeActivateNode('wfeN2');
+        wfeSetCapsule('validated: true', 72, 32);
+        wfeStepDot(2, 'is-active');
+      }
+
+      /* ── Dot travels edge23 ── */
+      if (!wfePhaseDone('travel23_start') && el >= T.travel23) {
+        wfeMarkPhase('travel23_start');
+        wfeDotPhase = 3;
+        wfeDotStart = timestamp;
+        wfeHideCapsule();
+        wfeDoneNode('wfeN2');
+        wfeSetEdge('edge23', 'is-active');
+        wfeStepDot(2, 'is-done');
+      }
+      if (wfeDotPhase === 3) {
+        var t23 = Math.min(1, (timestamp - wfeDotStart) / TRAVEL_DUR);
+        wfeMoveDot('edge23', t23);
+        if (t23 >= 1) { wfeDotPhase = 0; }
+      }
+
+      /* ── Step 3: Decision node activates ── */
+      if (!wfePhaseDone('n3') && el >= T.n3) {
+        wfeMarkPhase('n3');
+        wfeSetEdge('edge23', 'is-done');
+        wfeHideDot();
+        var n3w = document.getElementById('wfeN3w');
+        if (n3w) { n3w.classList.add('is-active'); }
+        wfeSetCapsule('risk_score: low', 50, 55);
+        wfeStepDot(3, 'is-active');
+      }
+
+      /* ── Decision pause: show decision value ── */
+      if (!wfePhaseDone('decide') && el >= T.decide) {
+        wfeMarkPhase('decide');
+        wfeHideCapsule();
+        var dv = document.getElementById('wfeDecisionVal');
+        if (dv) { dv.style.opacity = '1'; }
+        var blA = document.getElementById('blabelA');
+        var blB = document.getElementById('blabelB');
+        if (blA) { blA.classList.add('is-active'); }
+        if (blB) { blB.classList.add('is-dim'); }
+      }
+
+      /* ── Dot travels edge34a (auto approve path) ── */
+      if (!wfePhaseDone('travel34_start') && el >= T.travel34) {
+        wfeMarkPhase('travel34_start');
+        wfeDotPhase = 4;
+        wfeDotStart = timestamp;
+        var n3w2 = document.getElementById('wfeN3w');
+        if (n3w2) { n3w2.classList.remove('is-active'); n3w2.classList.add('is-done'); }
+        var dv2 = document.getElementById('wfeDecisionVal');
+        if (dv2) { dv2.style.opacity = '0'; }
+        wfeSetEdge('edge34a', 'is-active');
+        wfeSetEdge('edge34b', 'is-dim');
+        var n5 = document.getElementById('wfeN5');
+        if (n5) { n5.classList.add('is-dim'); }
+        wfeStepDot(3, 'is-done');
+      }
+      if (wfeDotPhase === 4) {
+        var t34 = Math.min(1, (timestamp - wfeDotStart) / (TRAVEL_DUR + 100));
+        wfeMoveDot('edge34a', t34);
+        if (t34 >= 1) { wfeDotPhase = 0; }
+      }
+
+      /* ── Step 4: Auto Approve activates ── */
+      if (!wfePhaseDone('n4') && el >= T.n4) {
+        wfeMarkPhase('n4');
+        wfeSetEdge('edge34a', 'is-done');
+        wfeHideDot();
+        wfeActivateNode('wfeN4');
+        wfeSetCapsule('status: approved', 28, 76);
+        wfeStepDot(4, 'is-active');
+      }
+
+      /* ── Completion burst ── */
+      if (!wfePhaseDone('burst') && el >= T.burst) {
+        wfeMarkPhase('burst');
+        wfeHideCapsule();
+        wfeDoneNode('wfeN4');
+        wfeStepDot(4, 'is-done');
+        var glow = document.getElementById('wfeFinalGlow');
+        if (glow) { glow.classList.add('is-burst'); }
+        var chk = document.getElementById('wfeCheck');
+        if (chk) { chk.style.opacity = '1'; }
+      }
+
+      /* ── Final text ── */
+      if (!wfePhaseDone('final') && el >= T.final) {
+        wfeMarkPhase('final');
+        var chk2 = document.getElementById('wfeCheck');
+        if (chk2) { chk2.style.opacity = '0'; }
+        sceneWFE.classList.add('wfe-final-visible');
+      }
+    }
+    /* ── end Scene 6 ──────────────────────────────────── */
+
     function revealSceneFive() {
       if (agentStarted) { return; }
       agentStarted   = true;
@@ -2975,6 +3739,10 @@
         revealSceneFive();
       }
 
+      if (!wfeStarted && timestamp >= SCENE_SIX_START) {
+        revealSceneSix();
+      }
+
       if (splitStarted) {
         tickSplitScene(timestamp);
       }
@@ -2989,6 +3757,10 @@
 
       if (agentStarted) {
         tickAgentScene(timestamp);
+      }
+
+      if (wfeStarted) {
+        tickWFEScene(timestamp);
       }
 
       window.requestAnimationFrame(render);
@@ -3012,6 +3784,9 @@
       },
       showSceneFiveNow: function () {
         revealSceneFive();
+      },
+      showSceneSixNow: function () {
+        revealSceneSix();
       },
       branchIndex: branchIndex
     };
