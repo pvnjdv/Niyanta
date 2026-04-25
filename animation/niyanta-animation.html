@@ -2945,6 +2945,215 @@
   }
   /* ── end Scene 8 ────────────────────────────────────────── */
 
+  /* ── Scene 9: end-to-end replay ─────────────────────────── */
+  .s9-scene {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: radial-gradient(ellipse 90% 65% at 50% 52%, rgba(20,38,70,0.28) 0%, #0B0B0B 100%);
+  }
+
+  .s9-canvas {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 52px;
+    width: min(98vw, 1120px);
+    opacity: 0;
+    transform: scale(0.94);
+    transition: opacity 0.55s ease, transform 0.55s ease;
+  }
+  .s9-canvas.is-visible {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  .s9-header {
+    font-family: 'Consolas', monospace;
+    font-size: 0.62rem;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: rgba(140,170,220,0.45);
+    opacity: 0;
+    transition: opacity 0.7s ease 0.3s;
+  }
+  .s9-canvas.is-visible .s9-header { opacity: 1; }
+
+  /* ── Flow row ── */
+  .s9-flow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    flex-wrap: nowrap;
+  }
+
+  /* ── Connector line ── */
+  .s9-connector {
+    position: relative;
+    width: 38px;
+    height: 2px;
+    background: rgba(100,140,200,0.14);
+    flex-shrink: 0;
+    overflow: hidden;
+  }
+  .s9-connector::after {
+    content: '';
+    position: absolute;
+    top: -1px;
+    left: 0;
+    width: 100%;
+    height: 4px;
+    background: linear-gradient(90deg, transparent 0%, rgba(120,190,255,0.95) 50%, transparent 100%);
+    transform: translateX(-110%);
+  }
+  .s9-connector.is-pulsing::after {
+    animation: s9ConnPulse 0.52s cubic-bezier(0.4, 0, 0.6, 1) forwards;
+  }
+  @keyframes s9ConnPulse {
+    0%   { transform: translateX(-110%); opacity: 1; }
+    100% { transform: translateX(110%);  opacity: 0.3; }
+  }
+
+  /* ── Tile base ── */
+  .s9-tile {
+    position: relative;
+    width: 118px;
+    min-height: 86px;
+    border-radius: 12px;
+    border: 1px solid rgba(100,140,200,0.1);
+    background: rgba(18,28,46,0.45);
+    padding: 14px 11px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    opacity: 0;
+    transform: translateY(16px) scale(0.92);
+    transition: opacity 0.4s ease, transform 0.4s ease,
+                border-color 0.35s ease, box-shadow 0.35s ease,
+                background 0.35s ease;
+    flex-shrink: 0;
+  }
+  .s9-tile.is-waiting {
+    opacity: 0.16;
+    transform: translateY(0) scale(1);
+  }
+  .s9-tile.is-active {
+    opacity: 1;
+    transform: translateY(0) scale(1.05);
+    border-color: rgba(100,160,255,0.55);
+    box-shadow: 0 0 24px rgba(100,160,255,0.22), inset 0 0 18px rgba(100,160,255,0.06);
+    background: rgba(22,40,72,0.9);
+  }
+  .s9-tile.is-done {
+    opacity: 0.48;
+    transform: translateY(0) scale(1);
+    border-color: rgba(100,140,200,0.18);
+    box-shadow: none;
+    background: rgba(18,28,46,0.42);
+  }
+
+  /* ── Failure tile ── */
+  .s9-tile.is-failure.is-active {
+    border-color: rgba(255,90,90,0.55);
+    box-shadow: 0 0 22px rgba(255,80,80,0.2), inset 0 0 14px rgba(255,80,80,0.06);
+    background: rgba(48,14,14,0.9);
+  }
+  .s9-tile.is-failure.is-done {
+    border-color: rgba(255,80,80,0.2);
+  }
+
+  /* ── Recovery tile ── */
+  .s9-tile.is-recovery.is-active {
+    border-color: rgba(255,180,60,0.55);
+    box-shadow: 0 0 22px rgba(255,180,60,0.2), inset 0 0 14px rgba(255,180,60,0.06);
+    background: rgba(46,30,8,0.9);
+  }
+  .s9-tile.is-recovery.is-done {
+    border-color: rgba(255,180,60,0.22);
+  }
+
+  /* ── Output tile ── */
+  .s9-tile.is-output.is-active {
+    border-color: rgba(60,210,120,0.6);
+    box-shadow: 0 0 30px rgba(60,210,120,0.24), inset 0 0 18px rgba(60,210,120,0.08);
+    background: rgba(12,38,26,0.94);
+    transform: translateY(0) scale(1.06);
+  }
+  .s9-tile.is-output.is-done {
+    border-color: rgba(60,210,120,0.35);
+    opacity: 0.78;
+  }
+
+  /* ── Tile label ── */
+  .s9-tile-label {
+    font-family: 'Consolas', monospace;
+    font-size: 0.5rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: rgba(130,160,210,0.5);
+    margin-bottom: 3px;
+    transition: color 0.3s ease;
+  }
+  .s9-tile.is-active .s9-tile-label         { color: rgba(180,210,255,0.9); }
+  .s9-tile.is-failure.is-active .s9-tile-label  { color: rgba(255,140,140,0.9); }
+  .s9-tile.is-recovery.is-active .s9-tile-label { color: rgba(255,200,100,0.9); }
+  .s9-tile.is-output.is-active .s9-tile-label   { color: rgba(100,235,155,0.9); }
+
+  /* ── Tile text lines ── */
+  .s9-line {
+    font-family: 'Consolas', monospace;
+    font-size: 0.58rem;
+    color: rgba(200,220,255,0.55);
+    line-height: 1.5;
+    word-break: break-word;
+    transition: color 0.3s ease;
+  }
+  .s9-tile.is-active .s9-line               { color: rgba(220,235,255,0.9); }
+  .s9-tile.is-failure.is-active .s9-line    { color: rgba(255,175,175,0.9); }
+  .s9-tile.is-recovery.is-active .s9-line   { color: rgba(255,215,140,0.9); }
+  .s9-tile.is-output.is-active .s9-line     { color: rgba(155,245,195,0.94); }
+
+  /* ── Final overlay ── */
+  .s9-final {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(11,11,11,0);
+    pointer-events: none;
+    transition: background 1.3s ease;
+    z-index: 10;
+  }
+  .s9-scene.s9-final-visible .s9-final {
+    background: rgba(11,11,11,0.7);
+  }
+  .s9-final span {
+    font-family: 'Inter', 'Segoe UI', sans-serif;
+    font-size: clamp(1.5rem, 3.2vw, 3.0rem);
+    font-weight: 300;
+    color: rgba(255,255,255,0);
+    letter-spacing: 0.04em;
+    text-align: center;
+    padding: 0 24px;
+  }
+  .s9-scene.s9-final-visible .s9-final span {
+    animation: messageReveal 1.4s ease 0.4s forwards;
+  }
+
+  /* ── Responsive ── */
+  @media (max-width: 1080px) {
+    .s9-tile      { width: 98px; min-height: 80px; }
+    .s9-connector { width: 22px; }
+  }
+  @media (max-width: 780px) {
+    .s9-tile      { width: 82px; min-height: 74px; padding: 10px 8px; font-size: 0.52rem; }
+    .s9-connector { width: 12px; }
+    .s9-line      { font-size: 0.5rem; }
+  }
+  /* ── end Scene 9 ────────────────────────────────────────── */
+
   @media (max-width: 980px) {
     .logs {
       top: 32px;
@@ -3685,6 +3894,87 @@
       </div>
     </section>
 
+    <!-- Scene 9: End-to-end system replay -->
+    <section class="scene s9-scene" id="sceneS9" aria-label="End-to-end system replay animation">
+      <div class="scan-layer" aria-hidden="true"></div>
+
+      <div class="s9-canvas" id="s9Canvas" aria-hidden="true">
+
+        <div class="s9-header">system replay · end-to-end · autonomous</div>
+
+        <div class="s9-flow" id="s9Flow">
+
+          <!-- T0: INPUT -->
+          <div class="s9-tile" id="s9T0">
+            <div class="s9-tile-label">Input</div>
+            <div class="s9-line">access request</div>
+            <div class="s9-line">priority: high</div>
+          </div>
+
+          <div class="s9-connector" id="s9C0"></div>
+
+          <!-- T1: NIYANTA -->
+          <div class="s9-tile" id="s9T1">
+            <div class="s9-tile-label">Niyanta</div>
+            <div class="s9-line">intent detected</div>
+            <div class="s9-line">route_to_IT</div>
+          </div>
+
+          <div class="s9-connector" id="s9C1"></div>
+
+          <!-- T2: AGENT -->
+          <div class="s9-tile" id="s9T2">
+            <div class="s9-tile-label">Agent</div>
+            <div class="s9-line">IT Agent</div>
+            <div class="s9-line">validation</div>
+          </div>
+
+          <div class="s9-connector" id="s9C2"></div>
+
+          <!-- T3: WORKFLOW -->
+          <div class="s9-tile" id="s9T3">
+            <div class="s9-tile-label">Workflow</div>
+            <div class="s9-line">validate</div>
+            <div class="s9-line">→ decision</div>
+          </div>
+
+          <div class="s9-connector" id="s9C3"></div>
+
+          <!-- T4: FAILURE -->
+          <div class="s9-tile is-failure" id="s9T4">
+            <div class="s9-tile-label">Failure</div>
+            <div class="s9-line">validation failed</div>
+            <div class="s9-line">missing data</div>
+          </div>
+
+          <div class="s9-connector" id="s9C4"></div>
+
+          <!-- T5: RECOVERY -->
+          <div class="s9-tile is-recovery" id="s9T5">
+            <div class="s9-tile-label">Recovery</div>
+            <div class="s9-line">retry engine</div>
+            <div class="s9-line">data corrected</div>
+          </div>
+
+          <div class="s9-connector" id="s9C5"></div>
+
+          <!-- T6: OUTPUT -->
+          <div class="s9-tile is-output" id="s9T6">
+            <div class="s9-tile-label">Output</div>
+            <div class="s9-line">status: approved</div>
+          </div>
+
+        </div><!-- end .s9-flow -->
+
+      </div><!-- end .s9-canvas -->
+
+      <!-- Final overlay -->
+      <div class="s9-final" id="s9Final">
+        <span>From input to outcome — fully autonomous</span>
+      </div>
+
+    </section>
+
   <div class="audio-hooks" aria-hidden="true">
     <audio id="audioAmbient" preload="none" loop></audio>
     <audio id="audioTyping" preload="none"></audio>
@@ -3710,6 +4000,7 @@
     var SCENE_SIX_START   = 50000;
     var SCENE_SEVEN_START = 62000;
     var SCENE_EIGHT_START = 76000;
+    var SCENE_NINE_START  = 90000;
 
     var SCENE_TWO_TIMINGS = {
       split: 2000,
@@ -3851,6 +4142,44 @@
       final:   9800
     };
 
+    /*
+     * Scene 9 phases (elapsed ms from s9StartedAt):
+     *   300  – canvas + tiles fade in (waiting state)
+     *   700  – T0 INPUT activates
+     *  1050  – C0 pulses, T0 → done
+     *  1400  – T1 NIYANTA activates
+     *  1750  – C1 pulses, T1 → done
+     *  2100  – T2 AGENT activates
+     *  2450  – C2 pulses, T2 → done
+     *  2800  – T3 WORKFLOW activates
+     *  3150  – C3 pulses, T3 → done
+     *  3500  – T4 FAILURE activates
+     *  4000  – C4 pulses (longer pause — recovery builds up)
+     *  4350  – T5 RECOVERY activates
+     *  4700  – C5 pulses, T5 → done
+     *  5000  – T6 OUTPUT activates
+     *  6200  – all remaining done
+     *  7800  – final overlay text
+     */
+    var SCENE_NINE_TIMINGS = {
+      waiting:  300,
+      t0:       700,
+      c0:      1050,
+      t1:      1400,
+      c1:      1750,
+      t2:      2100,
+      c2:      2450,
+      t3:      2800,
+      c3:      3150,
+      t4:      3500,
+      c4:      4000,
+      t5:      4350,
+      c5:      4700,
+      t6:      5000,
+      allDone: 6200,
+      final:   7800
+    };
+
     var LOG_LINES = [
       { text: '[INIT] Booting Niyanta Core...', speed: 62 },
       { text: '[LOAD] Agents initialized', speed: 70 },
@@ -3865,6 +4194,7 @@
     var sceneWFE     = document.getElementById('sceneWFE');
     var sceneS7      = document.getElementById('sceneS7');
     var sceneS8      = document.getElementById('sceneS8');
+    var sceneS9      = document.getElementById('sceneS9');
     var logs = document.getElementById('logs');
     var network = document.getElementById('network');
     var titleBlock = document.getElementById('titleBlock');
@@ -3960,6 +4290,10 @@
     var s8StartedAt   = null;
     var s8Started     = false;
     var s8Phases      = {};
+
+    var s9StartedAt   = null;
+    var s9Started     = false;
+    var s9Phases      = {};
     var topStalled = false;
     var bottomLooping = false;
 
@@ -4249,6 +4583,96 @@
       didIntentFinal = true;
       intentFinal.classList.add('is-visible');
     }
+
+    /* ── Scene 9 helpers ─────────────────────────────────── */
+
+    function s9Phase(key) { return !!s9Phases[key]; }
+    function s9Mark(key)  { s9Phases[key] = true; }
+
+    function s9Activate(id) {
+      var el = document.getElementById(id);
+      if (!el) { return; }
+      el.classList.remove('is-waiting', 'is-done');
+      el.classList.add('is-active');
+    }
+    function s9Done(id) {
+      var el = document.getElementById(id);
+      if (!el) { return; }
+      el.classList.remove('is-waiting', 'is-active');
+      el.classList.add('is-done');
+    }
+    function s9Pulse(id) {
+      var el = document.getElementById(id);
+      if (!el) { return; }
+      el.classList.remove('is-pulsing');
+      /* force reflow so animation restarts */
+      void el.offsetWidth;
+      el.classList.add('is-pulsing');
+    }
+
+    function revealSceneNine() {
+      if (s9Started) { return; }
+      s9Started   = true;
+      s9StartedAt = performance.now();
+      sceneS8.classList.add('is-exiting');
+      sceneS9.classList.add('is-visible');
+    }
+
+    function tickS9Scene(timestamp) {
+      if (!s9Started) { return; }
+      var el = timestamp - s9StartedAt;
+      var T  = SCENE_NINE_TIMINGS;
+
+      /* Canvas + tiles appear in waiting (dim) state */
+      if (!s9Phase('waiting') && el >= T.waiting) {
+        s9Mark('waiting');
+        document.getElementById('s9Canvas').classList.add('is-visible');
+        ['s9T0','s9T1','s9T2','s9T3','s9T4','s9T5','s9T6'].forEach(function(id) {
+          var t = document.getElementById(id);
+          if (t) { t.classList.add('is-waiting'); }
+        });
+      }
+
+      /* INPUT tile */
+      if (!s9Phase('t0') && el >= T.t0)  { s9Mark('t0');  s9Activate('s9T0'); }
+      if (!s9Phase('c0') && el >= T.c0)  { s9Mark('c0');  s9Done('s9T0'); s9Pulse('s9C0'); }
+
+      /* NIYANTA tile */
+      if (!s9Phase('t1') && el >= T.t1)  { s9Mark('t1');  s9Activate('s9T1'); }
+      if (!s9Phase('c1') && el >= T.c1)  { s9Mark('c1');  s9Done('s9T1'); s9Pulse('s9C1'); }
+
+      /* AGENT tile */
+      if (!s9Phase('t2') && el >= T.t2)  { s9Mark('t2');  s9Activate('s9T2'); }
+      if (!s9Phase('c2') && el >= T.c2)  { s9Mark('c2');  s9Done('s9T2'); s9Pulse('s9C2'); }
+
+      /* WORKFLOW tile */
+      if (!s9Phase('t3') && el >= T.t3)  { s9Mark('t3');  s9Activate('s9T3'); }
+      if (!s9Phase('c3') && el >= T.c3)  { s9Mark('c3');  s9Done('s9T3'); s9Pulse('s9C3'); }
+
+      /* FAILURE tile */
+      if (!s9Phase('t4') && el >= T.t4)  { s9Mark('t4');  s9Activate('s9T4'); }
+      if (!s9Phase('c4') && el >= T.c4)  { s9Mark('c4');  s9Done('s9T4'); s9Pulse('s9C4'); }
+
+      /* RECOVERY tile */
+      if (!s9Phase('t5') && el >= T.t5)  { s9Mark('t5');  s9Activate('s9T5'); }
+      if (!s9Phase('c5') && el >= T.c5)  { s9Mark('c5');  s9Done('s9T5'); s9Pulse('s9C5'); }
+
+      /* OUTPUT tile */
+      if (!s9Phase('t6') && el >= T.t6)  { s9Mark('t6');  s9Activate('s9T6'); }
+
+      /* All tiles settle */
+      if (!s9Phase('allDone') && el >= T.allDone) {
+        s9Mark('allDone');
+        s9Done('s9T6');
+      }
+
+      /* Final overlay text */
+      if (!s9Phase('final') && el >= T.final) {
+        s9Mark('final');
+        sceneS9.classList.add('s9-final-visible');
+      }
+    }
+    /* ── end Scene 9 ──────────────────────────────────── */
 
     /* ── Scene 8 helpers ─────────────────────────────────── */
 
@@ -5082,6 +5506,10 @@
         revealSceneEight();
       }
 
+      if (!s9Started && timestamp >= SCENE_NINE_START) {
+        revealSceneNine();
+      }
+
       if (splitStarted) {
         tickSplitScene(timestamp);
       }
@@ -5108,6 +5536,10 @@
 
       if (s8Started) {
         tickS8Scene(timestamp);
+      }
+
+      if (s9Started) {
+        tickS9Scene(timestamp);
       }
 
       window.requestAnimationFrame(render);
@@ -5140,6 +5572,9 @@
       },
       showSceneEightNow: function () {
         revealSceneEight();
+      },
+      showSceneNineNow: function () {
+        revealSceneNine();
       },
       branchIndex: branchIndex
     };
