@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Niyanta Boot Sequence</title>
+<title>Niyanta Runtime Story</title>
 <style>
   :root {
     --bg: #0B0B0B;
@@ -14,6 +14,10 @@
     --accent-soft: rgba(120, 175, 255, 0.14);
     --accent-line: rgba(120, 175, 255, 0.36);
     --accent-glow: rgba(120, 175, 255, 0.48);
+    --line: rgba(255, 255, 255, 0.15);
+    --line-faint: rgba(255, 255, 255, 0.08);
+    --split-accent: rgba(141, 183, 255, 0.52);
+    --split-glow: rgba(141, 183, 255, 0.36);
   }
 
   * {
@@ -35,30 +39,40 @@
     font-family: "Inter", "Poppins", "Segoe UI", Arial, sans-serif;
   }
 
-  /* Boot screen */
-  .boot-screen {
+  .sequence {
     position: relative;
     width: 100vw;
     height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background:
-      radial-gradient(circle at 50% 52%, rgba(120, 175, 255, 0.06) 0%, rgba(120, 175, 255, 0.02) 18%, rgba(11, 11, 11, 0) 46%),
-      radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.015) 0%, rgba(11, 11, 11, 0) 58%),
-      var(--bg);
+    background: var(--bg);
+    overflow: hidden;
+  }
+
+  .scene {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 1.1s ease;
     isolation: isolate;
   }
 
-  .boot-screen::before,
-  .boot-screen::after {
+  .scene.is-visible {
+    opacity: 1;
+  }
+
+  .scene.is-exiting {
+    opacity: 0;
+  }
+
+  .scene::before,
+  .scene::after {
     content: "";
     position: absolute;
     inset: 0;
     pointer-events: none;
   }
 
-  .boot-screen::before {
+  .scene::before {
     background-image:
       linear-gradient(var(--grid) 1px, transparent 1px),
       linear-gradient(90deg, var(--grid) 1px, transparent 1px);
@@ -67,7 +81,7 @@
     z-index: 0;
   }
 
-  .boot-screen::after {
+  .scene::after {
     background:
       radial-gradient(circle at 50% 50%, rgba(120, 175, 255, 0.05) 0%, rgba(120, 175, 255, 0.015) 24%, rgba(11, 11, 11, 0) 56%),
       radial-gradient(circle at 50% 50%, rgba(11, 11, 11, 0) 58%, rgba(11, 11, 11, 0.48) 100%);
@@ -84,7 +98,21 @@
     opacity: 0.25;
   }
 
-  /* Logs */
+  /* Scene 1 */
+  .boot-screen {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background:
+      radial-gradient(circle at 50% 52%, rgba(120, 175, 255, 0.06) 0%, rgba(120, 175, 255, 0.02) 18%, rgba(11, 11, 11, 0) 46%),
+      radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.015) 0%, rgba(11, 11, 11, 0) 58%),
+      var(--bg);
+  }
+
+  .boot-screen.is-exiting {
+    opacity: 0;
+  }
+
   .logs {
     position: absolute;
     top: 48px;
@@ -123,7 +151,6 @@
     animation: blink 0.6s steps(1, end) infinite;
   }
 
-  /* Network */
   .network-wrap {
     position: relative;
     z-index: 2;
@@ -216,7 +243,6 @@
     stroke: rgba(155, 201, 255, 0.54);
   }
 
-  /* Title */
   .title-block {
     position: absolute;
     inset: 0;
@@ -265,7 +291,582 @@
     box-shadow: 0 0 10px rgba(120, 175, 255, 0.12);
   }
 
-  /* Audio hooks */
+  /* Scene 2 */
+  .split-scene {
+    background:
+      radial-gradient(circle at 50% 48%, rgba(141, 183, 255, 0.06) 0%, rgba(141, 183, 255, 0.02) 20%, rgba(11, 11, 11, 0) 54%),
+      radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.012) 0%, rgba(11, 11, 11, 0) 60%),
+      var(--bg);
+  }
+
+  .flow-stage {
+    position: relative;
+    z-index: 2;
+    width: min(94vw, 1280px);
+    height: min(78vh, 700px);
+    margin: 0 auto;
+  }
+
+  .flow-svg {
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+  }
+
+  .flow-path {
+    fill: none;
+    stroke: var(--line);
+    stroke-width: 2;
+    stroke-linecap: round;
+    transition: opacity 0.9s ease, stroke 0.9s ease, filter 0.9s ease;
+  }
+
+  .active-path {
+    stroke: rgba(255, 255, 255, 0.19);
+  }
+
+  .branch-path,
+  .loop-path {
+    opacity: 0;
+    stroke: var(--split-accent);
+    stroke-dasharray: 1200;
+    stroke-dashoffset: 1200;
+  }
+
+  .motion-path {
+    fill: none;
+    stroke: none;
+    pointer-events: none;
+  }
+
+  .split-scene.is-split .branch-path {
+    opacity: 0.48;
+  }
+
+  .split-scene.is-split .branch-path.branch-0 {
+    animation: branchReveal 1.15s ease-in-out forwards;
+  }
+
+  .split-scene.is-split .branch-path.branch-1 {
+    animation: branchReveal 1.15s ease-in-out 0.08s forwards;
+  }
+
+  .split-scene.is-split .branch-path.branch-2 {
+    animation: branchReveal 1.15s ease-in-out 0.16s forwards;
+  }
+
+  .split-scene.is-split .branch-path.is-chosen {
+    opacity: 0.88;
+    filter: drop-shadow(0 0 10px rgba(141, 183, 255, 0.14));
+  }
+
+  .split-scene.is-split #midStraight {
+    opacity: 0.12;
+  }
+
+  .split-scene.top-failure #topGap {
+    opacity: 0;
+  }
+
+  .split-scene.top-failure #topRight {
+    opacity: 0.24;
+  }
+
+  .split-scene.top-failure #topLeft,
+  .split-scene.top-failure #topBreakLead {
+    stroke: rgba(255, 255, 255, 0.17);
+  }
+
+  .split-scene.loop-failure #bottomStraight {
+    opacity: 0.08;
+  }
+
+  .split-scene.loop-failure .loop-path {
+    opacity: 0.72;
+    animation: branchReveal 1.2s ease-in-out forwards;
+  }
+
+  .event-node {
+    fill: rgba(11, 11, 11, 0.96);
+    stroke: rgba(255, 255, 255, 0.2);
+    stroke-width: 1.3;
+    opacity: 0.26;
+    transition: opacity 0.6s ease, stroke 0.6s ease, fill 0.6s ease, filter 0.6s ease;
+  }
+
+  .split-scene.is-split #splitNode {
+    opacity: 1;
+    fill: rgba(141, 183, 255, 0.12);
+    stroke: rgba(196, 219, 255, 0.88);
+    filter: drop-shadow(0 0 12px rgba(141, 183, 255, 0.22));
+    animation: nodePulse 1.2s ease-in-out 1;
+  }
+
+  .split-scene.top-failure .break-node {
+    opacity: 0.88;
+    fill: rgba(141, 183, 255, 0.1);
+    stroke: rgba(180, 209, 255, 0.62);
+    filter: drop-shadow(0 0 9px rgba(141, 183, 255, 0.16));
+  }
+
+  .split-scene.loop-failure #loopNode {
+    opacity: 0.94;
+    fill: rgba(141, 183, 255, 0.14);
+    stroke: rgba(206, 226, 255, 0.76);
+    filter: drop-shadow(0 0 12px rgba(141, 183, 255, 0.2));
+    animation: nodePulse 1.25s ease-in-out 1;
+  }
+
+  .particle {
+    fill: #E8F2FF;
+    opacity: 0.96;
+    filter: drop-shadow(0 0 8px rgba(141, 183, 255, 0.58));
+  }
+
+  .particle.top.is-stalled,
+  .particle.mid.is-settled {
+    animation: particlePulse 1.8s ease-in-out infinite;
+  }
+
+  .particle.bottom.is-looping {
+    filter: drop-shadow(0 0 10px rgba(141, 183, 255, 0.66));
+  }
+
+  .fragment-ring {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+  }
+
+  .task-tile {
+    position: absolute;
+    min-width: 210px;
+    padding: 1.2rem 1.4rem 1.1rem;
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 20px;
+    background: linear-gradient(160deg, rgba(20, 24, 30, 0.88), rgba(11, 13, 16, 0.92));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03), 0 8px 32px rgba(0, 0, 0, 0.42);
+    opacity: 0;
+    transform: translate3d(0, 22px, 0) scale(0.96);
+    transition: opacity 0.75s ease, transform 0.75s ease, border-color 0.75s ease, background 0.75s ease, box-shadow 0.75s ease;
+  }
+
+  .task-tile::before {
+    content: "";
+    position: absolute;
+    left: 1.2rem;
+    right: 1.2rem;
+    top: 0.86rem;
+    height: 1px;
+    background: linear-gradient(to right, rgba(141, 183, 255, 0), rgba(141, 183, 255, 0.34), rgba(141, 183, 255, 0));
+    opacity: 0.55;
+  }
+
+  .task-tile::after {
+    content: "";
+    position: absolute;
+    top: 1.1rem;
+    right: 1.2rem;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: rgba(255, 150, 50, 0.88);
+    box-shadow: 0 0 9px rgba(255, 150, 50, 0.5);
+    animation: statusPulse 2.2s ease-in-out infinite;
+    animation-delay: var(--delay, 0s);
+  }
+
+  .task-tile[data-group="break"]::after {
+    background: rgba(255, 76, 70, 0.9);
+    box-shadow: 0 0 9px rgba(255, 76, 70, 0.55);
+  }
+
+  .tile-title {
+    display: block;
+    color: rgba(255, 255, 255, 0.94);
+    font-size: 0.82rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-top: 0.32rem;
+    font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
+  }
+
+  .tile-subtitle {
+    display: block;
+    color: rgba(255, 255, 255, 0.38);
+    font-size: 0.68rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-top: 0.38rem;
+    font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
+  }
+
+  .task-tile.tile-1 { top: 8%; left: 8%; }
+  .task-tile.tile-2 { top: 7%; left: 41%; transform: translate3d(0, 18px, 0) scale(0.96) rotate(-1deg); }
+  .task-tile.tile-3 { top: 17%; right: 7%; }
+  .task-tile.tile-4 { top: 43%; right: 4.5%; }
+  .task-tile.tile-5 { bottom: 11%; right: 12%; }
+  .task-tile.tile-6 { bottom: 8%; left: 42%; transform: translate3d(0, 18px, 0) scale(0.96) rotate(1deg); }
+  .task-tile.tile-7 { bottom: 14%; left: 8%; }
+  .task-tile.tile-8 { top: 43%; left: 4.5%; }
+
+  .split-scene.is-visible .task-tile {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+    transition-delay: var(--delay, 0s);
+  }
+
+  .split-scene.is-split .task-tile[data-group="split"] {
+    border-color: rgba(141, 183, 255, 0.18);
+    background: linear-gradient(180deg, rgba(20, 25, 31, 0.84), rgba(11, 14, 18, 0.86));
+    transform: translate3d(8px, -4px, 0) rotate(-1.5deg);
+  }
+
+  .split-scene.top-failure .task-tile[data-group="break"] {
+    border-color: rgba(255, 255, 255, 0.05);
+    opacity: 0.72;
+    transform: translate3d(-10px, 8px, 0) rotate(1.6deg);
+  }
+
+  .split-scene.loop-failure .task-tile[data-group="loop"] {
+    border-color: rgba(141, 183, 255, 0.16);
+    transform: translate3d(10px, 6px, 0) rotate(2deg);
+  }
+
+  .message {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    opacity: 0;
+  }
+
+  .message.is-visible {
+    animation: messageReveal 1.1s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+
+  .message-inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 22px;
+    text-align: center;
+    transform: translateY(12px);
+  }
+
+  .message-title {
+    font-size: clamp(2.8rem, 5.8vw, 5.2rem);
+    font-weight: 500;
+    letter-spacing: 0.03em;
+    color: var(--text);
+    text-shadow: 0 0 32px rgba(141, 183, 255, 0.12);
+  }
+
+  .message-rule {
+    width: 130px;
+    height: 1px;
+    background: linear-gradient(to right, rgba(141, 183, 255, 0), rgba(141, 183, 255, 0.62), rgba(141, 183, 255, 0));
+    box-shadow: 0 0 14px rgba(141, 183, 255, 0.16);
+  }
+
+  .message-subtitle {
+    color: var(--muted);
+    font-size: clamp(0.9rem, 1.4vw, 1.12rem);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+
+  /* Scene 3 */
+  .intent-scene {
+    background:
+      radial-gradient(circle at 48% 50%, rgba(120, 175, 255, 0.055) 0%, rgba(120, 175, 255, 0.018) 24%, rgba(11, 11, 11, 0) 58%),
+      radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.012) 0%, rgba(11, 11, 11, 0) 62%),
+      var(--bg);
+  }
+
+  .intent-layout {
+    position: relative;
+    z-index: 2;
+    width: min(94vw, 1340px);
+    height: min(80vh, 740px);
+    margin: 0 auto;
+  }
+
+  .intent-zone {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+  }
+
+  .input-zone {
+    left: 0;
+    width: 34%;
+  }
+
+  .engine-zone {
+    left: 34%;
+    width: 26%;
+  }
+
+  .output-zone {
+    right: 0;
+    width: 40%;
+  }
+
+  .input-cloud {
+    position: absolute;
+    inset: 6% 0 8% 0;
+  }
+
+  .input-tile {
+    position: absolute;
+    width: 220px;
+    padding: 1.1rem 1.2rem 1rem;
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 18px;
+    background: linear-gradient(160deg, rgba(19, 22, 27, 0.86), rgba(11, 13, 17, 0.9));
+    color: rgba(255, 255, 255, 0.92);
+    font-size: 0.84rem;
+    letter-spacing: 0.06em;
+    line-height: 1.5;
+    font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
+    opacity: 0;
+    transform: translate3d(0, 26px, 0) scale(0.94) rotate(var(--r, 0deg));
+    transition:
+      top 1.3s cubic-bezier(0.22, 1, 0.36, 1),
+      left 1.3s cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 0.8s ease,
+      transform 1.3s cubic-bezier(0.22, 1, 0.36, 1),
+      border-color 0.7s ease,
+      background 0.7s ease;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03), 0 6px 24px rgba(0, 0, 0, 0.36);
+  }
+
+  .input-tile::before {
+    content: "";
+    position: absolute;
+    left: 1.1rem;
+    right: 1.1rem;
+    top: 0.86rem;
+    height: 1px;
+    background: linear-gradient(to right, rgba(120, 175, 255, 0), rgba(120, 175, 255, 0.28), rgba(120, 175, 255, 0));
+    opacity: 0.65;
+  }
+
+  .intent-scene.is-visible .input-tile {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1) rotate(var(--r, 0deg));
+    transition-delay: var(--delay, 0s);
+  }
+
+  .input-1 { top: 9%; left: 10%; --r: -8deg; }
+  .input-2 { top: 25%; left: 44%; --r: 6deg; }
+  .input-3 { top: 47%; left: 14%; --r: -5deg; }
+  .input-4 { top: 58%; left: 52%; --r: 7deg; }
+  .input-5 { top: 75%; left: 26%; --r: -4deg; }
+
+  .intent-scene.is-pulling .input-1 { top: 24%; left: 72%; transform: scale(0.9) rotate(-2deg); }
+  .intent-scene.is-pulling .input-2 { top: 35%; left: 77%; transform: scale(0.9) rotate(1deg); }
+  .intent-scene.is-pulling .input-3 { top: 46%; left: 70%; transform: scale(0.92) rotate(-1deg); }
+  .intent-scene.is-pulling .input-4 { top: 58%; left: 75%; transform: scale(0.9) rotate(2deg); }
+  .intent-scene.is-pulling .input-5 { top: 69%; left: 73%; transform: scale(0.88) rotate(-1deg); }
+
+  .intent-scene.is-structuring .input-1,
+  .intent-scene.is-structuring .input-5 {
+    opacity: 0.22;
+    transform: scale(0.78) rotate(0deg);
+  }
+
+  .intent-scene.is-structuring .input-3,
+  .intent-scene.is-structuring .input-4 {
+    opacity: 0.08;
+    transform: translate3d(20px, 0, 0) scale(0.75) rotate(0deg);
+  }
+
+  .intent-scene.is-domain-two .input-2 {
+    opacity: 0.34;
+    top: 39%;
+    left: 70%;
+    transform: scale(0.82) rotate(0deg);
+  }
+
+  .intent-engine {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 240px;
+    height: 240px;
+    transform: translate(-50%, -50%) scale(0.96);
+    border-radius: 50%;
+    border: 1.5px solid rgba(120, 175, 255, 0.18);
+    background: radial-gradient(circle at 50% 50%, rgba(120, 175, 255, 0.14), rgba(120, 175, 255, 0.04));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    color: rgba(255, 255, 255, 0.9);
+    font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
+    font-size: 0.9rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    opacity: 0;
+    transition: opacity 0.8s ease, transform 0.8s ease, box-shadow 0.8s ease, border-color 0.8s ease;
+  }
+
+  .intent-engine strong {
+    font-weight: 500;
+    line-height: 1.5;
+  }
+
+  .intent-scene.engine-active .intent-engine {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+    border-color: rgba(120, 175, 255, 0.34);
+    box-shadow: 0 0 24px rgba(120, 175, 255, 0.12);
+    animation: enginePulse 3s ease-in-out infinite;
+  }
+
+  .structure-panel {
+    position: absolute;
+    left: 6%;
+    top: 13%;
+    width: min(450px, 90%);
+    opacity: 0;
+    transform: translateY(18px);
+    transition: opacity 0.8s ease, transform 0.8s ease;
+  }
+
+  .intent-scene.is-labeling .structure-panel {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .label-row {
+    display: grid;
+    grid-template-columns: 118px 1fr;
+    align-items: center;
+    gap: 18px;
+    margin-bottom: 20px;
+  }
+
+  .label-name {
+    color: rgba(255, 255, 255, 0.52);
+    font-size: 0.74rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
+  }
+
+  .label-slot {
+    position: relative;
+    min-height: 48px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .semantic-chip {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    transform: translate(-160px, -50%) scale(0.84);
+    border: 1px solid rgba(120, 175, 255, 0.18);
+    border-radius: 999px;
+    padding: 0.58rem 1.1rem;
+    background: rgba(120, 175, 255, 0.07);
+    color: rgba(230, 242, 255, 0.96);
+    font-size: 0.72rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
+    opacity: 0;
+    transition: opacity 0.72s ease, transform 0.9s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.5s ease;
+  }
+
+  .intent-scene.is-structuring .semantic-chip {
+    opacity: 1;
+    transform: translate(0, -50%) scale(1);
+  }
+
+  .structured-block {
+    position: absolute;
+    right: 6%;
+    bottom: 12%;
+    width: min(420px, 88%);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 22px;
+    background: linear-gradient(160deg, rgba(18, 22, 28, 0.9), rgba(10, 12, 16, 0.94));
+    padding: 1.5rem 1.6rem 1.4rem;
+    opacity: 0;
+    transform: translateY(22px) scale(0.98);
+    transition: opacity 0.8s ease, transform 0.8s ease, border-color 0.6s ease;
+    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.44);
+  }
+
+  .intent-scene.is-output .structured-block {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    border-color: rgba(120, 175, 255, 0.18);
+  }
+
+  .structured-block.is-morphing {
+    animation: blockMorph 0.9s ease;
+  }
+
+  .structured-head {
+    color: rgba(255, 255, 255, 0.44);
+    font-size: 0.66rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
+    margin-bottom: 1.1rem;
+  }
+
+  .structured-line {
+    display: grid;
+    grid-template-columns: 108px 1fr;
+    gap: 16px;
+    margin-bottom: 0.76rem;
+    font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
+    font-size: 0.8rem;
+    letter-spacing: 0.06em;
+  }
+
+  .structured-key {
+    color: rgba(255, 255, 255, 0.46);
+    text-transform: lowercase;
+  }
+
+  .structured-value {
+    color: rgba(232, 242, 255, 0.94);
+    text-transform: lowercase;
+  }
+
+  .intent-final {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    opacity: 0;
+  }
+
+  .intent-final.is-visible {
+    animation: messageReveal 1s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+
+  .intent-final span {
+    font-size: clamp(2.4rem, 5.2vw, 4.6rem);
+    color: rgba(255, 255, 255, 0.94);
+    letter-spacing: 0.04em;
+    text-shadow: 0 0 32px rgba(120, 175, 255, 0.14);
+  }
+
   .audio-hooks {
     display: none;
   }
@@ -333,7 +934,73 @@
     }
   }
 
-  @media (max-width: 900px) {
+  @keyframes branchReveal {
+    from {
+      stroke-dashoffset: 1200;
+    }
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+
+  @keyframes nodePulse {
+    0% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(1.3);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+
+  @keyframes particlePulse {
+    0%,
+    100% {
+      opacity: 0.72;
+      filter: drop-shadow(0 0 7px rgba(141, 183, 255, 0.42));
+    }
+    50% {
+      opacity: 1;
+      filter: drop-shadow(0 0 12px rgba(141, 183, 255, 0.72));
+    }
+  }
+
+  @keyframes messageReveal {
+    from {
+      opacity: 0;
+      transform: scale(0.985);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  @keyframes enginePulse {
+    0%, 100% {
+      box-shadow: 0 0 24px rgba(120, 175, 255, 0.14), inset 0 0 32px rgba(120, 175, 255, 0.07);
+      border-color: rgba(120, 175, 255, 0.34);
+    }
+    50% {
+      box-shadow: 0 0 60px rgba(120, 175, 255, 0.3), inset 0 0 50px rgba(120, 175, 255, 0.14);
+      border-color: rgba(120, 175, 255, 0.6);
+    }
+  }
+
+  @keyframes blockMorph {
+    0% { opacity: 1; transform: translateY(0) scale(1); }
+    28% { opacity: 0.6; transform: translateY(0) scale(0.97); }
+    100% { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  @keyframes statusPulse {
+    0%, 100% { opacity: 0.55; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.45); }
+  }
+
+  @media (max-width: 980px) {
     .logs {
       top: 32px;
       left: 24px;
@@ -350,19 +1017,71 @@
       text-indent: 0.22em;
     }
 
-    .title-sub {
+    .title-sub,
+    .message-subtitle {
       max-width: 84vw;
       line-height: 1.6;
+    }
+
+    .flow-stage {
+      width: 100vw;
+      height: 74vh;
+    }
+
+    .intent-layout {
+      width: 100vw;
+      height: 78vh;
+    }
+
+    .input-tile {
+      width: 178px;
+      font-size: 0.72rem;
+      padding: 0.88rem 0.94rem;
+    }
+
+    .intent-engine {
+      width: 190px;
+      height: 190px;
+      font-size: 0.74rem;
+    }
+
+    .structure-panel {
+      width: min(360px, 92%);
+    }
+
+    .structured-block {
+      width: min(340px, 92%);
+    }
+
+    .task-tile {
+      min-width: 172px;
+      padding: 0.92rem 1.05rem;
+    }
+
+    .tile-title {
+      font-size: 0.72rem;
+    }
+
+    .tile-subtitle {
+      font-size: 0.6rem;
     }
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .boot-screen::after,
+    .scene::after,
     .cursor,
     .network-wrap.is-active .node-core,
     .title-block.is-visible,
-    .network-wrap,
-    .logs {
+    .split-scene.is-split .branch-path,
+    .split-scene.loop-failure .loop-path,
+    .split-scene.is-split #splitNode,
+    .split-scene.loop-failure #loopNode,
+    .particle.top.is-stalled,
+    .particle.mid.is-settled,
+    .message.is-visible,
+    .intent-scene.engine-active .intent-engine,
+    .structured-block.is-morphing,
+    .intent-final.is-visible {
       animation: none !important;
       transition: none !important;
     }
@@ -370,44 +1089,176 @@
 </style>
 </head>
 <body>
-  <!-- Boot screen -->
-  <main class="boot-screen" aria-label="Niyanta boot sequence">
-    <div class="scan-layer" aria-hidden="true"></div>
+  <main class="sequence" aria-label="Niyanta runtime story sequence">
+    <!-- Scene 1: Boot screen -->
+    <section class="scene boot-screen is-visible" id="sceneBoot" aria-label="Niyanta boot sequence">
+      <div class="scan-layer" aria-hidden="true"></div>
 
-    <!-- Logs -->
-    <section class="logs" id="logs" aria-live="polite">
-      <div class="log-line" data-log-index="0"></div>
-      <div class="log-line" data-log-index="1"></div>
-      <div class="log-line" data-log-index="2"></div>
+      <section class="logs" id="logs" aria-live="polite">
+        <div class="log-line" data-log-index="0"></div>
+        <div class="log-line" data-log-index="1"></div>
+        <div class="log-line" data-log-index="2"></div>
+      </section>
+
+      <section class="network-wrap" id="network" aria-hidden="true">
+        <svg class="network-svg" viewBox="0 0 520 520" role="img" aria-label="Niyanta core network">
+          <line class="network-line line-1" x1="260" y1="260" x2="260" y2="126"></line>
+          <line class="network-line line-2" x1="260" y1="260" x2="388" y2="182"></line>
+          <line class="network-line line-3" x1="260" y1="260" x2="372" y2="360"></line>
+          <line class="network-line line-4" x1="260" y1="260" x2="144" y2="344"></line>
+
+          <circle class="network-node node-core" cx="260" cy="260" r="12"></circle>
+          <circle class="network-node node-a" cx="260" cy="126" r="7"></circle>
+          <circle class="network-node node-b" cx="388" cy="182" r="7"></circle>
+          <circle class="network-node node-c" cx="372" cy="360" r="7"></circle>
+          <circle class="network-node node-d" cx="144" cy="344" r="7"></circle>
+        </svg>
+      </section>
+
+      <section class="title-block" id="titleBlock" aria-hidden="true">
+        <div class="title-inner">
+          <div class="title-main">NIYANTA</div>
+          <div class="title-rule"></div>
+          <div class="title-sub">Autonomous Enterprise Workflow System</div>
+        </div>
+      </section>
     </section>
 
-    <!-- Network -->
-    <section class="network-wrap" id="network" aria-hidden="true">
-      <svg class="network-svg" viewBox="0 0 520 520" role="img" aria-label="Niyanta core network">
-        <line class="network-line line-1" x1="260" y1="260" x2="260" y2="126"></line>
-        <line class="network-line line-2" x1="260" y1="260" x2="388" y2="182"></line>
-        <line class="network-line line-3" x1="260" y1="260" x2="372" y2="360"></line>
-        <line class="network-line line-4" x1="260" y1="260" x2="144" y2="344"></line>
+    <!-- Scene 2: Split flow -->
+    <section class="scene split-scene" id="sceneSplit" aria-label="Fragmented workflow animation">
+      <div class="scan-layer" aria-hidden="true"></div>
 
-        <circle class="network-node node-core" cx="260" cy="260" r="12"></circle>
-        <circle class="network-node node-a" cx="260" cy="126" r="7"></circle>
-        <circle class="network-node node-b" cx="388" cy="182" r="7"></circle>
-        <circle class="network-node node-c" cx="372" cy="360" r="7"></circle>
-        <circle class="network-node node-d" cx="144" cy="344" r="7"></circle>
-      </svg>
+      <section class="flow-stage" aria-hidden="true">
+        <svg class="flow-svg" viewBox="0 0 1000 560" role="img" aria-label="Split enterprise workflow field">
+          <defs>
+            <path id="motionTop" d="M90 146 L910 146"></path>
+            <path id="motionMiddleLead" d="M90 280 L410 280"></path>
+            <path id="motionBottomLead" d="M90 414 L430 414"></path>
+          </defs>
+
+          <path id="topLeft" class="flow-path active-path" d="M90 146 L330 146"></path>
+          <path id="topGap" class="flow-path active-path" d="M330 146 L470 146"></path>
+          <path id="topRight" class="flow-path" d="M470 146 L910 146"></path>
+          <circle id="topBreakLead" class="event-node break-node" cx="330" cy="146" r="5"></circle>
+          <circle id="topBreakTrail" class="event-node break-node" cx="470" cy="146" r="5"></circle>
+
+          <path id="midLead" class="flow-path active-path" d="M90 280 L410 280"></path>
+          <path id="midStraight" class="flow-path active-path" d="M410 280 L910 280"></path>
+          <path id="branchHigh" class="flow-path branch-path branch-0" d="M410 280 C 520 280, 640 214, 910 168"></path>
+          <path id="branchMid" class="flow-path branch-path branch-1" d="M410 280 C 520 280, 650 280, 910 280"></path>
+          <path id="branchLow" class="flow-path branch-path branch-2" d="M410 280 C 520 280, 640 348, 910 392"></path>
+          <circle id="splitNode" class="event-node" cx="410" cy="280" r="6"></circle>
+
+          <path id="bottomLead" class="flow-path active-path" d="M90 414 L430 414"></path>
+          <path id="bottomStraight" class="flow-path active-path" d="M430 414 L910 414"></path>
+          <path id="loopPath" class="flow-path loop-path" d="M430 414 C 520 336, 655 348, 692 414 C 655 480, 520 492, 430 414"></path>
+          <circle id="loopNode" class="event-node" cx="430" cy="414" r="6"></circle>
+
+          <path id="hiddenTopMotion" class="motion-path" d="M90 146 L910 146"></path>
+          <path id="hiddenBottomLead" class="motion-path" d="M90 414 L430 414"></path>
+
+          <circle id="particleTop" class="particle top" cx="90" cy="146" r="4.5"></circle>
+          <circle id="particleMid" class="particle mid" cx="90" cy="280" r="4.5"></circle>
+          <circle id="particleBottom" class="particle bottom" cx="90" cy="414" r="4.5"></circle>
+        </svg>
+
+        <div class="fragment-ring">
+          <div class="task-tile tile-1" data-group="break" style="--delay: 0.05s;">
+            <span class="tile-title">Invoice Approvals</span>
+            <span class="tile-subtitle">manual follow-ups</span>
+          </div>
+          <div class="task-tile tile-2" data-group="split" style="--delay: 0.14s;">
+            <span class="tile-title">Procurement Requests</span>
+            <span class="tile-subtitle">multiple handoffs</span>
+          </div>
+          <div class="task-tile tile-3" data-group="split" style="--delay: 0.22s;">
+            <span class="tile-title">Document Intake</span>
+            <span class="tile-subtitle">misrouted queues</span>
+          </div>
+          <div class="task-tile tile-4" data-group="loop" style="--delay: 0.3s;">
+            <span class="tile-title">Incident Triage</span>
+            <span class="tile-subtitle">repeated reassignment</span>
+          </div>
+          <div class="task-tile tile-5" data-group="loop" style="--delay: 0.38s;">
+            <span class="tile-title">Access Requests</span>
+            <span class="tile-subtitle">waiting states</span>
+          </div>
+          <div class="task-tile tile-6" data-group="loop" style="--delay: 0.46s;">
+            <span class="tile-title">Employee Onboarding</span>
+            <span class="tile-subtitle">dependency loops</span>
+          </div>
+          <div class="task-tile tile-7" data-group="break" style="--delay: 0.54s;">
+            <span class="tile-title">Audit Follow-Ups</span>
+            <span class="tile-subtitle">spread across tools</span>
+          </div>
+          <div class="task-tile tile-8" data-group="split" style="--delay: 0.62s;">
+            <span class="tile-title">Payment Exceptions</span>
+            <span class="tile-subtitle">direction lost</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="message" id="message">
+        <div class="message-inner">
+          <div class="message-title">Broken flows are the problem</div>
+          <div class="message-rule"></div>
+          <div class="message-subtitle">Not the tools. Not the inputs.</div>
+        </div>
+      </section>
     </section>
 
-    <!-- Title -->
-    <section class="title-block" id="titleBlock" aria-hidden="true">
-      <div class="title-inner">
-        <div class="title-main">NIYANTA</div>
-        <div class="title-rule"></div>
-        <div class="title-sub">Autonomous Enterprise Workflow System</div>
-      </div>
+    <!-- Scene 3: Intent structuring -->
+    <section class="scene intent-scene" id="sceneIntent" aria-label="Intent structuring animation">
+      <div class="scan-layer" aria-hidden="true"></div>
+
+      <section class="intent-layout" aria-hidden="true">
+        <div class="intent-zone input-zone">
+          <div class="input-cloud">
+            <div class="input-tile input-1" style="--delay: 0.08s;">approve access request</div>
+            <div class="input-tile input-2" style="--delay: 0.16s;">security alert triggered</div>
+            <div class="input-tile input-3" style="--delay: 0.24s;">vendor onboarding</div>
+            <div class="input-tile input-4" style="--delay: 0.32s;">schedule meeting</div>
+            <div class="input-tile input-5" style="--delay: 0.40s;">high priority</div>
+          </div>
+        </div>
+
+        <div class="intent-zone engine-zone">
+          <div class="intent-engine" id="intentEngine"><strong>Intent<br>Engine</strong></div>
+        </div>
+
+        <div class="intent-zone output-zone">
+          <div class="structure-panel" id="structurePanel">
+            <div class="label-row">
+              <div class="label-name">intent</div>
+              <div class="label-slot"><div class="semantic-chip" id="chipIntent">approve_request</div></div>
+            </div>
+            <div class="label-row">
+              <div class="label-name">entity</div>
+              <div class="label-slot"><div class="semantic-chip" id="chipEntity">access_request</div></div>
+            </div>
+            <div class="label-row">
+              <div class="label-name">action</div>
+              <div class="label-slot"><div class="semantic-chip" id="chipAction">approve</div></div>
+            </div>
+            <div class="label-row">
+              <div class="label-name">priority</div>
+              <div class="label-slot"><div class="semantic-chip" id="chipPriority">high</div></div>
+            </div>
+          </div>
+
+          <div class="structured-block" id="structuredBlock">
+            <div class="structured-head">Structured output</div>
+            <div class="structured-line"><div class="structured-key">intent:</div><div class="structured-value" id="outputIntent">approve_request</div></div>
+            <div class="structured-line"><div class="structured-key">entity:</div><div class="structured-value" id="outputEntity">access_request</div></div>
+            <div class="structured-line"><div class="structured-key">priority:</div><div class="structured-value" id="outputPriority">high</div></div>
+          </div>
+        </div>
+      </section>
+
+      <div class="intent-final" id="intentFinal"><span>Everything becomes intent</span></div>
     </section>
   </main>
 
-  <!-- Audio hooks -->
   <div class="audio-hooks" aria-hidden="true">
     <audio id="audioAmbient" preload="none" loop></audio>
     <audio id="audioTyping" preload="none"></audio>
@@ -418,11 +1269,32 @@
   (function () {
     'use strict';
 
-    var TIMINGS = {
+    var BOOT_TIMINGS = {
       firstLog: 2000,
       secondLog: 4000,
       thirdLog: 6000,
-      title: 7000
+      title: 7000,
+      exit: 8400
+    };
+
+    var SCENE_TWO_START = 9000;
+    var SCENE_THREE_START = 18200;
+    var SCENE_TWO_TIMINGS = {
+      split: 2000,
+      topFailure: 3800,
+      loopFailure: 5000,
+      message: 5800,
+      branchTravel: 2600,
+      loopCycle: 2600
+    };
+    var SCENE_THREE_TIMINGS = {
+      engine: 700,
+      pull: 1900,
+      labels: 2900,
+      structure: 3600,
+      output: 4500,
+      domainTwo: 6800,
+      finalText: 8600
     };
 
     var LOG_LINES = [
@@ -431,10 +1303,39 @@
       { text: '[STATUS] System ready', speed: 48 }
     ];
 
+    var sceneBoot = document.getElementById('sceneBoot');
+    var sceneSplit = document.getElementById('sceneSplit');
+    var sceneIntent = document.getElementById('sceneIntent');
     var logs = document.getElementById('logs');
     var network = document.getElementById('network');
     var titleBlock = document.getElementById('titleBlock');
+    var message = document.getElementById('message');
+    var intentEngine = document.getElementById('intentEngine');
+    var structurePanel = document.getElementById('structurePanel');
+    var structuredBlock = document.getElementById('structuredBlock');
+    var intentFinal = document.getElementById('intentFinal');
+    var chipIntent = document.getElementById('chipIntent');
+    var chipEntity = document.getElementById('chipEntity');
+    var chipAction = document.getElementById('chipAction');
+    var chipPriority = document.getElementById('chipPriority');
+    var outputIntent = document.getElementById('outputIntent');
+    var outputEntity = document.getElementById('outputEntity');
+    var outputPriority = document.getElementById('outputPriority');
     var logNodes = Array.prototype.slice.call(document.querySelectorAll('.log-line'));
+
+    var particleTop = document.getElementById('particleTop');
+    var particleMid = document.getElementById('particleMid');
+    var particleBottom = document.getElementById('particleBottom');
+    var topMotion = document.getElementById('hiddenTopMotion');
+    var middleLead = document.getElementById('motionMiddleLead');
+    var bottomLead = document.getElementById('motionBottomLead');
+    var loopPath = document.getElementById('loopPath');
+    var branches = [
+      document.getElementById('branchHigh'),
+      document.getElementById('branchMid'),
+      document.getElementById('branchLow')
+    ];
+    var branchIndex = Math.floor(Math.random() * branches.length);
 
     var audioElements = {
       ambient: document.getElementById('audioAmbient'),
@@ -442,10 +1343,45 @@
       pulse: document.getElementById('audioPulse')
     };
 
+    var splitStartedAt = null;
+    var splitStarted = false;
+    var intentStartedAt = null;
+    var intentStarted = false;
+    var didSplit = false;
+    var didTopFail = false;
+    var didLoop = false;
+    var didMessage = false;
+    var didIntentEngine = false;
+    var didIntentPull = false;
+    var didIntentLabels = false;
+    var didIntentStructure = false;
+    var didIntentOutput = false;
+    var didIntentDomainTwo = false;
+    var didIntentFinal = false;
+    var midSettled = false;
+    var topStalled = false;
+    var bottomLooping = false;
+
+    branches[branchIndex].classList.add('is-chosen');
+
     function wait(ms) {
       return new Promise(function (resolve) {
         window.setTimeout(resolve, ms);
       });
+    }
+
+    function clamp(value, min, max) {
+      return Math.min(Math.max(value, min), max);
+    }
+
+    function easeInOutCubic(value) {
+      var t = clamp(value, 0, 1);
+      return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    }
+
+    function easeOutCubic(value) {
+      var t = clamp(value, 0, 1);
+      return 1 - Math.pow(1 - t, 3);
     }
 
     function removeCursor() {
@@ -477,6 +1413,17 @@
       } catch (_error) {
         return;
       }
+    }
+
+    function pointOnPath(path, progress) {
+      var length = path.getTotalLength();
+      return path.getPointAtLength(length * clamp(progress, 0, 1));
+    }
+
+    function setParticle(circle, path, progress) {
+      var point = pointOnPath(path, progress);
+      circle.setAttribute('cx', point.x.toFixed(2));
+      circle.setAttribute('cy', point.y.toFixed(2));
     }
 
     window.niyantaAudio = {
@@ -534,29 +1481,313 @@
       target.classList.add('is-complete');
     }
 
-    function runSequence() {
+    function runBootSequence() {
       window.setTimeout(function () {
         logs.classList.add('is-visible');
         typeLine(logNodes[0], LOG_LINES[0]);
-      }, TIMINGS.firstLog);
+      }, BOOT_TIMINGS.firstLog);
 
       window.setTimeout(function () {
         network.classList.add('is-visible');
         typeLine(logNodes[1], LOG_LINES[1]);
-      }, TIMINGS.secondLog);
+      }, BOOT_TIMINGS.secondLog);
 
       window.setTimeout(function () {
         network.classList.add('is-active');
         typeLine(logNodes[2], LOG_LINES[2]);
-      }, TIMINGS.thirdLog);
+      }, BOOT_TIMINGS.thirdLog);
 
       window.setTimeout(function () {
         titleBlock.classList.add('is-visible');
         window.niyantaAudio.playPulse();
-      }, TIMINGS.title);
+      }, BOOT_TIMINGS.title);
+
+      window.setTimeout(function () {
+        sceneBoot.classList.add('is-exiting');
+      }, BOOT_TIMINGS.exit);
     }
 
-    runSequence();
+    function revealSceneTwo() {
+      if (splitStarted) {
+        return;
+      }
+
+      splitStarted = true;
+      splitStartedAt = performance.now();
+      sceneSplit.classList.add('is-visible');
+    }
+
+    function revealSceneThree() {
+      if (intentStarted) {
+        return;
+      }
+
+      intentStarted = true;
+      intentStartedAt = performance.now();
+      sceneSplit.classList.add('is-exiting');
+      sceneIntent.classList.add('is-visible');
+    }
+
+    function activateSplit() {
+      if (didSplit) {
+        return;
+      }
+
+      didSplit = true;
+      sceneSplit.classList.add('is-split');
+    }
+
+    function activateTopFailure() {
+      if (didTopFail) {
+        return;
+      }
+
+      didTopFail = true;
+      sceneSplit.classList.add('top-failure');
+      if (!topStalled) {
+        particleTop.classList.add('is-stalled');
+        topStalled = true;
+      }
+    }
+
+    function activateLoopFailure() {
+      if (didLoop) {
+        return;
+      }
+
+      didLoop = true;
+      sceneSplit.classList.add('loop-failure');
+      if (!bottomLooping) {
+        particleBottom.classList.add('is-looping');
+        bottomLooping = true;
+      }
+    }
+
+    function revealMessage() {
+      if (didMessage) {
+        return;
+      }
+
+      didMessage = true;
+      message.classList.add('is-visible');
+    }
+
+    function activateIntentEngine() {
+      if (didIntentEngine) {
+        return;
+      }
+
+      didIntentEngine = true;
+      sceneIntent.classList.add('engine-active');
+    }
+
+    function activateIntentPull() {
+      if (didIntentPull) {
+        return;
+      }
+
+      didIntentPull = true;
+      sceneIntent.classList.add('is-pulling');
+    }
+
+    function activateIntentLabels() {
+      if (didIntentLabels) {
+        return;
+      }
+
+      didIntentLabels = true;
+      sceneIntent.classList.add('is-labeling');
+    }
+
+    function activateIntentStructure() {
+      if (didIntentStructure) {
+        return;
+      }
+
+      didIntentStructure = true;
+      sceneIntent.classList.add('is-structuring');
+    }
+
+    function activateIntentOutput() {
+      if (didIntentOutput) {
+        return;
+      }
+
+      didIntentOutput = true;
+      sceneIntent.classList.add('is-output');
+    }
+
+    function morphStructuredOutput(intent, entity, action, priority) {
+      chipIntent.textContent = intent;
+      chipEntity.textContent = entity;
+      chipAction.textContent = action;
+      chipPriority.textContent = priority;
+      outputIntent.textContent = intent;
+      outputEntity.textContent = entity;
+      outputPriority.textContent = priority;
+      structuredBlock.classList.remove('is-morphing');
+      void structuredBlock.offsetWidth;
+      structuredBlock.classList.add('is-morphing');
+    }
+
+    function activateIntentDomainTwo() {
+      if (didIntentDomainTwo) {
+        return;
+      }
+
+      didIntentDomainTwo = true;
+      sceneIntent.classList.add('is-domain-two');
+      morphStructuredOutput('handle_alert', 'security', 'triage', 'critical');
+    }
+
+    function activateIntentFinal() {
+      if (didIntentFinal) {
+        return;
+      }
+
+      didIntentFinal = true;
+      intentFinal.classList.add('is-visible');
+    }
+
+    function updateTopParticle(elapsed) {
+      var holdProgress = 0.405;
+
+      if (elapsed < SCENE_TWO_TIMINGS.topFailure) {
+        var travel = easeOutCubic(elapsed / SCENE_TWO_TIMINGS.topFailure);
+        var progress = 0.06 + ((holdProgress - 0.06) * travel);
+        setParticle(particleTop, topMotion, progress);
+        return;
+      }
+
+      setParticle(particleTop, topMotion, holdProgress);
+    }
+
+    function updateMiddleParticle(elapsed) {
+      if (elapsed < SCENE_TWO_TIMINGS.split) {
+        setParticle(particleMid, middleLead, easeInOutCubic(elapsed / SCENE_TWO_TIMINGS.split));
+        return;
+      }
+
+      var branchElapsed = elapsed - SCENE_TWO_TIMINGS.split;
+      var branchProgress = clamp(branchElapsed / SCENE_TWO_TIMINGS.branchTravel, 0, 1);
+      setParticle(particleMid, branches[branchIndex], easeInOutCubic(branchProgress));
+
+      if (branchProgress >= 1 && !midSettled) {
+        particleMid.classList.add('is-settled');
+        midSettled = true;
+      }
+    }
+
+    function updateBottomParticle(elapsed) {
+      if (elapsed < SCENE_TWO_TIMINGS.loopFailure) {
+        setParticle(particleBottom, bottomLead, easeInOutCubic(elapsed / SCENE_TWO_TIMINGS.loopFailure));
+        return;
+      }
+
+      var loopElapsed = elapsed - SCENE_TWO_TIMINGS.loopFailure;
+      var loopProgress = (loopElapsed % SCENE_TWO_TIMINGS.loopCycle) / SCENE_TWO_TIMINGS.loopCycle;
+      setParticle(particleBottom, loopPath, loopProgress);
+    }
+
+    function tickSplitScene(timestamp) {
+      if (!splitStarted) {
+        return;
+      }
+
+      var elapsed = timestamp - splitStartedAt;
+
+      if (elapsed >= SCENE_TWO_TIMINGS.split) {
+        activateSplit();
+      }
+
+      if (elapsed >= SCENE_TWO_TIMINGS.topFailure) {
+        activateTopFailure();
+      }
+
+      if (elapsed >= SCENE_TWO_TIMINGS.loopFailure) {
+        activateLoopFailure();
+      }
+
+      if (elapsed >= SCENE_TWO_TIMINGS.message) {
+        revealMessage();
+      }
+
+      updateTopParticle(elapsed);
+      updateMiddleParticle(elapsed);
+      updateBottomParticle(elapsed);
+    }
+
+    function tickIntentScene(timestamp) {
+      if (!intentStarted) {
+        return;
+      }
+
+      var elapsed = timestamp - intentStartedAt;
+
+      if (elapsed >= SCENE_THREE_TIMINGS.engine) {
+        activateIntentEngine();
+      }
+
+      if (elapsed >= SCENE_THREE_TIMINGS.pull) {
+        activateIntentPull();
+      }
+
+      if (elapsed >= SCENE_THREE_TIMINGS.labels) {
+        activateIntentLabels();
+      }
+
+      if (elapsed >= SCENE_THREE_TIMINGS.structure) {
+        activateIntentStructure();
+      }
+
+      if (elapsed >= SCENE_THREE_TIMINGS.output) {
+        activateIntentOutput();
+      }
+
+      if (elapsed >= SCENE_THREE_TIMINGS.domainTwo) {
+        activateIntentDomainTwo();
+      }
+
+      if (elapsed >= SCENE_THREE_TIMINGS.finalText) {
+        activateIntentFinal();
+      }
+    }
+
+    function render(timestamp) {
+      if (!splitStarted && timestamp >= SCENE_TWO_START) {
+        revealSceneTwo();
+      }
+
+      if (!intentStarted && timestamp >= SCENE_THREE_START) {
+        revealSceneThree();
+      }
+
+      if (splitStarted) {
+        tickSplitScene(timestamp);
+      }
+
+      if (intentStarted) {
+        tickIntentScene(timestamp);
+      }
+
+      window.requestAnimationFrame(render);
+    }
+
+    runBootSequence();
+    window.requestAnimationFrame(render);
+
+    window.__niyantaPreview = {
+      replay: function () {
+        window.location.reload();
+      },
+      showSceneTwoNow: function () {
+        revealSceneTwo();
+      },
+      showSceneThreeNow: function () {
+        revealSceneThree();
+      },
+      branchIndex: branchIndex
+    };
   })();
 </script>
 </body>
