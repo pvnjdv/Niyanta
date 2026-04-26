@@ -3520,6 +3520,33 @@
     background: rgba(100,140,200,0.2);
     flex-shrink: 0;
   }
+  .pb-playbtn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 1px solid rgba(100,140,200,0.35);
+    background: rgba(100,140,200,0.1);
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+    margin-right: 4px;
+  }
+  .pb-playbtn:hover {
+    background: rgba(100,140,200,0.28);
+    border-color: rgba(140,185,255,0.6);
+    box-shadow: 0 0 7px rgba(110,170,255,0.3);
+  }
+  .pb-playbtn svg {
+    display: block;
+    width: 9px;
+    height: 9px;
+    fill: rgba(180,210,255,0.85);
+    transition: fill 0.2s ease;
+  }
+  .pb-playbtn:hover svg { fill: rgba(200,225,255,1); }
   /* ── end Playbar ─────────────────────────────────────────── */
 </style>
 </head>
@@ -4310,6 +4337,11 @@
 
   <!-- Playbar -->
   <nav class="playbar" id="playbar" aria-label="Scene navigation">
+    <div class="pb-playbtn" id="pbPlayBtn" title="Pause">
+      <!-- pause icon by default (animation is playing) -->
+      <svg id="pbPlayIcon" viewBox="0 0 10 10"><rect x="1" y="1" width="3" height="8" rx="0.5"/><rect x="6" y="1" width="3" height="8" rx="0.5"/></svg>
+    </div>
+    <div class="pb-sep" style="margin-right:4px"></div>
     <div class="pb-dot" data-scene="1"  data-label="01 · Boot"></div>
     <div class="pb-dot" data-scene="2"  data-label="02 · Fragment"></div>
     <div class="pb-dot" data-scene="3"  data-label="03 · Intent"></div>
@@ -4669,6 +4701,9 @@
     var s10Phases     = {};
 
     /* ── Playbar state ── */
+    var pbPaused = false;
+    var pbPauseTime = 0;   /* timestamp when paused */
+    var pbPauseOffset = 0; /* accumulated pause duration */
     var pbCurrentScene = 1;
     var pbDots = [].slice.call(document.querySelectorAll('.pb-dot'));
 
@@ -6013,11 +6048,11 @@
         });
       }
 
-      window.requestAnimationFrame(render);
+      if (!pbPaused) { window.__niyantaRAF = window.requestAnimationFrame(render); }
     }
 
     runBootSequence();
-    window.requestAnimationFrame(render);
+    window.__niyantaRAF = window.requestAnimationFrame(render);
 
     /* ── Playbar: show after boot, wire clicks ── */
     (function () {
@@ -6167,6 +6202,8 @@
           sceneEls.forEach(function (el) { restoreTransition(el); });
           var fn = sceneRevealFns[n];
           if (fn) { fn(); }
+          /* auto-resume if paused so jumped scene actually plays */
+          if (pbPaused) { setPauseState(false); }
         });
       }
 
@@ -6176,6 +6213,40 @@
           jumpToScene(dot.getAttribute('data-scene'));
         });
       });
+
+      /* Wire up play/pause button */
+      var pbBtn  = document.getElementById('pbPlayBtn');
+      var pbIcon = document.getElementById('pbPlayIcon');
+      var ICON_PAUSE = '<rect x="1" y="1" width="3" height="8" rx="0.5"/><rect x="6" y="1" width="3" height="8" rx="0.5"/>';
+      var ICON_PLAY  = '<polygon points="1,1 9,5 1,9"/>';
+
+      function setPauseState(paused) {
+        pbPaused = paused;
+        pbIcon.innerHTML = paused ? ICON_PLAY : ICON_PAUSE;
+        pbBtn.title = paused ? 'Play' : 'Pause';
+        if (paused) {
+          pbPauseTime = performance.now();
+          /* freeze the render loop */
+          cancelAnimationFrame(window.__niyantaRAF);
+        } else {
+          /* shift all scene start-times forward by pause duration */
+          var gap = performance.now() - pbPauseTime;
+          pbPauseOffset += gap;
+          /* patch every scene's startedAt so relative timings stay correct */
+          if (splitStartedAt)   { splitStartedAt   += gap; }
+          if (intentStartedAt)  { intentStartedAt  += gap; }
+          if (cmdStartedAt)     { cmdStartedAt     += gap; }
+          if (agentStartedAt)   { agentStartedAt   += gap; }
+          if (wfeStartedAt)     { wfeStartedAt     += gap; }
+          if (s7StartedAt)      { s7StartedAt      += gap; }
+          if (s8StartedAt)      { s8StartedAt      += gap; }
+          if (s9StartedAt)      { s9StartedAt      += gap; }
+          if (s10StartedAt)     { s10StartedAt     += gap; }
+          window.requestAnimationFrame(render);
+        }
+      }
+
+      pbBtn.addEventListener('click', function () { setPauseState(!pbPaused); });
 
       /* Show playbar after a short delay */
       setTimeout(function () {
@@ -6188,6 +6259,8 @@
 
       /* Expose jumpToScene globally for console use */
       window.__niyantaJump = jumpToScene;
+      window.__niyantaPause = function () { if (!pbPaused) { setPauseState(true); } };
+      window.__niyantaPlay  = function () { if (pbPaused)  { setPauseState(false); } };
     }());
 
     window.__niyantaPreview = {
