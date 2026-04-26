@@ -2801,6 +2801,37 @@
   }
   .s7-scene.is-visible .s7-header { opacity: 1; }
 
+  .s7-context {
+    position: absolute;
+    top: 52px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(86vw, 760px);
+    padding: 0.56rem 0.82rem;
+    border: 1px solid rgba(255, 120, 110, 0.28);
+    border-radius: 10px;
+    background: linear-gradient(160deg, rgba(34, 16, 14, 0.9), rgba(20, 12, 12, 0.9));
+    box-shadow: 0 0 20px rgba(255, 90, 80, 0.14);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.45s ease;
+    z-index: 8;
+    text-align: center;
+  }
+
+  .s7-context-text {
+    font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
+    font-size: 0.58rem;
+    letter-spacing: 0.08em;
+    color: rgba(255, 202, 196, 0.92);
+    text-transform: uppercase;
+    line-height: 1.35;
+  }
+
+  .s7-scene.has-failure-context .s7-context {
+    opacity: 1;
+  }
+
   /* ── end Scene 7 ────────────────────────────────────────── */
 
   /* ── Scene 8: Auditability & Business Impact ─────────────── */
@@ -4368,6 +4399,10 @@
 
         <div class="s7-header">Autonomous recovery · workflow engine</div>
 
+        <div class="s7-context" id="s7Context" aria-hidden="true">
+          <div class="s7-context-text">Node failure detected. This slide shows how Niyanta identifies the issue, runs recovery, and resumes workflow without manual intervention.</div>
+        </div>
+
         <!-- SVG edges -->
         <!-- N-prev(162,289) → N-active(450,289) → N-next(738,289) -->
         <svg class="s7-svg" viewBox="0 0 900 760" preserveAspectRatio="none">
@@ -5721,6 +5756,7 @@
       s7StartedAt = performance.now();
       sceneWFE.classList.add('is-exiting');
       sceneS7.classList.add('is-visible');
+      sceneS7.classList.remove('has-failure-context');
       var s6wf = document.getElementById('s6WorkflowBridge');
       if (s6wf) { s6wf.classList.remove('is-settled'); s6wf.classList.add('is-visible'); }
     }
@@ -5742,6 +5778,7 @@
         s7Mark('fail');
         s7NodeState('s7N1', 'is-failed');
         s7HideCapsule();
+        sceneS7.classList.add('has-failure-context');
         /* error icon on node */
         var icon = document.getElementById('s7N1Icon');
         if (icon) {
@@ -6645,6 +6682,7 @@
           }
         }
         if (n <= 7) {
+          if (sceneS7) { sceneS7.classList.remove('has-failure-context'); }
           var s6wfClean = document.getElementById('s6WorkflowBridge');
           if (s6wfClean) { s6wfClean.classList.remove('is-visible', 'is-settled'); }
         }
