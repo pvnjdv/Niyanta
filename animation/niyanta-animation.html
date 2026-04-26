@@ -113,6 +113,18 @@
     opacity: 0;
   }
 
+  .boot-bg-lines {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    pointer-events: none;
+    opacity: 0;
+    animation: bootLinesIn 2.4s ease 0.3s forwards;
+  }
+  @keyframes bootLinesIn { to { opacity: 1; } }
+
   .logs {
     position: absolute;
     top: 48px;
@@ -3554,6 +3566,24 @@
   <main class="sequence" aria-label="Niyanta runtime story sequence">
     <!-- Scene 1: Boot screen -->
     <section class="scene boot-screen is-visible" id="sceneBoot" aria-label="Niyanta boot sequence">
+      <!-- Background SVG grid lines -->
+      <svg class="boot-bg-lines" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <pattern id="bootXGrid" x="0" y="0" width="72" height="72" patternUnits="userSpaceOnUse">
+            <line x1="0" y1="0" x2="72" y2="72" stroke="rgba(100,160,255,0.055)" stroke-width="0.5"/>
+            <line x1="72" y1="0" x2="0" y2="72" stroke="rgba(100,160,255,0.055)" stroke-width="0.5"/>
+          </pattern>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#bootXGrid)"/>
+        <!-- accent long diagonals -->
+        <line x1="-5%" y1="25%" x2="55%" y2="-5%"  stroke="rgba(120,185,255,0.07)" stroke-width="1"/>
+        <line x1="45%" y1="105%" x2="105%" y2="45%" stroke="rgba(120,185,255,0.07)" stroke-width="1"/>
+        <line x1="-5%" y1="65%" x2="105%" y2="-5%" stroke="rgba(100,160,255,0.045)" stroke-width="0.8"/>
+        <line x1="-5%" y1="105%" x2="105%" y2="-5%" stroke="rgba(90,150,255,0.03)" stroke-width="0.6"/>
+        <!-- subtle horizontals -->
+        <line x1="0" y1="30%" x2="100%" y2="30%" stroke="rgba(100,160,255,0.04)" stroke-width="0.5"/>
+        <line x1="0" y1="60%" x2="100%" y2="60%" stroke="rgba(100,160,255,0.04)" stroke-width="0.5"/>
+      </svg>
       <div class="scan-layer" aria-hidden="true"></div>
 
       <section class="logs" id="logs" aria-live="polite">
@@ -4633,6 +4663,19 @@
       pulse: document.getElementById('audioPulse')
     };
 
+    /* ── Boot schedule (for pauseable setTimeout) ── */
+    var bootSchedule = []; /* [{phaseKey, fn, id, remaining, scheduledAt}] */
+    var bootPhaseDone = {};
+
+    function schedBoot(phaseKey, delay, fn) {
+      var id = window.setTimeout(function () {
+        bootPhaseDone[phaseKey] = true;
+        bootSchedule = bootSchedule.filter(function (s) { return s.phaseKey !== phaseKey; });
+        fn();
+      }, delay);
+      bootSchedule.push({ phaseKey: phaseKey, fn: fn, id: id, remaining: delay, scheduledAt: performance.now() });
+    }
+
     var splitStartedAt = null;
     var splitStarted = false;
     var intentStartedAt = null;
@@ -4830,29 +4873,25 @@
     }
 
     function runBootSequence() {
-      window.setTimeout(function () {
+      schedBoot('firstLog', BOOT_TIMINGS.firstLog, function () {
         logs.classList.add('is-visible');
         typeLine(logNodes[0], LOG_LINES[0]);
-      }, BOOT_TIMINGS.firstLog);
-
-      window.setTimeout(function () {
+      });
+      schedBoot('secondLog', BOOT_TIMINGS.secondLog, function () {
         network.classList.add('is-visible');
         typeLine(logNodes[1], LOG_LINES[1]);
-      }, BOOT_TIMINGS.secondLog);
-
-      window.setTimeout(function () {
+      });
+      schedBoot('thirdLog', BOOT_TIMINGS.thirdLog, function () {
         network.classList.add('is-active');
         typeLine(logNodes[2], LOG_LINES[2]);
-      }, BOOT_TIMINGS.thirdLog);
-
-      window.setTimeout(function () {
+      });
+      schedBoot('title', BOOT_TIMINGS.title, function () {
         titleBlock.classList.add('is-visible');
         window.niyantaAudio.playPulse();
-      }, BOOT_TIMINGS.title);
-
-      window.setTimeout(function () {
+      });
+      schedBoot('exit', BOOT_TIMINGS.exit, function () {
         sceneBoot.classList.add('is-exiting');
-      }, BOOT_TIMINGS.exit);
+      });
     }
 
     function revealSceneTwo() {
@@ -6228,6 +6267,12 @@
           pbPauseTime = performance.now();
           /* freeze the render loop */
           cancelAnimationFrame(window.__niyantaRAF);
+          /* freeze any pending boot timeouts */
+          bootSchedule.forEach(function (s) {
+            clearTimeout(s.id);
+            s.remaining = s.remaining - (pbPauseTime - s.scheduledAt);
+            if (s.remaining < 0) { s.remaining = 0; }
+          });
         } else {
           /* shift all scene start-times forward by pause duration */
           var gap = performance.now() - pbPauseTime;
@@ -6242,7 +6287,17 @@
           if (s8StartedAt)      { s8StartedAt      += gap; }
           if (s9StartedAt)      { s9StartedAt      += gap; }
           if (s10StartedAt)     { s10StartedAt     += gap; }
-          window.requestAnimationFrame(render);
+          window.__niyantaRAF = window.requestAnimationFrame(render);
+          /* resume pending boot timeouts */
+          bootSchedule.forEach(function (s) {
+            var r = s.remaining;
+            s.scheduledAt = performance.now();
+            s.id = window.setTimeout(function () {
+              bootPhaseDone[s.phaseKey] = true;
+              bootSchedule = bootSchedule.filter(function (x) { return x.phaseKey !== s.phaseKey; });
+              s.fn();
+            }, r);
+          });
         }
       }
 
