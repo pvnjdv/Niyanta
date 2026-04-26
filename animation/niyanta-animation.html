@@ -322,231 +322,73 @@
     margin: 0 auto;
   }
 
-  .flow-svg {
+  /* ── Scene 2: SVG connecting lines ── */
+  .s2-line-svg {
+    position: absolute;
+    inset: 0;
     width: 100%;
     height: 100%;
+    z-index: 1;
     overflow: visible;
-  }
-
-  .flow-path {
-    fill: none;
-    stroke: var(--line);
-    stroke-width: 2;
-    stroke-linecap: round;
-    transition: opacity 0.9s ease, stroke 0.9s ease, filter 0.9s ease;
-  }
-
-  .active-path {
-    stroke: rgba(255, 255, 255, 0.19);
-  }
-
-  .branch-path,
-  .loop-path {
-    opacity: 0;
-    stroke: var(--split-accent);
-    stroke-dasharray: 1200;
-    stroke-dashoffset: 1200;
-  }
-
-  .motion-path {
-    fill: none;
-    stroke: none;
     pointer-events: none;
   }
-
-  .split-scene.is-split .branch-path {
-    opacity: 0.48;
+  .s2-line {
+    fill: none;
+    stroke: rgba(141, 183, 255, 0.22);
+    stroke-width: 0.9;
+    stroke-dasharray: 800;
+    stroke-dashoffset: 800;
+    transition: none;
+  }
+  .s2-line.is-drawn {
+    stroke-dashoffset: 0;
+    transition: stroke-dashoffset 0.32s ease-out;
   }
 
-  .split-scene.is-split .branch-path.branch-0 {
-    animation: branchReveal 1.15s ease-in-out forwards;
-  }
-
-  .split-scene.is-split .branch-path.branch-1 {
-    animation: branchReveal 1.15s ease-in-out 0.08s forwards;
-  }
-
-  .split-scene.is-split .branch-path.branch-2 {
-    animation: branchReveal 1.15s ease-in-out 0.16s forwards;
-  }
-
-  .split-scene.is-split .branch-path.is-chosen {
-    opacity: 0.88;
-    filter: drop-shadow(0 0 10px rgba(141, 183, 255, 0.14));
-  }
-
-  .split-scene.is-split #midStraight {
-    opacity: 0.12;
-  }
-
-  .split-scene.top-failure #topGap {
-    opacity: 0;
-  }
-
-  .split-scene.top-failure #topRight {
-    opacity: 0.24;
-  }
-
-  .split-scene.top-failure #topLeft,
-  .split-scene.top-failure #topBreakLead {
-    stroke: rgba(255, 255, 255, 0.17);
-  }
-
-  .split-scene.loop-failure #bottomStraight {
-    opacity: 0.08;
-  }
-
-  .split-scene.loop-failure .loop-path {
-    opacity: 0.72;
-    animation: branchReveal 1.2s ease-in-out forwards;
-  }
-
-  .event-node {
-    fill: rgba(11, 11, 11, 0.96);
-    stroke: rgba(255, 255, 255, 0.2);
-    stroke-width: 1.3;
-    opacity: 0.26;
-    transition: opacity 0.6s ease, stroke 0.6s ease, fill 0.6s ease, filter 0.6s ease;
-  }
-
-  .split-scene.is-split #splitNode {
-    opacity: 1;
-    fill: rgba(141, 183, 255, 0.12);
-    stroke: rgba(196, 219, 255, 0.88);
-    filter: drop-shadow(0 0 12px rgba(141, 183, 255, 0.22));
-    animation: nodePulse 1.2s ease-in-out 1;
-  }
-
-  .split-scene.top-failure .break-node {
-    opacity: 0.88;
-    fill: rgba(141, 183, 255, 0.1);
-    stroke: rgba(180, 209, 255, 0.62);
-    filter: drop-shadow(0 0 9px rgba(141, 183, 255, 0.16));
-  }
-
-  .split-scene.loop-failure #loopNode {
-    opacity: 0.94;
-    fill: rgba(141, 183, 255, 0.14);
-    stroke: rgba(206, 226, 255, 0.76);
-    filter: drop-shadow(0 0 12px rgba(141, 183, 255, 0.2));
-    animation: nodePulse 1.25s ease-in-out 1;
-  }
-
-  .particle {
-    fill: #E8F2FF;
-    opacity: 0.96;
-    filter: drop-shadow(0 0 8px rgba(141, 183, 255, 0.58));
-  }
-
-  .particle.top.is-stalled,
-  .particle.mid.is-settled {
-    animation: particlePulse 1.8s ease-in-out infinite;
-  }
-
-  .particle.bottom.is-looping {
-    filter: drop-shadow(0 0 10px rgba(141, 183, 255, 0.66));
-  }
-
-  .fragment-ring {
+  /* ── Scene 2: scattered node tiles ── */
+  .s2-scatter {
     position: absolute;
     inset: 0;
     z-index: 2;
     pointer-events: none;
   }
-
-  .task-tile {
+  .s2-ntile {
     position: absolute;
-    min-width: 210px;
-    padding: 1.2rem 1.4rem 1.1rem;
-    border: 1px solid rgba(255, 255, 255, 0.09);
-    border-radius: 20px;
-    background: linear-gradient(160deg, rgba(20, 24, 30, 0.88), rgba(11, 13, 16, 0.92));
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03), 0 8px 32px rgba(0, 0, 0, 0.42);
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 9px 14px 9px 11px;
+    border: 1px solid rgba(255,255,255,0.09);
+    border-radius: 8px;
+    background: rgba(13,15,22,0.88);
+    white-space: nowrap;
     opacity: 0;
-    transform: translate3d(0, 22px, 0) scale(0.96);
-    transition: opacity 0.75s ease, transform 0.75s ease, border-color 0.75s ease, background 0.75s ease, box-shadow 0.75s ease;
+    transform: scale(0.84) translateY(8px);
+    transition: opacity 0.16s ease, transform 0.16s ease;
   }
-
-  .task-tile::before {
-    content: "";
-    position: absolute;
-    left: 1.2rem;
-    right: 1.2rem;
-    top: 0.86rem;
-    height: 1px;
-    background: linear-gradient(to right, rgba(141, 183, 255, 0), rgba(141, 183, 255, 0.34), rgba(141, 183, 255, 0));
-    opacity: 0.55;
-  }
-
-  .task-tile::after {
-    content: "";
-    position: absolute;
-    top: 1.1rem;
-    right: 1.2rem;
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: rgba(255, 150, 50, 0.88);
-    box-shadow: 0 0 9px rgba(255, 150, 50, 0.5);
-    animation: statusPulse 2.2s ease-in-out infinite;
-    animation-delay: var(--delay, 0s);
-  }
-
-  .task-tile[data-group="break"]::after {
-    background: rgba(255, 76, 70, 0.9);
-    box-shadow: 0 0 9px rgba(255, 76, 70, 0.55);
-  }
-
-  .tile-title {
-    display: block;
-    color: rgba(255, 255, 255, 0.94);
-    font-size: 0.82rem;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    margin-top: 0.32rem;
-    font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
-  }
-
-  .tile-subtitle {
-    display: block;
-    color: rgba(255, 255, 255, 0.38);
-    font-size: 0.68rem;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    margin-top: 0.38rem;
-    font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
-  }
-
-  .task-tile.tile-1 { top: 8%; left: 8%; }
-  .task-tile.tile-2 { top: 7%; left: 41%; transform: translate3d(0, 18px, 0) scale(0.96) rotate(-1deg); }
-  .task-tile.tile-3 { top: 17%; right: 7%; }
-  .task-tile.tile-4 { top: 43%; right: 4.5%; }
-  .task-tile.tile-5 { bottom: 11%; right: 12%; }
-  .task-tile.tile-6 { bottom: 8%; left: 42%; transform: translate3d(0, 18px, 0) scale(0.96) rotate(1deg); }
-  .task-tile.tile-7 { bottom: 14%; left: 8%; }
-  .task-tile.tile-8 { top: 43%; left: 4.5%; }
-
-  .split-scene.is-visible .task-tile {
+  .s2-ntile.is-visible {
     opacity: 1;
-    transform: translate3d(0, 0, 0) scale(1);
-    transition-delay: var(--delay, 0s);
+    transform: scale(1) translateY(0);
   }
-
-  .split-scene.is-split .task-tile[data-group="split"] {
-    border-color: rgba(141, 183, 255, 0.18);
-    background: linear-gradient(180deg, rgba(20, 25, 31, 0.84), rgba(11, 14, 18, 0.86));
-    transform: translate3d(8px, -4px, 0) rotate(-1.5deg);
+  .s2-dot {
+    flex-shrink: 0;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
   }
-
-  .split-scene.top-failure .task-tile[data-group="break"] {
-    border-color: rgba(255, 255, 255, 0.05);
-    opacity: 0.72;
-    transform: translate3d(-10px, 8px, 0) rotate(1.6deg);
+  .s2-dot--err  { background: rgba(255,80,70,0.9);  box-shadow: 0 0 4px rgba(255,80,70,0.5); }
+  .s2-dot--warn { background: rgba(255,165,50,0.9); box-shadow: 0 0 4px rgba(255,165,50,0.45); }
+  .s2-name {
+    color: rgba(215,228,248,0.86);
+    font-family: Consolas, 'SFMono-Regular', monospace;
+    font-size: 0.74rem;
+    letter-spacing: 0.07em;
   }
-
-  .split-scene.loop-failure .task-tile[data-group="loop"] {
-    border-color: rgba(141, 183, 255, 0.16);
-    transform: translate3d(10px, 6px, 0) rotate(2deg);
+  .s2-tag {
+    color: rgba(150,170,205,0.42);
+    font-family: Consolas, 'SFMono-Regular', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.06em;
   }
 
   .message {
@@ -574,7 +416,7 @@
   }
 
   .message-title {
-    font-size: clamp(2.8rem, 5.8vw, 5.2rem);
+    font-size: clamp(1.6rem, 3.2vw, 3rem);
     font-weight: 500;
     letter-spacing: 0.03em;
     color: var(--text);
@@ -3621,78 +3463,46 @@
       <div class="scan-layer" aria-hidden="true"></div>
 
       <section class="flow-stage" aria-hidden="true">
-        <svg class="flow-svg" viewBox="0 0 1000 560" role="img" aria-label="Split enterprise workflow field">
-          <defs>
-            <path id="motionTop" d="M90 146 L910 146"></path>
-            <path id="motionMiddleLead" d="M90 280 L410 280"></path>
-            <path id="motionBottomLead" d="M90 414 L430 414"></path>
-          </defs>
-
-          <path id="topLeft" class="flow-path active-path" d="M90 146 L330 146"></path>
-          <path id="topGap" class="flow-path active-path" d="M330 146 L470 146"></path>
-          <path id="topRight" class="flow-path" d="M470 146 L910 146"></path>
-          <circle id="topBreakLead" class="event-node break-node" cx="330" cy="146" r="5"></circle>
-          <circle id="topBreakTrail" class="event-node break-node" cx="470" cy="146" r="5"></circle>
-
-          <path id="midLead" class="flow-path active-path" d="M90 280 L410 280"></path>
-          <path id="midStraight" class="flow-path active-path" d="M410 280 L910 280"></path>
-          <path id="branchHigh" class="flow-path branch-path branch-0" d="M410 280 C 520 280, 640 214, 910 168"></path>
-          <path id="branchMid" class="flow-path branch-path branch-1" d="M410 280 C 520 280, 650 280, 910 280"></path>
-          <path id="branchLow" class="flow-path branch-path branch-2" d="M410 280 C 520 280, 640 348, 910 392"></path>
-          <circle id="splitNode" class="event-node" cx="410" cy="280" r="6"></circle>
-
-          <path id="bottomLead" class="flow-path active-path" d="M90 414 L430 414"></path>
-          <path id="bottomStraight" class="flow-path active-path" d="M430 414 L910 414"></path>
-          <path id="loopPath" class="flow-path loop-path" d="M430 414 C 520 336, 655 348, 692 414 C 655 480, 520 492, 430 414"></path>
-          <circle id="loopNode" class="event-node" cx="430" cy="414" r="6"></circle>
-
-          <path id="hiddenTopMotion" class="motion-path" d="M90 146 L910 146"></path>
-          <path id="hiddenBottomLead" class="motion-path" d="M90 414 L430 414"></path>
-
-          <circle id="particleTop" class="particle top" cx="90" cy="146" r="4.5"></circle>
-          <circle id="particleMid" class="particle mid" cx="90" cy="280" r="4.5"></circle>
-          <circle id="particleBottom" class="particle bottom" cx="90" cy="414" r="4.5"></circle>
+        <!-- SVG connecting lines between node tiles -->
+        <svg class="s2-line-svg" id="s2LineSvg" viewBox="0 0 1000 560" preserveAspectRatio="none" aria-hidden="true">
+          <line id="s2LA" class="s2-line" x1="115" y1="67"  x2="345" y2="56"/>
+          <line id="s2LB" class="s2-line" x1="345" y1="56"  x2="615" y2="78"/>
+          <line id="s2LC" class="s2-line" x1="615" y1="78"  x2="865" y2="100"/>
+          <line id="s2LD" class="s2-line" x1="115" y1="67"  x2="185" y2="207"/>
+          <line id="s2LE" class="s2-line" x1="345" y1="56"  x2="445" y2="173"/>
+          <line id="s2LF" class="s2-line" x1="615" y1="78"  x2="715" y2="190"/>
+          <line id="s2LG" class="s2-line" x1="865" y1="100" x2="935" y2="224"/>
+          <line id="s2LH" class="s2-line" x1="185" y1="207" x2="445" y2="173"/>
+          <line id="s2LI" class="s2-line" x1="445" y1="173" x2="715" y2="190"/>
+          <line id="s2LJ" class="s2-line" x1="445" y1="173" x2="395" y2="313"/>
+          <line id="s2LK" class="s2-line" x1="715" y1="190" x2="645" y2="330"/>
+          <line id="s2LL" class="s2-line" x1="135" y1="347" x2="395" y2="313"/>
+          <line id="s2LM" class="s2-line" x1="395" y1="313" x2="645" y2="330"/>
+          <line id="s2LN" class="s2-line" x1="645" y1="330" x2="875" y2="358"/>
         </svg>
 
-        <div class="fragment-ring">
-          <div class="task-tile tile-1" data-group="break" style="--delay: 0.05s;">
-            <span class="tile-title">Invoice Approvals</span>
-            <span class="tile-subtitle">manual follow-ups</span>
-          </div>
-          <div class="task-tile tile-2" data-group="split" style="--delay: 0.14s;">
-            <span class="tile-title">Procurement Requests</span>
-            <span class="tile-subtitle">multiple handoffs</span>
-          </div>
-          <div class="task-tile tile-3" data-group="split" style="--delay: 0.22s;">
-            <span class="tile-title">Document Intake</span>
-            <span class="tile-subtitle">misrouted queues</span>
-          </div>
-          <div class="task-tile tile-4" data-group="loop" style="--delay: 0.3s;">
-            <span class="tile-title">Incident Triage</span>
-            <span class="tile-subtitle">repeated reassignment</span>
-          </div>
-          <div class="task-tile tile-5" data-group="loop" style="--delay: 0.38s;">
-            <span class="tile-title">Access Requests</span>
-            <span class="tile-subtitle">waiting states</span>
-          </div>
-          <div class="task-tile tile-6" data-group="loop" style="--delay: 0.46s;">
-            <span class="tile-title">Employee Onboarding</span>
-            <span class="tile-subtitle">dependency loops</span>
-          </div>
-          <div class="task-tile tile-7" data-group="break" style="--delay: 0.54s;">
-            <span class="tile-title">Audit Follow-Ups</span>
-            <span class="tile-subtitle">spread across tools</span>
-          </div>
-          <div class="task-tile tile-8" data-group="split" style="--delay: 0.62s;">
-            <span class="tile-title">Payment Exceptions</span>
-            <span class="tile-subtitle">direction lost</span>
-          </div>
+        <!-- 14 scattered node tiles -->
+        <div class="s2-scatter">
+          <div class="s2-ntile" id="s2T0"  style="left:5%;top:8%">   <span class="s2-dot s2-dot--warn"></span><span class="s2-name">Invoice Approval</span><span class="s2-tag"> · pending</span></div>
+          <div class="s2-ntile" id="s2T1"  style="left:28%;top:6%">  <span class="s2-dot s2-dot--err"></span> <span class="s2-name">PO Request</span><span class="s2-tag"> · 3 handoffs</span></div>
+          <div class="s2-ntile" id="s2T2"  style="left:55%;top:10%"> <span class="s2-dot s2-dot--warn"></span><span class="s2-name">Doc Intake</span><span class="s2-tag"> · misrouted</span></div>
+          <div class="s2-ntile" id="s2T3"  style="left:80%;top:14%"> <span class="s2-dot s2-dot--err"></span> <span class="s2-name">Incident Triage</span><span class="s2-tag"> · stalled</span></div>
+          <div class="s2-ntile" id="s2T4"  style="left:12%;top:33%"> <span class="s2-dot s2-dot--warn"></span><span class="s2-name">Access Request</span><span class="s2-tag"> · waiting</span></div>
+          <div class="s2-ntile" id="s2T5"  style="left:38%;top:27%"> <span class="s2-dot s2-dot--err"></span> <span class="s2-name">Onboarding</span><span class="s2-tag"> · loop detected</span></div>
+          <div class="s2-ntile" id="s2T6"  style="left:65%;top:30%"> <span class="s2-dot s2-dot--warn"></span><span class="s2-name">Asset Request</span><span class="s2-tag"> · pending</span></div>
+          <div class="s2-ntile" id="s2T7"  style="left:87%;top:36%"> <span class="s2-dot s2-dot--err"></span> <span class="s2-name">Vendor Onboard</span><span class="s2-tag"> · blocked</span></div>
+          <div class="s2-ntile" id="s2T8"  style="left:7%;top:58%">  <span class="s2-dot s2-dot--err"></span> <span class="s2-name">Audit Follow-up</span><span class="s2-tag"> · overdue</span></div>
+          <div class="s2-ntile" id="s2T9"  style="left:33%;top:52%"> <span class="s2-dot s2-dot--warn"></span><span class="s2-name">Payment Review</span><span class="s2-tag"> · stuck</span></div>
+          <div class="s2-ntile" id="s2T10" style="left:58%;top:55%"> <span class="s2-dot s2-dot--err"></span> <span class="s2-name">Contract Review</span><span class="s2-tag"> · delayed</span></div>
+          <div class="s2-ntile" id="s2T11" style="left:81%;top:60%"> <span class="s2-dot s2-dot--warn"></span><span class="s2-name">IT Helpdesk</span><span class="s2-tag"> · queued</span></div>
+          <div class="s2-ntile" id="s2T12" style="left:20%;top:78%"> <span class="s2-dot s2-dot--err"></span> <span class="s2-name">HR Query</span><span class="s2-tag"> · unanswered</span></div>
+          <div class="s2-ntile" id="s2T13" style="left:50%;top:76%"> <span class="s2-dot s2-dot--warn"></span><span class="s2-name">Compliance Check</span><span class="s2-tag"> · open</span></div>
         </div>
       </section>
 
       <section class="message" id="message">
         <div class="message-inner">
-          <div class="message-title">Broken flows are the problem</div>
+          <div class="message-title">Fragmented workflows are the problem</div>
           <div class="message-rule"></div>
           <div class="message-subtitle">Not the tools. Not the inputs.</div>
         </div>
@@ -4408,12 +4218,7 @@
     var SCENE_TEN_START   = 105000;
 
     var SCENE_TWO_TIMINGS = {
-      split: 2000,
-      topFailure: 3800,
-      loopFailure: 5000,
-      message: 5800,
-      branchTravel: 2600,
-      loopCycle: 2600
+      message: 3000
     };
     var SCENE_THREE_TIMINGS = {
       engine: 700,
@@ -4678,12 +4483,14 @@
 
     var splitStartedAt = null;
     var splitStarted = false;
-    var intentStartedAt = null;
-    var intentStarted = false;
-    var didSplit = false;
+    var didSplit = false; /* kept for compat */
     var didTopFail = false;
     var didLoop = false;
     var didMessage = false;
+    var didS2Tiles = [false,false,false,false,false,false,false,false,false,false,false,false,false,false];
+    var didS2Lines = [false,false,false,false,false,false,false,false,false,false,false,false,false,false];
+    var intentStartedAt = null;
+    var intentStarted = false;
     var didIntentEngine = false;
     var didIntentPull = false;
     var didIntentLabels = false;
@@ -4747,13 +4554,19 @@
     var pbPaused = false;
     var pbPauseTime = 0;   /* timestamp when paused */
     var pbPauseOffset = 0; /* accumulated pause duration */
+    /* Shift the effective animation clock when jumping to a scene.
+       Makes timestamp - renderJumpOffset ≈ SCENE_N_START at the moment of the jump,
+       so future-scene auto-start checks won't fire prematurely. */
+    var renderJumpOffset = 0;
+    var jumpBlock = false; /* briefly blocks render-loop auto-starts during jump RAF */
     var pbCurrentScene = 1;
     var pbDots = [].slice.call(document.querySelectorAll('.pb-dot'));
 
     var topStalled = false;
     var bottomLooping = false;
 
-    branches[branchIndex].classList.add('is-chosen');
+    /* branches removed from DOM - guard against null */
+    if (branches[branchIndex]) { branches[branchIndex].classList.add('is-chosen'); }
 
     function wait(ms) {
       return new Promise(function (resolve) {
@@ -5939,31 +5752,28 @@
     }
 
     function tickSplitScene(timestamp) {
-      if (!splitStarted) {
-        return;
-      }
-
+      if (!splitStarted) { return; }
       var elapsed = timestamp - splitStartedAt;
 
-      if (elapsed >= SCENE_TWO_TIMINGS.split) {
-        activateSplit();
-      }
-
-      if (elapsed >= SCENE_TWO_TIMINGS.topFailure) {
-        activateTopFailure();
-      }
-
-      if (elapsed >= SCENE_TWO_TIMINGS.loopFailure) {
-        activateLoopFailure();
+      /* 14 tiles appear one by one every 140ms */
+      var S2_LINE_IDS = ['s2LA','s2LB','s2LC','s2LD','s2LE','s2LF','s2LG','s2LH','s2LI','s2LJ','s2LK','s2LL','s2LM','s2LN'];
+      var S2_LINE_DELAY = [50,190,330,200,280,420,560,700,840,980,1050,1120,1260,1400];
+      for (var i = 0; i < 14; i++) {
+        if (!didS2Tiles[i] && elapsed >= i * 140) {
+          didS2Tiles[i] = true;
+          var tEl = document.getElementById('s2T' + i);
+          if (tEl) { tEl.classList.add('is-visible'); }
+        }
+        if (!didS2Lines[i] && elapsed >= S2_LINE_DELAY[i]) {
+          didS2Lines[i] = true;
+          var lEl = document.getElementById(S2_LINE_IDS[i]);
+          if (lEl) { lEl.classList.add('is-drawn'); }
+        }
       }
 
       if (elapsed >= SCENE_TWO_TIMINGS.message) {
         revealMessage();
       }
-
-      updateTopParticle(elapsed);
-      updateMiddleParticle(elapsed);
-      updateBottomParticle(elapsed);
     }
 
     function tickIntentScene(timestamp) {
@@ -6003,40 +5813,43 @@
     }
 
     function render(timestamp) {
-      if (!splitStarted && timestamp >= SCENE_TWO_START) {
-        revealSceneTwo();
-      }
+      var t = timestamp - renderJumpOffset;
+      if (!jumpBlock) {
+        if (!splitStarted && t >= SCENE_TWO_START) {
+          revealSceneTwo();
+        }
 
-      if (!intentStarted && timestamp >= SCENE_THREE_START) {
-        revealSceneThree();
-      }
+        if (!intentStarted && t >= SCENE_THREE_START) {
+          revealSceneThree();
+        }
 
-      if (!cmdStarted && timestamp >= SCENE_FOUR_START) {
-        revealSceneFour();
-      }
+        if (!cmdStarted && t >= SCENE_FOUR_START) {
+          revealSceneFour();
+        }
 
-      if (!agentStarted && timestamp >= SCENE_FIVE_START) {
-        revealSceneFive();
-      }
+        if (!agentStarted && t >= SCENE_FIVE_START) {
+          revealSceneFive();
+        }
 
-      if (!wfeStarted && timestamp >= SCENE_SIX_START) {
-        revealSceneSix();
-      }
+        if (!wfeStarted && t >= SCENE_SIX_START) {
+          revealSceneSix();
+        }
 
-      if (!s7Started && timestamp >= SCENE_SEVEN_START) {
-        revealSceneSeven();
-      }
+        if (!s7Started && t >= SCENE_SEVEN_START) {
+          revealSceneSeven();
+        }
 
-      if (!s8Started && timestamp >= SCENE_EIGHT_START) {
-        revealSceneEight();
-      }
+        if (!s8Started && t >= SCENE_EIGHT_START) {
+          revealSceneEight();
+        }
 
-      if (!s9Started && timestamp >= SCENE_NINE_START) {
-        revealSceneNine();
-      }
+        if (!s9Started && t >= SCENE_NINE_START) {
+          revealSceneNine();
+        }
 
-      if (!s10Started && timestamp >= SCENE_TEN_START) {
-        revealSceneTen();
+        if (!s10Started && t >= SCENE_TEN_START) {
+          revealSceneTen();
+        }
       }
 
       if (splitStarted) {
@@ -6131,7 +5944,20 @@
 
       /* Remove stale sub-element classes so scenes replay cleanly */
       function cleanSceneDom(n) {
-        /* S2 individual flags (reset via state, DOM self-heals) */
+        /* S2 node tiles + SVG lines */
+        if (n <= 2) {
+          sceneSplit.classList.remove('is-split', 'top-failure', 'loop-failure');
+          for (var ci = 0; ci < 14; ci++) {
+            var ct = document.getElementById('s2T' + ci);
+            if (ct) { ct.classList.remove('is-visible'); }
+          }
+          ['s2LA','s2LB','s2LC','s2LD','s2LE','s2LF','s2LG','s2LH','s2LI','s2LJ','s2LK','s2LL','s2LM','s2LN'].forEach(function(lid) {
+            var ll = document.getElementById(lid);
+            if (ll) { ll.classList.remove('is-drawn'); }
+          });
+          var msg2 = document.getElementById('message');
+          if (msg2) { msg2.classList.remove('is-visible'); }
+        }
         /* S8 canvas + tiles */
         if (n <= 8) {
           var s8c = document.getElementById('s8Canvas');
@@ -6183,7 +6009,8 @@
         if (n <= 2) {
           splitStarted = false; splitStartedAt = null;
           didSplit = false; didTopFail = false; didLoop = false; didMessage = false;
-          topStalled = false; bottomLooping = false;
+          didS2Tiles = [false,false,false,false,false,false,false,false,false,false,false,false,false,false];
+          didS2Lines = [false,false,false,false,false,false,false,false,false,false,false,false,false,false];
         }
         if (n <= 3) {
           intentStarted = false; intentStartedAt = null;
@@ -6229,20 +6056,27 @@
         /* 1. Instantly hide all scenes */
         sceneEls.forEach(function (el) { quickHide(el); });
 
-        /* 2. Reset state for all scenes from n onward,
-              and also from n-1 onward so target scene is clean */
+        /* 2. Block render-loop auto-starts while jump completes */
+        jumpBlock = true;
+
+        /* 3. Reset state for all scenes from n onward */
         resetStateFrom(n);
 
-        /* 3. Clean stale DOM classes */
+        /* 4. Clean stale DOM classes */
         cleanSceneDom(n);
 
-        /* 4. Restore transitions on all scenes, then reveal target */
+        /* 5. Restore transitions, shift animation clock, reveal target, then unblock */
+        var sceneStartTimes = [0,0,9000,18200,28600,38000,50000,62000,76000,90000,105000];
         requestAnimationFrame(function () {
+          /* Shift the clock so effective time = sceneStartTimes[n] right now.
+             This prevents future-scene auto-starts for SCENE_(n+1)..SCENE_10. */
+          renderJumpOffset = performance.now() - sceneStartTimes[n];
           sceneEls.forEach(function (el) { restoreTransition(el); });
           var fn = sceneRevealFns[n];
           if (fn) { fn(); }
           /* auto-resume if paused so jumped scene actually plays */
           if (pbPaused) { setPauseState(false); }
+          jumpBlock = false;
         });
       }
 
