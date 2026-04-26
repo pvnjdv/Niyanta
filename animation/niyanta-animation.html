@@ -484,26 +484,26 @@
 
   .input-tile {
     position: absolute;
-    width: 220px;
-    padding: 1.1rem 1.2rem 1rem;
-    border: 1px solid rgba(255, 255, 255, 0.09);
-    border-radius: 18px;
-    background: linear-gradient(160deg, rgba(19, 22, 27, 0.86), rgba(11, 13, 17, 0.9));
-    color: rgba(255, 255, 255, 0.92);
-    font-size: 0.84rem;
-    letter-spacing: 0.06em;
+    width: 260px;
+    padding: 1.2rem 1.4rem 1.1rem 1.9rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 14px;
+    background: linear-gradient(160deg, rgba(22, 26, 34, 0.92), rgba(13, 15, 20, 0.95));
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 0.9rem;
+    letter-spacing: 0.05em;
     line-height: 1.5;
     font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
     opacity: 0;
-    transform: translate3d(0, 26px, 0) scale(0.94) rotate(var(--r, 0deg));
+    transform: translate3d(0, 28px, 0) scale(0.92) rotate(var(--r, 0deg));
     transition:
-      top 1.3s cubic-bezier(0.22, 1, 0.36, 1),
-      left 1.3s cubic-bezier(0.22, 1, 0.36, 1),
-      opacity 0.8s ease,
-      transform 1.3s cubic-bezier(0.22, 1, 0.36, 1),
+      top 1.2s cubic-bezier(0.22, 1, 0.36, 1),
+      left 1.2s cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 0.7s ease,
+      transform 1.2s cubic-bezier(0.22, 1, 0.36, 1),
       border-color 0.7s ease,
       background 0.7s ease;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03), 0 6px 24px rgba(0, 0, 0, 0.36);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 8px 32px rgba(0, 0, 0, 0.44);
   }
 
   .input-tile::before {
@@ -529,53 +529,153 @@
   .input-4 { top: 58%; left: 52%; --r: 7deg; }
   .input-5 { top: 75%; left: 26%; --r: -4deg; }
 
-  .intent-scene.is-pulling .input-1 { top: 24%; left: 72%; transform: scale(0.9) rotate(-2deg); }
-  .intent-scene.is-pulling .input-2 { top: 35%; left: 77%; transform: scale(0.9) rotate(1deg); }
-  .intent-scene.is-pulling .input-3 { top: 46%; left: 70%; transform: scale(0.92) rotate(-1deg); }
-  .intent-scene.is-pulling .input-4 { top: 58%; left: 75%; transform: scale(0.9) rotate(2deg); }
-  .intent-scene.is-pulling .input-5 { top: 69%; left: 73%; transform: scale(0.88) rotate(-1deg); }
+  /* Pulled positions — evenly spaced, aligned left edge, level, gap before engine */
+  /* left:50% → right edge at ~487px, engine left edge at ~529px → 42px gap */
+  .intent-scene.is-pulling .input-1 { top: 5%;  left: 50%; transform: scale(0.92) rotate(0deg); }
+  .intent-scene.is-pulling .input-2 { top: 22%; left: 50%; transform: scale(0.92) rotate(0deg); }
+  .intent-scene.is-pulling .input-3 { top: 39%; left: 50%; transform: scale(0.92) rotate(0deg); }
+  .intent-scene.is-pulling .input-4 { top: 56%; left: 50%; transform: scale(0.92) rotate(0deg); }
+  .intent-scene.is-pulling .input-5 { top: 73%; left: 50%; transform: scale(0.92) rotate(0deg); }
 
+  /* is-structuring: input-2 (approve access request) is active, others fade to 60% */
   .intent-scene.is-structuring .input-1,
-  .intent-scene.is-structuring .input-5 {
-    opacity: 0.22;
-    transform: scale(0.78) rotate(0deg);
-  }
-
   .intent-scene.is-structuring .input-3,
-  .intent-scene.is-structuring .input-4 {
-    opacity: 0.08;
-    transform: translate3d(20px, 0, 0) scale(0.75) rotate(0deg);
+  .intent-scene.is-structuring .input-4,
+  .intent-scene.is-structuring .input-5 {
+    opacity: 0.6;
+    transform: scale(0.88) rotate(0deg);
   }
 
+  /* is-domain-two: input-2 (security) moves to center, highlighted; input-3 swaps up */
+  .intent-scene.is-domain-two .input-1,
+  .intent-scene.is-domain-two .input-4,
+  .intent-scene.is-domain-two .input-5 {
+    opacity: 0.6;
+    transform: scale(0.88) rotate(0deg);
+  }
+
+  /* Middle tile swaps to where security tile was */
+  .intent-scene.is-domain-two .input-3 {
+    opacity: 0.6;
+    top: 22%;
+    left: 50%;
+    transform: scale(0.88) rotate(0deg);
+  }
+
+  /* Security tile moves to center and glows */
   .intent-scene.is-domain-two .input-2 {
-    opacity: 0.34;
+    opacity: 1;
     top: 39%;
-    left: 70%;
-    transform: scale(0.82) rotate(0deg);
+    left: 50%;
+    transform: scale(1.02) rotate(0deg);
+    border-color: rgba(120, 175, 255, 0.6);
+    box-shadow: 0 0 32px rgba(120, 175, 255, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    background: linear-gradient(160deg, rgba(28, 36, 52, 0.98), rgba(16, 20, 32, 0.98));
+  }
+
+  /* ── Split arrow lines: engine → right output tables ───── */
+  .intent-split-svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 3;
+    pointer-events: none;
+    overflow: visible;
+  }
+
+  /* Horizontal stem: draws first */
+  .split-stem {
+    stroke: rgba(120, 175, 255, 0.7);
+    stroke-width: 1.8;
+    fill: none;
+    stroke-dasharray: 160;
+    stroke-dashoffset: 160;
+  }
+
+  /* Vertical branches: draw after stem (length ~315px → dasharray 330) */
+  .split-branch {
+    stroke: rgba(120, 175, 255, 0.6);
+    stroke-width: 1.6;
+    fill: none;
+    stroke-dasharray: 330;
+    stroke-dashoffset: 330;
+  }
+
+  /* Triggered on tile swap phase (is-domain-two) */
+  .intent-scene.is-domain-two .split-stem {
+    animation: splitStemDraw 0.32s cubic-bezier(0.22, 1, 0.36, 1) 0s forwards;
+  }
+
+  .intent-scene.is-domain-two .split-branch-up {
+    animation: splitBranchDraw 0.48s cubic-bezier(0.22, 1, 0.36, 1) 0.28s forwards;
+  }
+
+  .intent-scene.is-domain-two .split-branch-dn {
+    animation: splitBranchDraw 0.48s cubic-bezier(0.22, 1, 0.36, 1) 0.28s forwards;
+  }
+
+  .intent-scene.is-output .structured-block {
+    transition-delay: 0s;
+  }
+
+  @keyframes splitStemDraw {
+    from { stroke-dashoffset: 160; }
+    to   { stroke-dashoffset: 0; }
+  }
+
+  @keyframes splitBranchDraw {
+    from { stroke-dashoffset: 330; }
+    to   { stroke-dashoffset: 0; }
+  }
+
+  /* ── Input tile dot (top-left indicator) ─────────────── */
+  .s3-dot {
+    position: absolute;
+    top: 10px;
+    left: 11px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.22);
+    transition: background 0.4s ease, box-shadow 0.4s ease;
+    pointer-events: none;
+  }
+
+  /* Dot glows blue when the security tile is highlighted */
+  .intent-scene.is-domain-two .input-2 .s3-dot {
+    background: rgba(120, 175, 255, 1);
+    box-shadow: 0 0 0 3px rgba(120, 175, 255, 0.22), 0 0 10px 4px rgba(120, 175, 255, 0.55);
+    animation: s3DotPulse 1.4s ease-in-out infinite;
+  }
+
+  @keyframes s3DotPulse {
+    0%, 100% { box-shadow: 0 0 0 3px rgba(120, 175, 255, 0.22), 0 0 10px 4px rgba(120, 175, 255, 0.55); }
+    50%       { box-shadow: 0 0 0 5px rgba(120, 175, 255, 0.12), 0 0 18px 6px rgba(120, 175, 255, 0.8); }
   }
 
   .intent-engine {
     position: absolute;
     left: 50%;
     top: 50%;
-    width: 250px;
-    height: 250px;
-    transform: translate(-50%, -50%) scale(0.96);
+    width: 200px;
+    height: 200px;
+    transform: translate(-50%, -50%) scale(0.92);
     border-radius: 50%;
-    border: 1.5px solid rgba(120, 175, 255, 0.18);
-    background: radial-gradient(circle at 50% 50%, rgba(120, 175, 255, 0.16), rgba(120, 175, 255, 0.04));
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    border: 1.5px solid rgba(120, 175, 255, 0.22);
+    background: radial-gradient(circle at 50% 50%, rgba(120, 175, 255, 0.2), rgba(120, 175, 255, 0.05));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 0 40px rgba(120, 175, 255, 0.1);
     display: flex;
     align-items: center;
     justify-content: center;
     text-align: center;
-    color: rgba(255, 255, 255, 0.9);
+    color: rgba(255, 255, 255, 0.92);
     font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
-    font-size: 0.9rem;
+    font-size: 0.82rem;
     letter-spacing: 0.18em;
     text-transform: uppercase;
     opacity: 0;
-    transition: opacity 0.8s ease, transform 0.8s ease, box-shadow 0.8s ease, border-color 0.8s ease;
+    transition: opacity 0.7s ease, transform 0.7s ease, box-shadow 0.7s ease, border-color 0.7s ease;
   }
 
   .intent-engine::before,
@@ -624,29 +724,31 @@
   .structure-panel {
     position: absolute;
     left: 5%;
-    top: 8%;
-    width: min(480px, 92%);
+    top: 6%;
+    width: min(520px, 92%);
     opacity: 0;
     transform: translateY(18px);
-    transition: opacity 0.8s ease, transform 0.8s ease;
+    transition: opacity 0.7s ease, transform 0.7s ease;
   }
 
-  .intent-scene.is-labeling .structure-panel {
+  /* Structure-panel appears after split lines finish drawing (~0.82s after is-domain-two) */
+  .intent-scene.is-domain-two .structure-panel {
     opacity: 1;
     transform: translateY(0);
+    transition-delay: 0.82s;
   }
 
   .label-row {
     display: grid;
-    grid-template-columns: 118px 1fr;
+    grid-template-columns: 128px 1fr;
     align-items: center;
-    gap: 18px;
-    margin-bottom: 20px;
+    gap: 20px;
+    margin-bottom: 22px;
   }
 
   .label-name {
-    color: rgba(255, 255, 255, 0.52);
-    font-size: 0.74rem;
+    color: rgba(255, 255, 255, 0.48);
+    font-size: 0.78rem;
     letter-spacing: 0.16em;
     text-transform: uppercase;
     font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
@@ -662,18 +764,19 @@
     position: absolute;
     top: 50%;
     left: 0;
-    transform: translate(-160px, -50%) scale(0.84);
-    border: 1px solid rgba(120, 175, 255, 0.18);
+    transform: translate(-180px, -50%) scale(0.82);
+    border: 1px solid rgba(120, 175, 255, 0.24);
     border-radius: 999px;
-    padding: 0.58rem 1.1rem;
-    background: rgba(120, 175, 255, 0.07);
+    padding: 0.62rem 1.3rem;
+    background: rgba(120, 175, 255, 0.1);
     color: rgba(230, 242, 255, 0.96);
-    font-size: 0.72rem;
+    font-size: 0.76rem;
     letter-spacing: 0.12em;
     text-transform: uppercase;
     font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
     opacity: 0;
-    transition: opacity 0.72s ease, transform 0.9s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.5s ease;
+    transition: opacity 0.6s ease, transform 0.8s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.5s ease;
+    box-shadow: 0 0 18px rgba(120, 175, 255, 0.12);
   }
 
   .intent-scene.is-structuring .semantic-chip {
@@ -684,16 +787,16 @@
   .structured-block {
     position: absolute;
     right: 5%;
-    bottom: 8%;
-    width: min(440px, 90%);
+    bottom: 6%;
+    width: min(480px, 90%);
     border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 22px;
-    background: linear-gradient(160deg, rgba(18, 22, 28, 0.92), rgba(10, 12, 16, 0.96));
-    padding: 1.7rem 1.8rem 1.6rem;
+    border-radius: 18px;
+    background: linear-gradient(160deg, rgba(18, 22, 30, 0.96), rgba(10, 12, 18, 0.98));
+    padding: 2rem 2.2rem 1.8rem;
     opacity: 0;
     transform: translateY(22px) scale(0.98);
-    transition: opacity 0.8s ease, transform 0.8s ease, border-color 0.6s ease;
-    box-shadow: 0 8px 48px rgba(0, 0, 0, 0.52), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    transition: opacity 0.7s ease, transform 0.7s ease, border-color 0.6s ease;
+    box-shadow: 0 12px 56px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.05);
   }
 
   .intent-scene.is-output .structured-block::before {
@@ -716,31 +819,31 @@
   }
 
   .structured-head {
-    color: rgba(255, 255, 255, 0.44);
-    font-size: 0.66rem;
-    letter-spacing: 0.18em;
+    color: rgba(120, 175, 255, 0.7);
+    font-size: 0.64rem;
+    letter-spacing: 0.22em;
     text-transform: uppercase;
     font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
-    margin-bottom: 1.1rem;
+    margin-bottom: 1.2rem;
   }
 
   .structured-line {
     display: grid;
-    grid-template-columns: 108px 1fr;
-    gap: 16px;
-    margin-bottom: 0.76rem;
+    grid-template-columns: 118px 1fr;
+    gap: 18px;
+    margin-bottom: 0.88rem;
     font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
-    font-size: 0.8rem;
+    font-size: 0.88rem;
     letter-spacing: 0.06em;
   }
 
   .structured-key {
-    color: rgba(255, 255, 255, 0.46);
+    color: rgba(255, 255, 255, 0.4);
     text-transform: lowercase;
   }
 
   .structured-value {
-    color: rgba(232, 242, 255, 0.94);
+    color: rgba(200, 225, 255, 0.96);
     text-transform: lowercase;
   }
 
@@ -760,11 +863,11 @@
   }
 
   .intent-final span {
-    font-size: clamp(2.8rem, 5.8vw, 5.4rem);
+    font-size: clamp(1.8rem, 3.6vw, 3.4rem);
     font-weight: 400;
     color: rgba(255, 255, 255, 0.96);
     letter-spacing: 0.05em;
-    text-shadow: 0 0 48px rgba(120, 175, 255, 0.18);
+    text-shadow: 0 0 40px rgba(120, 175, 255, 0.22);
   }
 
   .audio-hooks {
@@ -1026,28 +1129,29 @@
     animation-delay: 0.7s !important;
   }
 
-  /* Agent nodes (dim by default) */
+  /* Agent nodes — fully visible with solid fill */
   .cmd-agent {
-    fill: rgba(11, 11, 11, 0.96);
-    stroke: rgba(255, 255, 255, 0.14);
-    stroke-width: 1.3;
+    fill: rgb(22, 27, 38);
+    stroke: rgba(255, 255, 255, 0.22);
+    stroke-width: 1.4;
     opacity: 0;
     transition: opacity 0.6s ease, stroke 0.7s ease, fill 0.7s ease, filter 0.7s ease;
   }
 
   .command-scene.agents-dim .cmd-agent {
-    opacity: 0.36;
+    opacity: 1;
   }
 
   .cmd-agent.is-chosen-agent {
+    fill: rgb(22, 27, 38);
     transition: opacity 0.6s ease, stroke 0.6s ease, fill 0.6s ease, filter 0.6s ease;
   }
 
   .command-scene.is-deciding .cmd-agent.is-chosen-agent {
     opacity: 1;
     stroke: rgba(180, 215, 255, 0.9);
-    fill: rgba(120, 175, 255, 0.12);
-    filter: drop-shadow(0 0 18px rgba(120, 175, 255, 0.36));
+    fill: rgb(18, 28, 52);
+    filter: drop-shadow(0 0 18px rgba(120, 175, 255, 0.5));
   }
 
   /* Workflow node blocks */
@@ -1084,7 +1188,7 @@
   }
 
   .command-scene.agents-dim .cmd-label {
-    opacity: 0.5;
+    opacity: 0.85;
   }
 
   .command-scene.is-deciding .cmd-label.is-chosen-label {
@@ -3301,6 +3405,51 @@
     }
   }
 
+  /* ── Bridge tile: Scene 3 highlighted tile floats to Scene 4 ── */
+  .s3-tile-bridge {
+    position: fixed;
+    z-index: 200;
+    width: 260px;
+    padding: 1.2rem 1.4rem 1.1rem 1.9rem;
+    border: 1px solid rgba(120, 175, 255, 0.6);
+    border-radius: 14px;
+    background: linear-gradient(160deg, rgba(28, 36, 52, 0.98), rgba(16, 20, 32, 0.98));
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 0.9rem;
+    letter-spacing: 0.05em;
+    line-height: 1.5;
+    font-family: Consolas, monospace;
+    box-shadow: 0 0 32px rgba(120, 175, 255, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    pointer-events: none;
+    /* start: matches .input-2 is-domain-two position */
+    top: 39%;
+    left: 50%;
+    opacity: 0;
+    transition:
+      top 1.5s cubic-bezier(0.22, 1, 0.36, 1),
+      left 1.5s cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 0.5s ease;
+  }
+  .s3-tile-bridge.is-flying {
+    opacity: 1;
+    /* land: matches cmd-intent-card position */
+    top: 10%;
+    left: 3%;
+  }
+  .s3-tile-bridge.is-settled {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.6s ease;
+  }
+  /* Bridge tile stays visible through Scene 4 — only fades when Scene 5 starts */
+  .s3-tile-bridge.is-flying {
+    opacity: 1;
+    top: 10%;
+    left: 3%;
+  }
+
+  /* (secondary agent styles removed) */
+
   /* ── Playbar ────────────────────────────────────────────── */
   .playbar {
     position: fixed;
@@ -3514,13 +3663,25 @@
       <div class="scan-layer" aria-hidden="true"></div>
 
       <section class="intent-layout" aria-hidden="true">
+
+        <!-- Split lines: horizontal stem from engine → junction, then vertical up + down to tables -->
+        <!-- Junction at x=808 (left of tables at x≈831), so lines never overlap tables -->
+        <svg class="intent-split-svg" id="intentSplitSvg" aria-hidden="true" viewBox="0 0 1340 740" preserveAspectRatio="xMidYMid meet">
+          <!-- Horizontal stem: engine right edge (729) → junction (808) -->
+          <line class="split-stem" x1="729" y1="370" x2="808" y2="370"/>
+          <!-- Up arrow: junction → just above structure-panel top (y≈55) -->
+          <line class="split-branch split-branch-up" x1="808" y1="370" x2="808" y2="55"/>
+          <!-- Down arrow: junction → just below structured-block bottom (y≈685) -->
+          <line class="split-branch split-branch-dn" x1="808" y1="370" x2="808" y2="685"/>
+        </svg>
+
         <div class="intent-zone input-zone">
           <div class="input-cloud">
-            <div class="input-tile input-1" style="--delay: 0.08s;">approve access request</div>
-            <div class="input-tile input-2" style="--delay: 0.16s;">security alert triggered</div>
-            <div class="input-tile input-3" style="--delay: 0.24s;">vendor onboarding</div>
-            <div class="input-tile input-4" style="--delay: 0.32s;">schedule meeting</div>
-            <div class="input-tile input-5" style="--delay: 0.40s;">high priority</div>
+            <div class="input-tile input-1" style="--delay: 0.08s;"><span class="s3-dot"></span>approve access request</div>
+            <div class="input-tile input-2" style="--delay: 0.16s;"><span class="s3-dot"></span>security alert triggered</div>
+            <div class="input-tile input-3" style="--delay: 0.24s;"><span class="s3-dot"></span>vendor onboarding</div>
+            <div class="input-tile input-4" style="--delay: 0.32s;"><span class="s3-dot"></span>schedule meeting</div>
+            <div class="input-tile input-5" style="--delay: 0.40s;"><span class="s3-dot"></span>high priority</div>
           </div>
         </div>
 
@@ -3592,47 +3753,81 @@
       <section class="cmd-canvas" aria-hidden="true">
         <svg class="cmd-svg" viewBox="0 0 1000 680" role="img" aria-label="Niyanta command centre">
           <defs>
-            <!-- Particle motion paths -->
-            <path id="cmdMotionCore"    d="M 500 340 L 680 200"></path>
-            <path id="cmdMotionAgent"   d="M 680 200 L 820 200"></path>
+            <!-- Particle motion paths: core → IT agent → workflow -->
+            <path id="cmdMotionCore"    d="M 500 340 L 626 166"></path>
+            <path id="cmdMotionAgent"   d="M 626 166 L 820 165"></path>
           </defs>
 
-          <!-- Dim connection lines: core → agents (drawn at agents-dim stage) -->
-          <line class="cmd-line" id="cmdLineHR"       x1="500" y1="340" x2="320" y2="200" style="--ld:0.05s;"></line>
-          <line class="cmd-line" id="cmdLineIT"       x1="500" y1="340" x2="680" y2="200" style="--ld:0.10s;"></line>
-          <line class="cmd-line" id="cmdLineFinance"  x1="500" y1="340" x2="680" y2="480" style="--ld:0.15s;"></line>
-          <line class="cmd-line" id="cmdLineSecurity" x1="500" y1="340" x2="320" y2="480" style="--ld:0.20s;"></line>
+          <!-- Dim connection lines: core → all 10 agents -->
+          <line class="cmd-line" id="cmdLineHR"       x1="500" y1="340" x2="500" y2="125"  style="--ld:0.04s;"></line>
+          <line class="cmd-line" id="cmdLineIT"        x1="500" y1="340" x2="626" y2="166"  style="--ld:0.08s;"></line>
+          <line class="cmd-line" id="cmdLineFinance"   x1="500" y1="340" x2="705" y2="274"  style="--ld:0.12s;"></line>
+          <line class="cmd-line" id="cmdLineProcure"   x1="500" y1="340" x2="705" y2="407"  style="--ld:0.16s;"></line>
+          <line class="cmd-line" id="cmdLineComply"    x1="500" y1="340" x2="626" y2="514"  style="--ld:0.20s;"></line>
+          <line class="cmd-line" id="cmdLineWorkflow"  x1="500" y1="340" x2="500" y2="555"  style="--ld:0.24s;"></line>
+          <line class="cmd-line" id="cmdLineMeeting"   x1="500" y1="340" x2="374" y2="514"  style="--ld:0.28s;"></line>
+          <line class="cmd-line" id="cmdLineInvoice"   x1="500" y1="340" x2="296" y2="407"  style="--ld:0.32s;"></line>
+          <line class="cmd-line" id="cmdLineSecurity"  x1="500" y1="340" x2="296" y2="274"  style="--ld:0.36s;"></line>
+          <line class="cmd-line" id="cmdLineDocs"      x1="500" y1="340" x2="374" y2="166"  style="--ld:0.40s;"></line>
 
-          <!-- Chosen path: IT Agent highlighted line (deciding stage) -->
-          <line class="cmd-line is-chosen-line" id="cmdChosenLine" x1="500" y1="340" x2="680" y2="200"></line>
+          <!-- Chosen path: IT Agent highlighted line -->
+          <line class="cmd-line is-chosen-line"    id="cmdChosenLine" x1="500" y1="340" x2="626" y2="166"></line>
 
-          <!-- Workflow connection from IT Agent (handoff stage) -->
-          <line class="cmd-line is-workflow-line" id="cmdWFLine" x1="680" y1="200" x2="840" y2="200"></line>
+          <!-- Workflow connection from IT Agent -->
+          <line class="cmd-line is-workflow-line" id="cmdWFLine" x1="626" y1="166" x2="820" y2="165"></line>
 
           <!-- Outer pulse rings on Niyanta core -->
-          <circle class="cmd-core-ring"       cx="500" cy="340" r="72"></circle>
+          <circle class="cmd-core-ring"        cx="500" cy="340" r="72"></circle>
           <circle class="cmd-core-ring ring-2" cx="500" cy="340" r="96"></circle>
 
           <!-- Niyanta central node -->
           <circle class="cmd-core" id="cmdCore" cx="500" cy="340" r="52"></circle>
           <text class="cmd-core-label" id="cmdCoreLabel" x="500" y="344">NIYANTA</text>
 
-          <!-- Agent nodes -->
-          <circle class="cmd-agent" id="agentHR"       cx="320" cy="200" r="30"></circle>
-          <text   class="cmd-label" id="labelHR"        x="320" y="204">HR</text>
+          <!-- ── 10 agent nodes in a circle (r=215 from centre 500,340) ── -->
+          <!-- 0°  top -->
+          <circle class="cmd-agent" id="agentHR"       cx="500" cy="125" r="28"></circle>
+          <text   class="cmd-label" id="labelHR"        x="500" y="129">HR</text>
 
-          <circle class="cmd-agent is-chosen-agent" id="agentIT" cx="680" cy="200" r="30"></circle>
-          <text   class="cmd-label is-chosen-label"  id="labelIT" x="680" y="204">IT</text>
+          <!-- 36° upper-right — IT (primary chosen) -->
+          <circle class="cmd-agent is-chosen-agent" id="agentIT" cx="626" cy="166" r="30"></circle>
+          <text   class="cmd-label is-chosen-label"  id="labelIT" x="626" y="170">IT</text>
 
-          <circle class="cmd-agent" id="agentFinance"  cx="680" cy="480" r="30"></circle>
-          <text   class="cmd-label" id="labelFinance"   x="680" y="484">Finance</text>
+          <!-- 72° right -->
+          <circle class="cmd-agent" id="agentFinance"  cx="705" cy="274" r="28"></circle>
+          <text   class="cmd-label" id="labelFinance"   x="705" y="278">Finance</text>
 
-          <circle class="cmd-agent" id="agentSecurity" cx="320" cy="480" r="30"></circle>
-          <text   class="cmd-label" id="labelSecurity"  x="320" y="484">Security</text>
+          <!-- 108° lower-right -->
+          <circle class="cmd-agent" id="agentProcure"  cx="705" cy="407" r="28"></circle>
+          <text   class="cmd-label" id="labelProcure"   x="705" y="411">Procure</text>
+
+          <!-- 144° lower-right -->
+          <circle class="cmd-agent" id="agentComply"   cx="626" cy="514" r="28"></circle>
+          <text   class="cmd-label" id="labelComply"    x="626" y="518">Comply</text>
+
+          <!-- 180° bottom -->
+          <circle class="cmd-agent" id="agentWorkflowA" cx="500" cy="555" r="28"></circle>
+          <text   class="cmd-label" id="labelWorkflowA" x="500" y="559">Workflow</text>
+
+          <!-- 216° lower-left -->
+          <circle class="cmd-agent" id="agentMeeting"  cx="374" cy="514" r="28"></circle>
+          <text   class="cmd-label" id="labelMeeting"   x="374" y="518">Meeting</text>
+
+          <!-- 252° left -->
+          <circle class="cmd-agent" id="agentInvoice"  cx="296" cy="407" r="28"></circle>
+          <text   class="cmd-label" id="labelInvoice"   x="296" y="411">Invoice</text>
+
+          <!-- 288° upper-left — Security -->
+          <circle class="cmd-agent" id="agentSecurity" cx="296" cy="274" r="30"></circle>
+          <text   class="cmd-label" id="labelSecurity"  x="296" y="278">Security</text>
+
+          <!-- 324° upper-left -->
+          <circle class="cmd-agent" id="agentDocs"     cx="374" cy="166" r="28"></circle>
+          <text   class="cmd-label" id="labelDocs"      x="374" y="170">DocIntel</text>
 
           <!-- Workflow block (right of IT Agent) -->
-          <rect class="cmd-wf is-chosen-wf" id="cmdWF" x="840" y="170" width="120" height="60"></rect>
-          <text class="cmd-label is-chosen-label" id="labelWF" x="900" y="204">Workflow</text>
+          <rect class="cmd-wf is-chosen-wf" id="cmdWF" x="820" y="140" width="120" height="56"></rect>
+          <text class="cmd-label is-chosen-label" id="labelWF" x="880" y="172">Workflow</text>
 
           <!-- Animated flow particle -->
           <circle class="cmd-particle" id="cmdParticle" cx="500" cy="340" r="5"></circle>
@@ -4176,6 +4371,11 @@
   </div>
 
   <!-- Playbar -->
+  <!-- Bridge tile: floats from Scene 3 highlighted tile position → Scene 4 intent card position -->
+  <div id="s3TileBridge" class="s3-tile-bridge" aria-hidden="true">
+    <span class="s3-dot"></span>security alert triggered
+  </div>
+
   <nav class="playbar" id="playbar" aria-label="Scene navigation">
     <div class="pb-playbtn" id="pbPlayBtn" title="Pause">
       <!-- pause icon by default (animation is playing) -->
@@ -4208,7 +4408,7 @@
     };
 
     var SCENE_TWO_START = 9000;
-    var SCENE_THREE_START = 18200;
+    var SCENE_THREE_START = 13500;
     var SCENE_FOUR_START = 28600;
     var SCENE_FIVE_START = 38000;
     var SCENE_SIX_START   = 50000;
@@ -4221,13 +4421,13 @@
       message: 3000
     };
     var SCENE_THREE_TIMINGS = {
-      engine: 700,
-      pull: 1900,
-      labels: 2900,
-      structure: 3600,
-      output: 4500,
-      domainTwo: 6800,
-      finalText: 8600
+      engine: 400,
+      pull: 1200,
+      labels: 2000,
+      structure: 2700,
+      output: 3400,
+      domainTwo: 5000,
+      finalText: 6400
     };
 
     var SCENE_FOUR_TIMINGS = {
@@ -4499,6 +4699,7 @@
     var didIntentDomainTwo = false;
     var didIntentFinal = false;
     var midSettled = false;
+    var intentFinalAt = 0;
 
     var cmdStartedAt = null;
     var cmdStarted = false;
@@ -4815,6 +5016,9 @@
 
       didIntentOutput = true;
       sceneIntent.classList.add('is-output');
+      structuredBlock.classList.remove('is-morphing');
+      void structuredBlock.offsetWidth;
+      structuredBlock.classList.add('is-morphing');
     }
 
     function morphStructuredOutput(intent, entity, action, priority) {
@@ -4825,9 +5029,11 @@
       outputIntent.textContent = intent;
       outputEntity.textContent = entity;
       outputPriority.textContent = priority;
-      structuredBlock.classList.remove('is-morphing');
-      void structuredBlock.offsetWidth;
-      structuredBlock.classList.add('is-morphing');
+      if (sceneIntent.classList.contains('is-output')) {
+        structuredBlock.classList.remove('is-morphing');
+        void structuredBlock.offsetWidth;
+        structuredBlock.classList.add('is-morphing');
+      }
     }
 
     function activateIntentDomainTwo() {
@@ -4847,6 +5053,13 @@
 
       didIntentFinal = true;
       intentFinal.classList.add('is-visible');
+      intentFinalAt = performance.now();
+      /* Launch the bridge tile that floats from scene 3 to scene 4 */
+      var bridge = document.getElementById('s3TileBridge');
+      if (bridge) {
+        bridge.classList.remove('is-settled');
+        bridge.classList.add('is-flying');
+      }
     }
 
     /* ── Scene 9 helpers ─────────────────────────────────── */
@@ -5555,6 +5768,9 @@
       agentStartedAt = performance.now();
       sceneCommand.classList.add('is-exiting');
       sceneAgent.classList.add('is-visible');
+      /* Now fade bridge tile away */
+      var bridge = document.getElementById('s3TileBridge');
+      if (bridge) { bridge.classList.add('is-settled'); }
     }
 
     function tickAgentScene(timestamp) {
@@ -5630,6 +5846,12 @@
       cmdStartedAt = performance.now();
       sceneIntent.classList.add('is-exiting');
       sceneCommand.classList.add('is-visible');
+      /* Ensure bridge tile is visible (may not have come from Scene 3) */
+      var bridge = document.getElementById('s3TileBridge');
+      if (bridge) {
+        bridge.classList.remove('is-settled');
+        bridge.classList.add('is-flying');
+      }
     }
 
     function activateCmdCore() {
@@ -5799,7 +6021,12 @@
         activateIntentStructure();
       }
 
-      if (elapsed >= SCENE_THREE_TIMINGS.output) {
+      /* Output table appears only after swap phase starts and split lines complete. */
+      var intentOutputEarliest = Math.max(
+        SCENE_THREE_TIMINGS.output,
+        SCENE_THREE_TIMINGS.domainTwo + 820
+      );
+      if (elapsed >= intentOutputEarliest) {
         activateIntentOutput();
       }
 
@@ -5807,7 +6034,12 @@
         activateIntentDomainTwo();
       }
 
-      if (elapsed >= SCENE_THREE_TIMINGS.finalText) {
+      /* Final line appears 1.5s after output table loads. */
+      var intentFinalEarliest = Math.max(
+        SCENE_THREE_TIMINGS.finalText,
+        intentOutputEarliest + 2500
+      );
+      if (elapsed >= intentFinalEarliest) {
         activateIntentFinal();
       }
     }
@@ -5823,7 +6055,10 @@
           revealSceneThree();
         }
 
-        if (!cmdStarted && t >= SCENE_FOUR_START) {
+        /* Scene 4 starts 2s after Scene 3 final text, or at SCENE_FOUR_START fallback */
+        var s4Ready = (intentFinalAt > 0 && (performance.now() - intentFinalAt) >= 2000) ||
+                      t >= SCENE_FOUR_START;
+        if (!cmdStarted && s4Ready) {
           revealSceneFour();
         }
 
@@ -5958,6 +6193,19 @@
           var msg2 = document.getElementById('message');
           if (msg2) { msg2.classList.remove('is-visible'); }
         }
+        /* S3 intent scene classes */
+        if (n <= 3) {
+          sceneIntent.classList.remove(
+            'is-visible', 'engine-active', 'is-pulling', 'is-labeling',
+            'is-structuring', 'is-output', 'is-domain-two', 'is-exiting'
+          );
+          var iF = document.getElementById('intentFinal');
+          if (iF) { iF.classList.remove('is-visible'); }
+          var sb = document.getElementById('structuredBlock');
+          if (sb) { sb.classList.remove('is-morphing', 'is-output'); }
+          var bridgeClean = document.getElementById('s3TileBridge');
+          if (bridgeClean) { bridgeClean.classList.remove('is-flying', 'is-settled'); }
+        }
         /* S8 canvas + tiles */
         if (n <= 8) {
           var s8c = document.getElementById('s8Canvas');
@@ -6017,6 +6265,7 @@
           didIntentEngine = false; didIntentPull = false; didIntentLabels = false;
           didIntentStructure = false; didIntentOutput = false;
           didIntentDomainTwo = false; didIntentFinal = false; midSettled = false;
+          intentFinalAt = 0;
         }
         if (n <= 4) {
           cmdStarted = false; cmdStartedAt = null;
@@ -6066,7 +6315,7 @@
         cleanSceneDom(n);
 
         /* 5. Restore transitions, shift animation clock, reveal target, then unblock */
-        var sceneStartTimes = [0,0,9000,18200,28600,38000,50000,62000,76000,90000,105000];
+        var sceneStartTimes = [0,0,9000,13500,28600,38000,50000,62000,76000,90000,105000];
         requestAnimationFrame(function () {
           /* Shift the clock so effective time = sceneStartTimes[n] right now.
              This prevents future-scene auto-starts for SCENE_(n+1)..SCENE_10. */
