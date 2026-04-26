@@ -2401,8 +2401,8 @@
 
   .s7-canvas {
     position: relative;
-    width: min(92vw, 900px);
-    height: min(86vh, 760px);
+    width: min(95vw, 980px);
+    height: min(89vh, 800px);
     opacity: 0;
     transform: scale(0.96);
     transition: opacity 0.8s ease, transform 0.9s cubic-bezier(0.22,1,0.36,1);
@@ -2433,15 +2433,15 @@
   .s7-node {
     position: absolute;
     transform: translate(-50%, -50%);
-    width: 168px;
-    padding: 16px 18px;
+    width: 188px;
+    padding: 18px 20px;
     border-radius: 22px;
     border: 1.5px solid rgba(255,255,255,0.07);
     background: linear-gradient(160deg, rgba(16,20,16,0.94), rgba(10,12,10,0.97));
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 6px;
+    gap: 7px;
     opacity: 0;
     transition: opacity 0.7s ease, border-color 0.5s ease,
                 box-shadow 0.5s ease, transform 0.8s cubic-bezier(0.22,1,0.36,1);
@@ -2502,7 +2502,7 @@
 
   .s7-node-type {
     font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
-    font-size: 0.54rem;
+    font-size: 0.58rem;
     letter-spacing: 0.18em;
     text-transform: uppercase;
     color: rgba(120,200,130,0.5);
@@ -2514,7 +2514,7 @@
 
   .s7-node-label {
     font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
-    font-size: 0.82rem;
+    font-size: 0.9rem;
     font-weight: 600;
     letter-spacing: 0.08em;
     color: rgba(255,255,255,0.82);
@@ -2598,8 +2598,8 @@
   /* ── Retry Engine panel ── */
   .s7-retry-panel {
     position: absolute;
-    width: 300px;
-    padding: 20px 22px 18px;
+    width: 340px;
+    padding: 22px 24px 20px;
     border: 1.2px solid rgba(100,160,255,0.32);
     border-radius: 20px;
     background: linear-gradient(160deg, rgba(12,18,30,0.95), rgba(8,12,22,0.97));
@@ -2617,7 +2617,7 @@
 
   .s7-retry-title {
     font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
-    font-size: 0.66rem;
+    font-size: 0.72rem;
     letter-spacing: 0.22em;
     text-transform: uppercase;
     color: rgba(146,194,255,0.88);
@@ -2672,7 +2672,7 @@
 
   .s7-step-text {
     font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
-    font-size: 0.68rem;
+    font-size: 0.74rem;
     letter-spacing: 0.08em;
     color: rgba(216,232,255,0.9);
   }
@@ -2685,7 +2685,7 @@
     border-radius: 12px;
     background: rgba(14,24,14,0.7);
     font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
-    font-size: 0.7rem;
+    font-size: 0.75rem;
     letter-spacing: 0.1em;
     color: rgba(198,246,198,0.96);
     opacity: 0;
@@ -2740,11 +2740,13 @@
     animation: messageReveal 1s cubic-bezier(0.22,1,0.36,1) forwards;
   }
   .s7-final span {
-    font-size: clamp(2.2rem, 4.6vw, 4.4rem);
+    font-size: clamp(1.7rem, 3.5vw, 3.2rem);
     font-weight: 400;
     color: rgba(255,255,255,0.94);
     letter-spacing: 0.04em;
     text-shadow: 0 0 40px rgba(120,200,130,0.16);
+    white-space: nowrap;
+    line-height: 1.1;
   }
 
   /* ── Node status icon (check/x) ── */
@@ -2806,7 +2808,7 @@
     top: 52px;
     left: 50%;
     transform: translateX(-50%);
-    width: min(86vw, 760px);
+    width: min(90vw, 840px);
     padding: 0.56rem 0.82rem;
     border: 1px solid rgba(255, 120, 110, 0.28);
     border-radius: 10px;
@@ -2821,7 +2823,7 @@
 
   .s7-context-text {
     font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
-    font-size: 0.58rem;
+    font-size: 0.62rem;
     letter-spacing: 0.08em;
     color: rgba(255, 202, 196, 0.92);
     text-transform: uppercase;
@@ -2846,8 +2848,8 @@
 
   .s8-canvas {
     position: relative;
-    width: min(94vw, 960px);
-    height: min(88vh, 780px);
+    width: min(97vw, 1060px);
+    height: min(90vh, 840px);
     opacity: 0;
     transform: scale(0.96);
     transition: opacity 0.8s ease, transform 0.9s cubic-bezier(0.22,1,0.36,1);
@@ -2899,8 +2901,8 @@
   }
 
   .s8-source-tile {
-    width: 268px;
-    padding: 22px 24px 18px;
+    width: 298px;
+    padding: 24px 26px 20px;
     border: 1px solid rgba(255,255,255,0.09);
     border-radius: 18px;
     background: linear-gradient(160deg, rgba(18,22,34,0.95), rgba(10,12,22,0.98));
@@ -2919,8 +2921,8 @@
   }
   /* Compact state when slid to left column */
   .s8-sources.is-sliding .s8-source-tile {
-    width: 160px;
-    padding: 11px 13px 9px;
+    width: 176px;
+    padding: 12px 14px 10px;
     border-color: rgba(255,255,255,0.06);
     box-shadow: 0 2px 14px rgba(0,0,0,0.3);
     transition-delay: 0s;
@@ -2932,7 +2934,7 @@
 
   .s8-tile-title {
     font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
-    font-size: 0.63rem;
+    font-size: 0.69rem;
     letter-spacing: 0.18em;
     text-transform: uppercase;
     color: rgba(160,190,255,0.72);
@@ -2946,7 +2948,7 @@
     transition: font-size 0.7s ease, margin-bottom 0.7s ease;
   }
   .s8-sources.is-sliding .s8-tile-title {
-    font-size: 0.53rem;
+    font-size: 0.58rem;
     margin-bottom: 8px;
   }
   .s8-tile-title::before {
@@ -2983,7 +2985,7 @@
 
   .s8-log-text {
     font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
-    font-size: 0.67rem;
+    font-size: 0.73rem;
     letter-spacing: 0.07em;
     color: rgba(200,215,255,0.74);
     white-space: nowrap;
@@ -2991,15 +2993,15 @@
     text-overflow: ellipsis;
     transition: font-size 0.7s ease;
   }
-  .s8-sources.is-sliding .s8-log-text { font-size: 0.57rem; }
+  .s8-sources.is-sliding .s8-log-text { font-size: 0.62rem; }
 
   /* ── Phase 2: Unified timeline (right side after tiles slide left) ── */
   .s8-timeline {
     position: absolute;
-    left: 218px;
+    left: 236px;
     top: 9%;
     transform: translateX(28px);
-    width: min(500px, calc(100% - 240px));
+    width: min(560px, calc(100% - 258px));
     display: flex;
     flex-direction: column;
     gap: 0;
@@ -3015,7 +3017,7 @@
 
   .s8-tl-title {
     font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
-    font-size: 0.5rem;
+    font-size: 0.56rem;
     letter-spacing: 0.22em;
     text-transform: uppercase;
     color: rgba(160,190,255,0.5);
@@ -3091,7 +3093,7 @@
 
   .s8-tl-time {
     font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
-    font-size: 0.58rem;
+    font-size: 0.62rem;
     letter-spacing: 0.08em;
     color: rgba(255,255,255,0.24);
     flex-shrink: 0;
@@ -3105,7 +3107,7 @@
 
   .s8-tl-event {
     font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
-    font-size: 0.68rem;
+    font-size: 0.74rem;
     letter-spacing: 0.08em;
     color: rgba(220,230,255,0.78);
     line-height: 1.5;
@@ -3116,7 +3118,7 @@
 
   .s8-tl-reason {
     font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
-    font-size: 0.58rem;
+    font-size: 0.62rem;
     letter-spacing: 0.08em;
     color: rgba(160,190,255,0.58);
     margin-top: 2px;
@@ -3129,7 +3131,7 @@
   .s8-insights {
     position: absolute;
     bottom: 7%;
-    left: 218px;
+    left: 236px;
     transform: none;
     display: flex;
     gap: 16px;
@@ -3142,7 +3144,7 @@
   .s8-insights.is-visible { opacity: 1; }
 
   .s8-insight-chip {
-    padding: 0.52rem 1.1rem;
+    padding: 0.6rem 1.2rem;
     border: 1px solid rgba(255,255,255,0.08);
     border-radius: 999px;
     background: rgba(16,20,30,0.88);
@@ -3162,14 +3164,14 @@
 
   .s8-chip-label {
     font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
-    font-size: 0.58rem;
+    font-size: 0.62rem;
     letter-spacing: 0.1em;
     text-transform: uppercase;
     color: rgba(255,255,255,0.3);
   }
   .s8-chip-value {
     font-family: Consolas, "SFMono-Regular", "Liberation Mono", monospace;
-    font-size: 0.72rem;
+    font-size: 0.78rem;
     letter-spacing: 0.08em;
     color: rgba(220,235,255,0.9);
   }
@@ -3191,11 +3193,13 @@
     animation: messageReveal 1.2s cubic-bezier(0.22,1,0.36,1) forwards;
   }
   .s8-final span {
-    font-size: clamp(2.2rem, 4.6vw, 4.4rem);
+    font-size: clamp(1.75rem, 3.4vw, 3.25rem);
     font-weight: 400;
     color: rgba(255,255,255,0.94);
     letter-spacing: 0.04em;
     text-shadow: 0 0 40px rgba(160,190,255,0.18);
+    white-space: nowrap;
+    line-height: 1.1;
   }
   /* ── end Scene 8 ────────────────────────────────────────── */
 
