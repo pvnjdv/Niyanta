@@ -3235,45 +3235,57 @@
 
   /* ── Flow row ── */
   .s9-flow {
-    display: flex;
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    grid-template-rows: auto 24px auto;
     align-items: center;
-    justify-content: center;
-    gap: 0;
-    flex-wrap: nowrap;
-    min-height: 300px;
+    justify-items: center;
+    column-gap: 14px;
+    row-gap: 12px;
+    width: min(97vw, 1320px);
   }
 
-  /* ── Zigzag vertical offsets per tile ── */
-  #s9T1 { --zy: 48px; }
-  #s9T2 { --zy: -48px; }
-  #s9T3 { --zy: 48px; }
-  #s9T4 { --zy: -48px; }
-  #s9T5 { --zy: 48px; }
-  /* T0 and T6 stay at centre (--zy defaults to 0) */
+  #s9T0 { grid-column: 1; grid-row: 1; }
+  #s9C0 { grid-column: 2; grid-row: 1; }
+  #s9T1 { grid-column: 3; grid-row: 1; }
+  #s9C1 { grid-column: 4; grid-row: 1; }
+  #s9T2 { grid-column: 5; grid-row: 1; }
+  #s9C2 { grid-column: 6; grid-row: 1; }
+  #s9T3 { grid-column: 7; grid-row: 1; }
+
+  #s9C3 { grid-column: 1 / 8; grid-row: 2; }
+
+  #s9T4 { grid-column: 1; grid-row: 3; }
+  #s9C4 { grid-column: 2; grid-row: 3; }
+  #s9T5 { grid-column: 3; grid-row: 3; }
+  #s9C5 { grid-column: 4; grid-row: 3; }
+  #s9T6 { grid-column: 5; grid-row: 3; }
 
   /* ── Connector line ── */
   .s9-connector {
-    --cy: 0px;
-    --cr: 0deg;
     position: relative;
-    width: 54px;
+    width: 72px;
     height: 2px;
-    background: rgba(100,140,200,0.18);
+    background: rgba(110,160,220,0.34);
     flex-shrink: 0;
     overflow: visible;
     align-self: center;
     opacity: 0;
-    transform: translateY(var(--cy)) rotate(var(--cr)) scaleX(0.82);
+    transform: scaleX(0.86);
     transform-origin: left center;
     transition: opacity 0.45s ease, transform 0.5s cubic-bezier(0.22,1,0.36,1);
   }
   .s9-connector.is-visible {
-    opacity: 0.72;
-    transform: translateY(var(--cy)) rotate(var(--cr)) scaleX(1);
+    opacity: 1;
+    transform: scaleX(1);
   }
-  #s9C0, #s9C2, #s9C4 { --cy: 22px; --cr: 24deg; }
-  #s9C1, #s9C3, #s9C5 { --cy: -22px; --cr: -24deg; }
-  /* Arrowhead pointing right */
+  #s9C3 {
+    width: calc(100% - 24px);
+    justify-self: stretch;
+    margin: 0 12px;
+  }
+
+  /* Simple arrowhead */
   .s9-connector::before {
     content: '';
     position: absolute;
@@ -3286,8 +3298,20 @@
     border-bottom: 5px solid transparent;
     transition: border-left-color 0.4s ease;
   }
+
+  /* Row switch connector goes right -> left */
+  #s9C3::before {
+    right: auto;
+    left: -9px;
+    border-left: 0;
+    border-right: 9px solid rgba(100,140,200,0.35);
+    transition: border-right-color 0.4s ease;
+  }
   .s9-connector.is-pulsing::before {
     border-left-color: rgba(140,200,255,0.9);
+  }
+  #s9C3.is-pulsing::before {
+    border-right-color: rgba(140,200,255,0.9);
   }
   .s9-connector::after {
     content: '';
@@ -3303,47 +3327,53 @@
   .s9-connector.is-pulsing::after {
     animation: s9ConnPulse 0.65s cubic-bezier(0.4, 0, 0.6, 1) forwards;
   }
+  #s9C3::after {
+    transform: translateX(110%);
+  }
+  #s9C3.is-pulsing::after {
+    animation: s9ConnPulseReverse 0.72s cubic-bezier(0.4, 0, 0.6, 1) forwards;
+  }
   @keyframes s9ConnPulse {
     0%   { transform: translateX(-110%); opacity: 1; }
     100% { transform: translateX(110%);  opacity: 0.3; }
+  }
+  @keyframes s9ConnPulseReverse {
+    0%   { transform: translateX(110%); opacity: 1; }
+    100% { transform: translateX(-110%); opacity: 0.3; }
   }
 
   /* ── Tile base ── */
   .s9-tile {
     position: relative;
-    width: 148px;
-    min-height: 110px;
+    width: 186px;
+    min-height: 136px;
     border-radius: 14px;
-    border: 1px solid rgba(100,140,200,0.1);
-    background: rgba(18,28,46,0.45);
-    padding: 18px 15px 16px;
+    border: 1px solid rgba(120,170,235,0.32);
+    background: rgba(18,28,46,0.78);
+    padding: 20px 18px 18px;
     display: flex;
     flex-direction: column;
     gap: 6px;
     opacity: 0;
-    transform: translateX(-22px) translateY(calc(var(--zy, 0px) + 22px)) scale(0.9);
+    transform: translateY(14px) scale(0.96);
     transition: opacity 0.45s ease, transform 0.5s cubic-bezier(0.22,1,0.36,1),
                 border-color 0.38s ease, box-shadow 0.38s ease,
                 background 0.38s ease;
     flex-shrink: 0;
   }
-  .s9-tile.is-waiting {
-    opacity: 0.18;
-    transform: translateX(0) translateY(var(--zy, 0px)) scale(1);
-  }
   .s9-tile.is-active {
     opacity: 1;
-    transform: translateX(0) translateY(var(--zy, 0px)) scale(1.05);
+    transform: translateY(0) scale(1.02);
     border-color: rgba(100,160,255,0.55);
     box-shadow: 0 0 24px rgba(100,160,255,0.22), inset 0 0 18px rgba(100,160,255,0.06);
     background: rgba(22,40,72,0.9);
   }
   .s9-tile.is-done {
-    opacity: 0.48;
-    transform: translateX(0) translateY(var(--zy, 0px)) scale(1);
-    border-color: rgba(100,140,200,0.18);
-    box-shadow: none;
-    background: rgba(18,28,46,0.42);
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    border-color: rgba(130,180,240,0.46);
+    box-shadow: 0 0 18px rgba(100,160,255,0.16), inset 0 0 12px rgba(100,160,255,0.05);
+    background: rgba(20,36,66,0.88);
   }
 
   /* ── Failure tile ── */
@@ -3351,7 +3381,7 @@
     border-color: rgba(255,90,90,0.55);
     box-shadow: 0 0 22px rgba(255,80,80,0.2), inset 0 0 14px rgba(255,80,80,0.06);
     background: rgba(48,14,14,0.9);
-    transform: translateX(0) translateY(var(--zy, 0px)) scale(1.05);
+    transform: translateY(0) scale(1.02);
   }
   .s9-tile.is-failure.is-done {
     border-color: rgba(255,80,80,0.2);
@@ -3362,7 +3392,7 @@
     border-color: rgba(255,180,60,0.55);
     box-shadow: 0 0 22px rgba(255,180,60,0.2), inset 0 0 14px rgba(255,180,60,0.06);
     background: rgba(46,30,8,0.9);
-    transform: translateX(0) translateY(var(--zy, 0px)) scale(1.05);
+    transform: translateY(0) scale(1.02);
   }
   .s9-tile.is-recovery.is-done {
     border-color: rgba(255,180,60,0.22);
@@ -3373,7 +3403,7 @@
     border-color: rgba(60,210,120,0.6);
     box-shadow: 0 0 30px rgba(60,210,120,0.24), inset 0 0 18px rgba(60,210,120,0.08);
     background: rgba(12,38,26,0.94);
-    transform: translateX(0) translateY(var(--zy, 0px)) scale(1.06);
+    transform: translateY(0) scale(1.03);
   }
   .s9-tile.is-output.is-done {
     border-color: rgba(60,210,120,0.35);
@@ -3439,13 +3469,33 @@
 
   /* ── Responsive ── */
   @media (max-width: 1080px) {
-    .s9-tile      { width: 120px; min-height: 96px; }
-    .s9-connector { width: 28px; }
+    .s9-flow      { column-gap: 10px; }
+    .s9-tile      { width: 152px; min-height: 120px; }
+    .s9-connector { width: 46px; }
   }
   @media (max-width: 780px) {
-    .s9-tile      { width: 96px; min-height: 84px; padding: 12px 9px; font-size: 0.52rem; }
-    .s9-connector { width: 14px; }
-    .s9-line      { font-size: 0.56rem; }
+    .s9-flow {
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      grid-template-rows: auto auto auto auto auto;
+      row-gap: 10px;
+      column-gap: 8px;
+    }
+    #s9T0 { grid-column: 1; grid-row: 1; }
+    #s9C0 { grid-column: 2; grid-row: 1; }
+    #s9T1 { grid-column: 3; grid-row: 1; }
+    #s9C1 { grid-column: 4; grid-row: 1; }
+    #s9T2 { grid-column: 5; grid-row: 1; }
+    #s9C2 { grid-column: 5; grid-row: 2; width: 2px; height: 18px; justify-self: center; }
+    #s9T3 { grid-column: 5; grid-row: 3; }
+    #s9C3 { grid-column: 1 / 6; grid-row: 4; width: calc(100% - 10px); margin: 0 5px; }
+    #s9T4 { grid-column: 1; grid-row: 5; }
+    #s9C4 { grid-column: 2; grid-row: 5; }
+    #s9T5 { grid-column: 3; grid-row: 5; }
+    #s9C5 { grid-column: 4; grid-row: 5; }
+    #s9T6 { grid-column: 5; grid-row: 5; }
+    .s9-tile      { width: 124px; min-height: 104px; padding: 14px 12px; }
+    .s9-connector { width: 28px; }
+    .s9-line      { font-size: 0.6rem; }
   }
   /* ── end Scene 9 ────────────────────────────────────────── */
 
@@ -4830,6 +4880,7 @@
             <div class="s9-tile-label">Output</div>
             <div class="s9-line">status: approved</div>
             <div class="s9-line">time: 12s</div>
+            <div class="s9-line">audit id: A-1029</div>
           </div>
 
         </div><!-- end .s9-flow -->
@@ -5055,47 +5106,40 @@
 
     /*
      * Scene 9 phases (elapsed ms from s9StartedAt):
-     *   300  – canvas + tiles fade in (waiting state)
-     *   700  – T0 INPUT activates
-     *  1050  – C0 pulses, T0 → done
-     *  1400  – T1 NIYANTA activates
-     *  1750  – C1 pulses, T1 → done
-     *  2100  – T2 AGENT activates
-     *  2450  – C2 pulses, T2 → done
-     *  2800  – T3 WORKFLOW activates
-     *  3150  – C3 pulses, T3 → done
-     *  3500  – T4 FAILURE activates
-     *  4000  – C4 pulses (longer pause — recovery builds up)
-     *  4350  – T5 RECOVERY activates
-     *  4700  – C5 pulses, T5 → done
-     *  5000  – T6 OUTPUT activates
-     *  6200  – all remaining done
-     *  7800  – final overlay text
+     *   300  – canvas appears
+     *   900  – T0 INPUT appears
+     *  1650  – C0 pulses, T0 complete
+     *  2300  – T1 NIYANTA appears
+     *  3000  – C1 pulses, T1 complete
+     *  3650  – T2 AGENT appears
+     *  4350  – C2 pulses, T2 complete
+     *  5000  – T3 WORKFLOW appears
+     *  5800  – C3 pulses (switch to row 2), T3 complete
+     *  6500  – T4 FAILURE appears
+     *  7200  – C4 pulses, T4 complete
+     *  7850  – T5 RECOVERY appears
+     *  8550  – C5 pulses, T5 complete
+     *  9200  – T6 OUTPUT appears
+     * 10400  – all done (all tiles remain visible)
+     * 11800  – final overlay text
      */
     var SCENE_NINE_TIMINGS = {
       waiting:   300,
-      show0:     700,
-      show1:    1250,
-      show2:    1800,
-      show3:    2350,
-      show4:    2900,
-      show5:    3450,
-      show6:    4000,
-      t0:       4500,
-      c0:       5150,
-      t1:       5750,
-      c1:       6450,
-      t2:       7050,
-      c2:       7750,
-      t3:       8350,
-      c3:       9050,
-      t4:       9700,
-      c4:      10600,
-      t5:      11300,
-      c5:      12100,
-      t6:      12850,
-      allDone: 14200,
-      final:   16000
+      t0:        900,
+      c0:       1650,
+      t1:       2300,
+      c1:       3000,
+      t2:       3650,
+      c2:       4350,
+      t3:       5000,
+      c3:       5800,
+      t4:       6500,
+      c4:       7200,
+      t5:       7850,
+      c5:       8550,
+      t6:       9200,
+      allDone: 10400,
+      final:   11800
     };
 
     /*
@@ -5576,33 +5620,22 @@
     function s9Phase(key) { return !!s9Phases[key]; }
     function s9Mark(key)  { s9Phases[key] = true; }
 
-    function s9RevealWaiting(id) {
-      var el = document.getElementById(id);
-      if (!el) { return; }
-      el.classList.add('is-waiting');
-    }
-
-    function s9ShowConnector(id) {
-      var el = document.getElementById(id);
-      if (!el) { return; }
-      el.classList.add('is-visible');
-    }
-
     function s9Activate(id) {
       var el = document.getElementById(id);
       if (!el) { return; }
-      el.classList.remove('is-waiting', 'is-done');
+      el.classList.remove('is-done');
       el.classList.add('is-active');
     }
     function s9Done(id) {
       var el = document.getElementById(id);
       if (!el) { return; }
-      el.classList.remove('is-waiting', 'is-active');
+      el.classList.remove('is-active');
       el.classList.add('is-done');
     }
     function s9Pulse(id) {
       var el = document.getElementById(id);
       if (!el) { return; }
+      el.classList.add('is-visible');
       el.classList.remove('is-pulsing');
       /* force reflow so animation restarts */
       void el.offsetWidth;
@@ -5627,15 +5660,6 @@
         s9Mark('waiting');
         document.getElementById('s9Canvas').classList.add('is-visible');
       }
-
-      /* Tiles reveal left -> right in waiting state */
-      if (!s9Phase('show0') && el >= T.show0) { s9Mark('show0'); s9RevealWaiting('s9T0'); }
-      if (!s9Phase('show1') && el >= T.show1) { s9Mark('show1'); s9ShowConnector('s9C0'); s9RevealWaiting('s9T1'); }
-      if (!s9Phase('show2') && el >= T.show2) { s9Mark('show2'); s9ShowConnector('s9C1'); s9RevealWaiting('s9T2'); }
-      if (!s9Phase('show3') && el >= T.show3) { s9Mark('show3'); s9ShowConnector('s9C2'); s9RevealWaiting('s9T3'); }
-      if (!s9Phase('show4') && el >= T.show4) { s9Mark('show4'); s9ShowConnector('s9C3'); s9RevealWaiting('s9T4'); }
-      if (!s9Phase('show5') && el >= T.show5) { s9Mark('show5'); s9ShowConnector('s9C4'); s9RevealWaiting('s9T5'); }
-      if (!s9Phase('show6') && el >= T.show6) { s9Mark('show6'); s9ShowConnector('s9C5'); s9RevealWaiting('s9T6'); }
 
       /* INPUT tile */
       if (!s9Phase('t0') && el >= T.t0)  { s9Mark('t0');  s9Activate('s9T0'); }
