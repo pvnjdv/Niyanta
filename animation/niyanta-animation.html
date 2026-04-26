@@ -3154,6 +3154,212 @@
   }
   /* ── end Scene 9 ────────────────────────────────────────── */
 
+  /* ── Scene 10: closing statement ─────────────────────────── */
+  .s10-scene {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #0B0B0B;
+    overflow: hidden;
+  }
+
+  /* Subtle animated dot-grid background */
+  .s10-grid {
+    position: absolute;
+    inset: 0;
+    background-image:
+      radial-gradient(circle, rgba(100,140,220,0.13) 1px, transparent 1px);
+    background-size: 48px 48px;
+    opacity: 0;
+    transition: opacity 2.2s ease;
+    pointer-events: none;
+  }
+  .s10-scene.is-visible .s10-grid { opacity: 1; }
+
+  /* Vignette overlay so grid fades to black at edges */
+  .s10-vignette {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(
+      ellipse 78% 70% at 50% 50%,
+      transparent 0%,
+      rgba(11,11,11,0.72) 65%,
+      rgba(11,11,11,0.97) 100%
+    );
+    pointer-events: none;
+  }
+
+  /* Central copy block */
+  .s10-copy {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    text-align: center;
+    z-index: 2;
+    padding: 0 32px;
+  }
+
+  /* Each line wrapper — controls reveal timing */
+  .s10-line {
+    overflow: hidden;
+    display: block;
+  }
+
+  /* Inner span slides up into view */
+  .s10-line span {
+    display: block;
+    transform: translateY(100%);
+    opacity: 0;
+    transition: transform 0.72s cubic-bezier(0.16,1,0.3,1),
+                opacity   0.72s ease;
+  }
+  .s10-line.is-visible span {
+    transform: translateY(0);
+    opacity: 1;
+  }
+
+  /* Line 1 — problem statement */
+  .s10-l1 {
+    margin-bottom: 38px;
+  }
+  .s10-l1 span {
+    font-family: 'Inter', 'Segoe UI', sans-serif;
+    font-size: clamp(0.82rem, 1.6vw, 1.08rem);
+    font-weight: 300;
+    letter-spacing: 0.06em;
+    color: rgba(200,215,240,0.46);
+  }
+
+  /* Line 2 — transformation */
+  .s10-l2 {
+    margin-bottom: 42px;
+  }
+  .s10-l2 span {
+    font-family: 'Inter', 'Segoe UI', sans-serif;
+    font-size: clamp(1.05rem, 2.1vw, 1.52rem);
+    font-weight: 300;
+    letter-spacing: 0.02em;
+    color: rgba(220,232,255,0.82);
+    line-height: 1.45;
+  }
+
+  /* Line 3 — capabilities, word-by-word */
+  .s10-l3 {
+    display: flex;
+    gap: 0;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-bottom: 42px;
+    overflow: visible; /* each word has its own overflow:hidden wrapper */
+  }
+  .s10-word {
+    overflow: hidden;
+    display: inline-block;
+    margin: 0 2px;
+  }
+  .s10-word span {
+    display: inline-block;
+    transform: translateY(105%);
+    opacity: 0;
+    font-family: 'Consolas', monospace;
+    font-size: clamp(0.9rem, 1.85vw, 1.32rem);
+    font-weight: 400;
+    letter-spacing: 0.06em;
+    color: rgba(140,185,255,0.9);
+    text-transform: uppercase;
+    transition: transform 0.55s cubic-bezier(0.16,1,0.3,1),
+                opacity   0.55s ease;
+  }
+  .s10-word.is-visible span {
+    transform: translateY(0);
+    opacity: 1;
+  }
+
+  /* Line 4 — trust */
+  .s10-l4 {
+    margin-bottom: 68px;
+  }
+  .s10-l4 span {
+    font-family: 'Inter', 'Segoe UI', sans-serif;
+    font-size: clamp(0.82rem, 1.6vw, 1.08rem);
+    font-weight: 300;
+    letter-spacing: 0.08em;
+    color: rgba(180,210,255,0.5);
+  }
+
+  /* Divider line before final title */
+  .s10-divider {
+    width: 0;
+    height: 1px;
+    background: rgba(100,150,220,0.3);
+    margin: 0 auto 52px;
+    transition: width 0.9s cubic-bezier(0.4,0,0.2,1);
+  }
+  .s10-divider.is-visible { width: min(200px, 28vw); }
+
+  /* Final title block */
+  .s10-title {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 0;
+  }
+  .s10-title-name {
+    overflow: hidden;
+    display: block;
+  }
+  .s10-title-name span {
+    display: block;
+    font-family: 'Inter', 'Segoe UI', sans-serif;
+    font-size: clamp(3.4rem, 8.5vw, 7.2rem);
+    font-weight: 200;
+    letter-spacing: 0.18em;
+    text-indent: 0.18em;
+    color: rgba(255,255,255,0);
+    transform: translateY(0);
+    opacity: 0;
+    transition: opacity 0s;
+  }
+  .s10-title-name.is-visible span {
+    animation: s10NameReveal 1.6s cubic-bezier(0.16,1,0.3,1) forwards;
+  }
+  @keyframes s10NameReveal {
+    0%   { opacity: 0; letter-spacing: 0.32em; text-indent: 0.32em;
+           text-shadow: none; }
+    40%  { opacity: 0.7; }
+    100% { opacity: 1;
+           letter-spacing: 0.18em; text-indent: 0.18em;
+           color: rgba(255,255,255,1);
+           text-shadow: 0 0 80px rgba(160,200,255,0.22),
+                        0 0 160px rgba(100,160,255,0.1); }
+  }
+
+  .s10-title-sub {
+    overflow: hidden;
+    display: block;
+  }
+  .s10-title-sub span {
+    display: block;
+    font-family: 'Inter', 'Segoe UI', sans-serif;
+    font-size: clamp(0.68rem, 1.4vw, 0.95rem);
+    font-weight: 300;
+    letter-spacing: 0.35em;
+    text-indent: 0.35em;
+    text-transform: uppercase;
+    color: rgba(140,175,230,0);
+    transform: translateY(20px);
+    transition: transform 1.0s cubic-bezier(0.16,1,0.3,1) 0.4s,
+                color   1.0s ease 0.4s;
+  }
+  .s10-title-sub.is-visible span {
+    transform: translateY(0);
+    color: rgba(140,175,230,0.65);
+  }
+  /* ── end Scene 10 ───────────────────────────────────────── */
+
   @media (max-width: 980px) {
     .logs {
       top: 32px;
@@ -3894,6 +4100,52 @@
       </div>
     </section>
 
+    <!-- Scene 10: Closing statement -->
+    <section class="scene s10-scene" id="sceneS10" aria-label="Closing positioning statement">
+      <div class="s10-grid" aria-hidden="true"></div>
+      <div class="s10-vignette" aria-hidden="true"></div>
+
+      <div class="s10-copy" aria-hidden="true">
+
+        <!-- Line 1: problem -->
+        <div class="s10-line s10-l1" id="s10L1">
+          <span>Enterprise workflows were fragmented</span>
+        </div>
+
+        <!-- Line 2: transformation -->
+        <div class="s10-line s10-l2" id="s10L2">
+          <span>Niyanta takes ownership and runs them autonomously</span>
+        </div>
+
+        <!-- Line 3: capabilities, word-by-word -->
+        <div class="s10-l3" id="s10L3">
+          <div class="s10-word" id="s10W0"><span>Understands.</span></div>
+          <div class="s10-word" id="s10W1"><span>&nbsp;Decides.</span></div>
+          <div class="s10-word" id="s10W2"><span>&nbsp;Executes.</span></div>
+          <div class="s10-word" id="s10W3"><span>&nbsp;Recovers.</span></div>
+        </div>
+
+        <!-- Line 4: trust -->
+        <div class="s10-line s10-l4" id="s10L4">
+          <span>With full visibility and control</span>
+        </div>
+
+        <!-- Divider -->
+        <div class="s10-divider" id="s10Divider"></div>
+
+        <!-- Final title -->
+        <div class="s10-title">
+          <div class="s10-title-name" id="s10TitleName">
+            <span>Niyanta</span>
+          </div>
+          <div class="s10-title-sub" id="s10TitleSub">
+            <span>Autonomous Enterprise Operations</span>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
     <!-- Scene 9: End-to-end system replay -->
     <section class="scene s9-scene" id="sceneS9" aria-label="End-to-end system replay animation">
       <div class="scan-layer" aria-hidden="true"></div>
@@ -4001,6 +4253,7 @@
     var SCENE_SEVEN_START = 62000;
     var SCENE_EIGHT_START = 76000;
     var SCENE_NINE_START  = 90000;
+    var SCENE_TEN_START   = 105000;
 
     var SCENE_TWO_TIMINGS = {
       split: 2000,
@@ -4180,6 +4433,31 @@
       final:   7800
     };
 
+    /*
+     * Scene 10 phases (elapsed ms from s10StartedAt):
+     *   500  – grid background visible
+     *  1200  – line 1 (problem)
+     *  3600  – line 2 (transformation)
+     *  6200  – capabilities words (W0 at 6200, W1+350, W2+700, W3+1050)
+     *  8600  – line 4 (trust)
+     * 10400  – divider line
+     * 11200  – title name
+     * 12400  – title subtitle
+     */
+    var SCENE_TEN_TIMINGS = {
+      grid:   500,
+      l1:    1200,
+      l2:    3600,
+      w0:    6200,
+      w1:    6550,
+      w2:    6900,
+      w3:    7250,
+      l4:    8600,
+      divider:10400,
+      name:  11200,
+      sub:   12400
+    };
+
     var LOG_LINES = [
       { text: '[INIT] Booting Niyanta Core...', speed: 62 },
       { text: '[LOAD] Agents initialized', speed: 70 },
@@ -4195,6 +4473,7 @@
     var sceneS7      = document.getElementById('sceneS7');
     var sceneS8      = document.getElementById('sceneS8');
     var sceneS9      = document.getElementById('sceneS9');
+    var sceneS10     = document.getElementById('sceneS10');
     var logs = document.getElementById('logs');
     var network = document.getElementById('network');
     var titleBlock = document.getElementById('titleBlock');
@@ -4294,6 +4573,10 @@
     var s9StartedAt   = null;
     var s9Started     = false;
     var s9Phases      = {};
+
+    var s10StartedAt  = null;
+    var s10Started    = false;
+    var s10Phases     = {};
     var topStalled = false;
     var bottomLooping = false;
 
@@ -4673,6 +4956,79 @@
       }
     }
     /* ── end Scene 9 ──────────────────────────────────── */
+
+    /* ── Scene 10 helpers ─────────────────────────────────── */
+
+    function s10Phase(key) { return !!s10Phases[key]; }
+    function s10Mark(key)  { s10Phases[key] = true; }
+
+    function s10Reveal(id) {
+      var el = document.getElementById(id);
+      if (el) { el.classList.add('is-visible'); }
+    }
+
+    function revealSceneTen() {
+      if (s10Started) { return; }
+      s10Started   = true;
+      s10StartedAt = performance.now();
+      sceneS9.classList.add('is-exiting');
+      sceneS10.classList.add('is-visible');
+    }
+
+    function tickS10Scene(timestamp) {
+      if (!s10Started) { return; }
+      var el = timestamp - s10StartedAt;
+      var T  = SCENE_TEN_TIMINGS;
+
+      /* Grid background */
+      if (!s10Phase('grid') && el >= T.grid) {
+        s10Mark('grid');
+        /* grid is shown via .s10-scene.is-visible .s10-grid — already active */
+      }
+
+      /* Problem line */
+      if (!s10Phase('l1') && el >= T.l1) {
+        s10Mark('l1');
+        s10Reveal('s10L1');
+      }
+
+      /* Transformation line */
+      if (!s10Phase('l2') && el >= T.l2) {
+        s10Mark('l2');
+        s10Reveal('s10L2');
+      }
+
+      /* Capability words, one by one */
+      if (!s10Phase('w0') && el >= T.w0) { s10Mark('w0'); s10Reveal('s10W0'); }
+      if (!s10Phase('w1') && el >= T.w1) { s10Mark('w1'); s10Reveal('s10W1'); }
+      if (!s10Phase('w2') && el >= T.w2) { s10Mark('w2'); s10Reveal('s10W2'); }
+      if (!s10Phase('w3') && el >= T.w3) { s10Mark('w3'); s10Reveal('s10W3'); }
+
+      /* Trust line */
+      if (!s10Phase('l4') && el >= T.l4) {
+        s10Mark('l4');
+        s10Reveal('s10L4');
+      }
+
+      /* Divider line */
+      if (!s10Phase('divider') && el >= T.divider) {
+        s10Mark('divider');
+        s10Reveal('s10Divider');
+      }
+
+      /* NIYANTA title */
+      if (!s10Phase('name') && el >= T.name) {
+        s10Mark('name');
+        s10Reveal('s10TitleName');
+      }
+
+      /* Subtitle */
+      if (!s10Phase('sub') && el >= T.sub) {
+        s10Mark('sub');
+        s10Reveal('s10TitleSub');
+      }
+    }
+    /* ── end Scene 10 ─────────────────────────────────────── */
 
     /* ── Scene 8 helpers ─────────────────────────────────── */
 
@@ -5510,6 +5866,10 @@
         revealSceneNine();
       }
 
+      if (!s10Started && timestamp >= SCENE_TEN_START) {
+        revealSceneTen();
+      }
+
       if (splitStarted) {
         tickSplitScene(timestamp);
       }
@@ -5540,6 +5900,10 @@
 
       if (s9Started) {
         tickS9Scene(timestamp);
+      }
+
+      if (s10Started) {
+        tickS10Scene(timestamp);
       }
 
       window.requestAnimationFrame(render);
@@ -5575,6 +5939,9 @@
       },
       showSceneNineNow: function () {
         revealSceneNine();
+      },
+      showSceneTenNow: function () {
+        revealSceneTen();
       },
       branchIndex: branchIndex
     };
