@@ -3446,6 +3446,81 @@
       transition: none !important;
     }
   }
+
+  /* ── Playbar ────────────────────────────────────────────── */
+  .playbar {
+    position: fixed;
+    bottom: 28px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(10,12,18,0.78);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(100,140,200,0.2);
+    border-radius: 40px;
+    padding: 10px 20px;
+    z-index: 9999;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.6s ease 1s;
+    user-select: none;
+  }
+  .playbar.is-ready {
+    opacity: 1;
+    pointer-events: all;
+  }
+
+  .pb-dot {
+    position: relative;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: rgba(100,140,200,0.22);
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.22s ease, transform 0.22s ease, box-shadow 0.22s ease;
+  }
+  .pb-dot:hover {
+    background: rgba(140,185,255,0.6);
+    transform: scale(1.35);
+  }
+  .pb-dot.is-active {
+    background: rgba(130,180,255,0.95);
+    box-shadow: 0 0 9px rgba(110,170,255,0.55);
+    transform: scale(1.25);
+  }
+  /* Tooltip */
+  .pb-dot::after {
+    content: attr(data-label);
+    position: absolute;
+    bottom: calc(100% + 10px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(14,20,36,0.97);
+    color: rgba(190,215,255,0.92);
+    font-family: 'Consolas', monospace;
+    font-size: 0.5rem;
+    letter-spacing: 0.12em;
+    white-space: nowrap;
+    padding: 5px 9px;
+    border-radius: 5px;
+    border: 1px solid rgba(100,140,200,0.22);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.18s ease;
+  }
+  .pb-dot:hover::after { opacity: 1; }
+
+  .pb-sep {
+    width: 1px;
+    height: 14px;
+    background: rgba(100,140,200,0.2);
+    flex-shrink: 0;
+  }
+  /* ── end Playbar ─────────────────────────────────────────── */
 </style>
 </head>
 <body>
@@ -4233,6 +4308,21 @@
     <audio id="audioPulse" preload="none"></audio>
   </div>
 
+  <!-- Playbar -->
+  <nav class="playbar" id="playbar" aria-label="Scene navigation">
+    <div class="pb-dot" data-scene="1"  data-label="01 · Boot"></div>
+    <div class="pb-dot" data-scene="2"  data-label="02 · Fragment"></div>
+    <div class="pb-dot" data-scene="3"  data-label="03 · Intent"></div>
+    <div class="pb-dot" data-scene="4"  data-label="04 · Command"></div>
+    <div class="pb-dot" data-scene="5"  data-label="05 · Agent"></div>
+    <div class="pb-sep"></div>
+    <div class="pb-dot" data-scene="6"  data-label="06 · Workflow"></div>
+    <div class="pb-dot" data-scene="7"  data-label="07 · Recovery"></div>
+    <div class="pb-dot" data-scene="8"  data-label="08 · Audit"></div>
+    <div class="pb-dot" data-scene="9"  data-label="09 · Replay"></div>
+    <div class="pb-dot" data-scene="10" data-label="10 · Closing"></div>
+  </nav>
+
 <script>
   (function () {
     'use strict';
@@ -4577,6 +4667,11 @@
     var s10StartedAt  = null;
     var s10Started    = false;
     var s10Phases     = {};
+
+    /* ── Playbar state ── */
+    var pbCurrentScene = 1;
+    var pbDots = [].slice.call(document.querySelectorAll('.pb-dot'));
+
     var topStalled = false;
     var bottomLooping = false;
 
@@ -5906,11 +6001,194 @@
         tickS10Scene(timestamp);
       }
 
+      /* ── Playbar active dot sync ── */
+      var _active = s10Started ? 10 : s9Started ? 9 : s8Started ? 8 :
+                    s7Started  ?  7 : wfeStarted ? 6 : agentStarted ? 5 :
+                    cmdStarted ?  4 : intentStarted ? 3 : splitStarted ? 2 : 1;
+      if (_active !== pbCurrentScene) {
+        pbCurrentScene = _active;
+        pbDots.forEach(function (d) {
+          var n = parseInt(d.getAttribute('data-scene'), 10);
+          d.classList.toggle('is-active', n === pbCurrentScene);
+        });
+      }
+
       window.requestAnimationFrame(render);
     }
 
     runBootSequence();
     window.requestAnimationFrame(render);
+
+    /* ── Playbar: show after boot, wire clicks ── */
+    (function () {
+      var bar = document.getElementById('playbar');
+
+      /* All scene elements in order */
+      var sceneEls = [sceneBoot, sceneSplit, sceneIntent, sceneCommand,
+                      sceneAgent, sceneWFE, sceneS7, sceneS8, sceneS9, sceneS10];
+
+      /* Scene names for __niyantaPreview lookup */
+      var sceneRevealFns = [
+        null,                /* 0 – unused */
+        null,                /* 1 – boot: special */
+        revealSceneTwo,
+        revealSceneThree,
+        revealSceneFour,
+        revealSceneFive,
+        revealSceneSix,
+        revealSceneSeven,
+        revealSceneEight,
+        revealSceneNine,
+        revealSceneTen
+      ];
+
+      /* Quickly hide an element without CSS transition flash */
+      function quickHide(el) {
+        if (!el) { return; }
+        el.style.transition = 'none';
+        el.style.opacity    = '0';
+        el.classList.remove('is-visible', 'is-exiting');
+      }
+      function restoreTransition(el) {
+        if (!el) { return; }
+        el.style.transition = '';
+        el.style.opacity    = '';
+      }
+
+      /* Remove stale sub-element classes so scenes replay cleanly */
+      function cleanSceneDom(n) {
+        /* S2 individual flags (reset via state, DOM self-heals) */
+        /* S8 canvas + tiles */
+        if (n <= 8) {
+          var s8c = document.getElementById('s8Canvas');
+          if (s8c) { s8c.classList.remove('is-visible'); }
+          ['s8TileA','s8TileB','s8TileC'].forEach(function (id) {
+            var t = document.getElementById(id);
+            if (t) { t.classList.remove('is-visible','is-merging'); }
+          });
+          ['s8A0','s8A1','s8B0','s8B1','s8C0','s8C1'].forEach(function (id) {
+            var e = document.getElementById(id);
+            if (e) { e.classList.remove('is-visible'); }
+          });
+          var s8tl = document.getElementById('s8Timeline');
+          if (s8tl) { s8tl.classList.remove('is-visible'); }
+          ['s8R0','s8R1','s8R2','s8R3','s8R4','s8R5'].forEach(function (id) {
+            var r = document.getElementById(id);
+            if (r) { r.classList.remove('is-visible'); }
+          });
+          var s8ins = document.getElementById('s8Insights');
+          if (s8ins) { s8ins.classList.remove('is-visible'); }
+          if (sceneS8) { sceneS8.classList.remove('s8-final-visible'); }
+        }
+        /* S9 canvas + tiles */
+        if (n <= 9) {
+          var s9c = document.getElementById('s9Canvas');
+          if (s9c) { s9c.classList.remove('is-visible'); }
+          ['s9T0','s9T1','s9T2','s9T3','s9T4','s9T5','s9T6'].forEach(function (id) {
+            var t = document.getElementById(id);
+            if (t) { t.classList.remove('is-active','is-done','is-waiting'); }
+          });
+          ['s9C0','s9C1','s9C2','s9C3','s9C4','s9C5'].forEach(function (id) {
+            var c = document.getElementById(id);
+            if (c) { c.classList.remove('is-pulsing'); }
+          });
+          if (sceneS9) { sceneS9.classList.remove('s9-final-visible'); }
+        }
+        /* S10 lines + title */
+        if (n <= 10) {
+          ['s10L1','s10L2','s10L4','s10W0','s10W1','s10W2','s10W3',
+           's10Divider','s10TitleName','s10TitleSub'].forEach(function (id) {
+            var e = document.getElementById(id);
+            if (e) { e.classList.remove('is-visible'); }
+          });
+        }
+      }
+
+      /* Full state reset for scenes >= n */
+      function resetStateFrom(n) {
+        if (n <= 2) {
+          splitStarted = false; splitStartedAt = null;
+          didSplit = false; didTopFail = false; didLoop = false; didMessage = false;
+          topStalled = false; bottomLooping = false;
+        }
+        if (n <= 3) {
+          intentStarted = false; intentStartedAt = null;
+          didIntentEngine = false; didIntentPull = false; didIntentLabels = false;
+          didIntentStructure = false; didIntentOutput = false;
+          didIntentDomainTwo = false; didIntentFinal = false; midSettled = false;
+        }
+        if (n <= 4) {
+          cmdStarted = false; cmdStartedAt = null;
+          didCmdCore = false; didCmdInput = false; didCmdAgents = false;
+          didCmdDecide = false; didCmdHandoff = false; didCmdFinal = false;
+          cmdParticlePhase = 0; cmdParticleStart = 0;
+        }
+        if (n <= 5) {
+          agentStarted = false; agentStartedAt = null;
+          didA5Rail = false; didA5Agent = false; didA5Req = false;
+          didA5ReqTravel = false; didA5Caps = false;
+          didA5Cap = [false, false, false];
+          didA5Res = false; didA5ResTravel = false;
+          didA5Fwd = false; didA5Final = false;
+        }
+        if (n <= 6) {
+          wfeStarted = false; wfeStartedAt = null;
+          wfeDotPhase = 0; wfeDotStart = 0; wfePhases = {};
+        }
+        if (n <= 7) {
+          s7Started = false; s7StartedAt = null; s7Phases = {};
+          s7RecDotPhase = 0; s7RecDotStart = 0;
+          s7ResDotPhase = 0; s7ResDotStart = 0;
+        }
+        if (n <= 8)  { s8Started  = false; s8StartedAt  = null; s8Phases  = {}; }
+        if (n <= 9)  { s9Started  = false; s9StartedAt  = null; s9Phases  = {}; }
+        if (n <= 10) { s10Started = false; s10StartedAt = null; s10Phases = {}; }
+      }
+
+      function jumpToScene(n) {
+        n = parseInt(n, 10);
+        if (n < 1 || n > 10) { return; }
+
+        /* Scene 1: just reload */
+        if (n === 1) { window.location.reload(); return; }
+
+        /* 1. Instantly hide all scenes */
+        sceneEls.forEach(function (el) { quickHide(el); });
+
+        /* 2. Reset state for all scenes from n onward,
+              and also from n-1 onward so target scene is clean */
+        resetStateFrom(n);
+
+        /* 3. Clean stale DOM classes */
+        cleanSceneDom(n);
+
+        /* 4. Restore transitions on all scenes, then reveal target */
+        requestAnimationFrame(function () {
+          sceneEls.forEach(function (el) { restoreTransition(el); });
+          var fn = sceneRevealFns[n];
+          if (fn) { fn(); }
+        });
+      }
+
+      /* Wire up dot clicks */
+      pbDots.forEach(function (dot) {
+        dot.addEventListener('click', function () {
+          jumpToScene(dot.getAttribute('data-scene'));
+        });
+      });
+
+      /* Show playbar after a short delay */
+      setTimeout(function () {
+        bar.classList.add('is-ready');
+        /* Mark scene 1 active initially */
+        pbDots.forEach(function (d) {
+          d.classList.toggle('is-active', d.getAttribute('data-scene') === '1');
+        });
+      }, 1200);
+
+      /* Expose jumpToScene globally for console use */
+      window.__niyantaJump = jumpToScene;
+    }());
 
     window.__niyantaPreview = {
       replay: function () {
@@ -5947,5 +6225,6 @@
     };
   })();
 </script>
+
 </body>
 </html>
