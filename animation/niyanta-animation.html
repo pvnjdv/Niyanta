@@ -3253,6 +3253,8 @@
 
   /* ── Connector line ── */
   .s9-connector {
+    --cy: 0px;
+    --cr: 0deg;
     position: relative;
     width: 54px;
     height: 2px;
@@ -3260,9 +3262,17 @@
     flex-shrink: 0;
     overflow: visible;
     align-self: center;
+    opacity: 0;
+    transform: translateY(var(--cy)) rotate(var(--cr)) scaleX(0.82);
+    transform-origin: left center;
+    transition: opacity 0.45s ease, transform 0.5s cubic-bezier(0.22,1,0.36,1);
   }
-  #s9C0, #s9C2, #s9C4 { transform: translateY(22px) rotate(24deg); }
-  #s9C1, #s9C3, #s9C5 { transform: translateY(-22px) rotate(-24deg); }
+  .s9-connector.is-visible {
+    opacity: 0.72;
+    transform: translateY(var(--cy)) rotate(var(--cr)) scaleX(1);
+  }
+  #s9C0, #s9C2, #s9C4 { --cy: 22px; --cr: 24deg; }
+  #s9C1, #s9C3, #s9C5 { --cy: -22px; --cr: -24deg; }
   /* Arrowhead pointing right */
   .s9-connector::before {
     content: '';
@@ -5063,22 +5073,29 @@
      *  7800  – final overlay text
      */
     var SCENE_NINE_TIMINGS = {
-      waiting:  400,
-      t0:       900,
-      c0:      1500,
-      t1:      2000,
-      c1:      2650,
-      t2:      3200,
-      c2:      3850,
-      t3:      4400,
-      c3:      5050,
-      t4:      5650,
-      c4:      6500,
-      t5:      7100,
-      c5:      7800,
-      t6:      8500,
-      allDone: 9800,
-      final:  11800
+      waiting:   300,
+      show0:     700,
+      show1:    1250,
+      show2:    1800,
+      show3:    2350,
+      show4:    2900,
+      show5:    3450,
+      show6:    4000,
+      t0:       4500,
+      c0:       5150,
+      t1:       5750,
+      c1:       6450,
+      t2:       7050,
+      c2:       7750,
+      t3:       8350,
+      c3:       9050,
+      t4:       9700,
+      c4:      10600,
+      t5:      11300,
+      c5:      12100,
+      t6:      12850,
+      allDone: 14200,
+      final:   16000
     };
 
     /*
@@ -5559,6 +5576,18 @@
     function s9Phase(key) { return !!s9Phases[key]; }
     function s9Mark(key)  { s9Phases[key] = true; }
 
+    function s9RevealWaiting(id) {
+      var el = document.getElementById(id);
+      if (!el) { return; }
+      el.classList.add('is-waiting');
+    }
+
+    function s9ShowConnector(id) {
+      var el = document.getElementById(id);
+      if (!el) { return; }
+      el.classList.add('is-visible');
+    }
+
     function s9Activate(id) {
       var el = document.getElementById(id);
       if (!el) { return; }
@@ -5593,15 +5622,20 @@
       var el = timestamp - s9StartedAt;
       var T  = SCENE_NINE_TIMINGS;
 
-      /* Canvas + tiles appear in waiting (dim) state */
+      /* Canvas appears first */
       if (!s9Phase('waiting') && el >= T.waiting) {
         s9Mark('waiting');
         document.getElementById('s9Canvas').classList.add('is-visible');
-        ['s9T0','s9T1','s9T2','s9T3','s9T4','s9T5','s9T6'].forEach(function(id) {
-          var t = document.getElementById(id);
-          if (t) { t.classList.add('is-waiting'); }
-        });
       }
+
+      /* Tiles reveal left -> right in waiting state */
+      if (!s9Phase('show0') && el >= T.show0) { s9Mark('show0'); s9RevealWaiting('s9T0'); }
+      if (!s9Phase('show1') && el >= T.show1) { s9Mark('show1'); s9ShowConnector('s9C0'); s9RevealWaiting('s9T1'); }
+      if (!s9Phase('show2') && el >= T.show2) { s9Mark('show2'); s9ShowConnector('s9C1'); s9RevealWaiting('s9T2'); }
+      if (!s9Phase('show3') && el >= T.show3) { s9Mark('show3'); s9ShowConnector('s9C2'); s9RevealWaiting('s9T3'); }
+      if (!s9Phase('show4') && el >= T.show4) { s9Mark('show4'); s9ShowConnector('s9C3'); s9RevealWaiting('s9T4'); }
+      if (!s9Phase('show5') && el >= T.show5) { s9Mark('show5'); s9ShowConnector('s9C4'); s9RevealWaiting('s9T5'); }
+      if (!s9Phase('show6') && el >= T.show6) { s9Mark('show6'); s9ShowConnector('s9C5'); s9RevealWaiting('s9T6'); }
 
       /* INPUT tile */
       if (!s9Phase('t0') && el >= T.t0)  { s9Mark('t0');  s9Activate('s9T0'); }
@@ -6810,7 +6844,7 @@
           });
           ['s9C0','s9C1','s9C2','s9C3','s9C4','s9C5'].forEach(function (id) {
             var c = document.getElementById(id);
-            if (c) { c.classList.remove('is-pulsing'); }
+            if (c) { c.classList.remove('is-pulsing', 'is-visible'); }
           });
           if (sceneS9) { sceneS9.classList.remove('s9-final-visible'); }
         }
