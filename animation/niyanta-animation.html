@@ -4924,7 +4924,7 @@
     </section>
 
   <div class="audio-hooks" aria-hidden="true">
-    <audio id="audioAmbient" preload="none" loop></audio>
+    <audio id="audioAmbient" preload="auto"></audio>
     <audio id="audioTyping" preload="none"></audio>
     <audio id="audioPulse" preload="none"></audio>
   </div>
@@ -5085,21 +5085,21 @@
      * 12800  – Final text
      */
     var SCENE_SEVEN_TIMINGS = {
-      active:      400,
-      fail:       1600,
-      detect:     3200,
-      cause:      4200,
-      panel:      5200,
-      step0:      5900,
-      step1:      7000,
-      step2:      8100,
-      result:     9200,
-      reintegrate:10200,
-      resume:    11200,
-      final:     12800
+      active:      360,
+      fail:       1440,
+      detect:     2880,
+      cause:      3780,
+      panel:      4680,
+      step0:      5310,
+      step1:      6300,
+      step2:      7290,
+      result:     8280,
+      reintegrate:9180,
+      resume:    10080,
+      final:     11520
     };
-    var S7_RECOVERY_DUR = 800; /* ms for recovery dot travel */
-    var S7_RESUME_DUR   = 900;
+    var S7_RECOVERY_DUR = 720; /* ms for recovery dot travel */
+    var S7_RESUME_DUR   = 810;
 
     /*
      * Scene 8 phases (elapsed ms from s8StartedAt):
@@ -5118,19 +5118,19 @@
      *  9800  – final text
      */
     var SCENE_EIGHT_TIMINGS = {
-      tiles:    300,
-      logsA:    700,
-      logsB:   1100,
-      logsC:   1500,
-      merge:   2800,
-      tl0:     3200,
-      tl1:     3700,
-      tl2:     4200,
-      tl3:     4700,
-      tl4:     5200,
-      tl5:     5800,
-      insights:7200,
-      final:   9800
+      tiles:    270,
+      logsA:    630,
+      logsB:    990,
+      logsC:   1350,
+      merge:   2520,
+      tl0:     2880,
+      tl1:     3330,
+      tl2:     3780,
+      tl3:     4230,
+      tl4:     4680,
+      tl5:     5220,
+      insights:6480,
+      final:   8820
     };
 
     /*
@@ -5387,11 +5387,17 @@
     }
 
     function safePlay(audio) {
-      if (!audio || !audio.getAttribute('src')) {
+      if (!audio) {
+        return;
+      }
+
+      var hasSource = !!(audio.currentSrc || audio.src || audio.getAttribute('src'));
+      if (!hasSource) {
         return;
       }
 
       try {
+        audio.load();
         audio.currentTime = 0;
         var playPromise = audio.play();
         if (playPromise && typeof playPromise.catch === 'function') {
@@ -6775,6 +6781,67 @@
       if (!pbPaused) { window.__niyantaRAF = window.requestAnimationFrame(render); }
     }
 
+    function createAudioStartButton(onStart) {
+      var existing = document.getElementById('audioStartBtn');
+      if (existing) {
+        return existing;
+      }
+
+      var button = document.createElement('button');
+      button.id = 'audioStartBtn';
+      button.type = 'button';
+      button.textContent = 'Start Audio';
+      button.style.position = 'fixed';
+      button.style.right = '20px';
+      button.style.bottom = '20px';
+      button.style.zIndex = '9999';
+      button.style.padding = '10px 14px';
+      button.style.border = '1px solid rgba(120,175,255,0.5)';
+      button.style.borderRadius = '10px';
+      button.style.background = 'rgba(11,11,11,0.8)';
+      button.style.color = '#ffffff';
+      button.style.fontSize = '13px';
+      button.style.cursor = 'pointer';
+      button.style.backdropFilter = 'blur(4px)';
+      button.addEventListener('click', function () {
+        onStart();
+        if (button.parentNode) {
+          button.parentNode.removeChild(button);
+        }
+      });
+      document.body.appendChild(button);
+      return button;
+    }
+
+    function startPresentationAudio() {
+      window.niyantaAudio.setSources({
+        ambient: encodeURI('./shubh_tts_audio (1).mp3')
+      });
+
+      if (audioElements.ambient) {
+        audioElements.ambient.loop = false;
+        audioElements.ambient.preload = 'auto';
+      }
+
+      window.niyantaAudio.startAmbient();
+      var audioStartButton = createAudioStartButton(function () {
+        window.niyantaAudio.startAmbient();
+      });
+
+      var resumeOnGesture = function () {
+        window.niyantaAudio.startAmbient();
+        if (audioStartButton && audioStartButton.parentNode) {
+          audioStartButton.parentNode.removeChild(audioStartButton);
+        }
+      };
+
+      document.addEventListener('click', resumeOnGesture, { once: true });
+      document.addEventListener('pointerdown', resumeOnGesture, { once: true });
+      document.addEventListener('touchstart', resumeOnGesture, { once: true });
+      document.addEventListener('keydown', resumeOnGesture, { once: true });
+    }
+
+    startPresentationAudio();
     runBootSequence();
     window.__niyantaRAF = window.requestAnimationFrame(render);
 
