@@ -2170,7 +2170,7 @@
     box-shadow: 0 0 10px rgba(160,200,120,0.9), 0 0 28px rgba(160,200,120,0.55), 0 0 48px rgba(160,200,120,0.2);
     pointer-events: none;
     opacity: 0;
-    z-index: 12;
+    z-index: 3;
     transform: translate(-50%, -50%);
     transition: opacity 0.3s ease;
     will-change: top, left;
@@ -3652,6 +3652,33 @@
   .s4-bk { color: rgba(255, 255, 255, 0.4); }
   .s4-bv { color: rgba(220, 238, 255, 0.92); }
 
+  /* ── Scene 6/7 top-left workflow tile ─────────────────── */
+  .s6-wf-bridge {
+    position: fixed;
+    z-index: 200;
+    top: 8%;
+    left: 3%;
+    width: 230px;
+    padding: 0.9rem 1.3rem 0.85rem;
+    border: 1px solid rgba(160, 200, 120, 0.65);
+    border-radius: 14px;
+    background: linear-gradient(160deg, rgba(26, 34, 20, 0.98), rgba(14, 18, 12, 0.98));
+    box-shadow: 0 0 34px rgba(160, 200, 120, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    pointer-events: none;
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 0.45s ease, transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .s6-wf-bridge.is-visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  .s6-wf-bridge.is-settled {
+    opacity: 0;
+    transform: translateY(0);
+    transition: opacity 0.5s ease;
+  }
+
   /* ── Playbar ────────────────────────────────────────────── */
   .playbar {
     position: fixed;
@@ -4597,6 +4624,13 @@
     <div class="s4-bridge-row"><span class="s4-bk">action</span><span class="s4-bv">validate access</span></div>
   </div>
 
+  <!-- S6/S7 workflow tile -->
+  <div id="s6WorkflowBridge" class="s6-wf-bridge" aria-hidden="true">
+    <div class="s4-bridge-head">Workflow</div>
+    <div class="s4-bridge-row"><span class="s4-bk">stage</span><span class="s4-bv">workflow engine</span></div>
+    <div class="s4-bridge-row"><span class="s4-bk">status</span><span class="s4-bv">executing</span></div>
+  </div>
+
   <nav class="playbar" id="playbar" aria-label="Scene navigation">
     <div class="pb-playbtn" id="pbPlayBtn" title="Pause">
       <!-- pause icon by default (animation is playing) -->
@@ -5463,6 +5497,8 @@
       s8StartedAt = performance.now();
       sceneS7.classList.add('is-exiting');
       sceneS8.classList.add('is-visible');
+      var s6wf = document.getElementById('s6WorkflowBridge');
+      if (s6wf) { s6wf.classList.add('is-settled'); }
     }
 
     function tickS8Scene(timestamp) {
@@ -5576,6 +5612,8 @@
       s7StartedAt = performance.now();
       sceneWFE.classList.add('is-exiting');
       sceneS7.classList.add('is-visible');
+      var s6wf = document.getElementById('s6WorkflowBridge');
+      if (s6wf) { s6wf.classList.remove('is-settled'); s6wf.classList.add('is-visible'); }
     }
 
     function tickS7Scene(timestamp) {
@@ -5825,13 +5863,16 @@
       wfeStartedAt = performance.now();
       sceneAgent.classList.add('is-exiting');
       sceneWFE.classList.add('is-visible');
-      /* Settle all bridge tiles when Scene 6 starts */
+      /* Hide Scene 5 bridge tiles when Scene 6 starts */
       var bridge6 = document.getElementById('s3TileBridge');
       if (bridge6) { bridge6.classList.add('is-settled'); }
       var s4tile = document.getElementById('s4TileBridge');
       if (s4tile) { s4tile.classList.add('is-settled'); }
       var s4wf = document.getElementById('s4WorkflowBridge');
       if (s4wf) { s4wf.classList.add('is-settled'); }
+      /* Show dedicated workflow tile for Scene 6/7 */
+      var s6wf = document.getElementById('s6WorkflowBridge');
+      if (s6wf) { s6wf.classList.remove('is-settled'); s6wf.classList.add('is-visible'); }
     }
 
     function tickWFEScene(timestamp) {
@@ -6468,6 +6509,10 @@
         if (n <= 5) {
           var s4wfClean = document.getElementById('s4WorkflowBridge');
           if (s4wfClean) { s4wfClean.classList.remove('is-visible', 'is-settled'); }
+        }
+        if (n <= 7) {
+          var s6wfClean = document.getElementById('s6WorkflowBridge');
+          if (s6wfClean) { s6wfClean.classList.remove('is-visible', 'is-settled'); }
         }
         /* S8 canvas + tiles */
         if (n <= 8) {
