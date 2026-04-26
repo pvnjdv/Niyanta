@@ -1090,7 +1090,7 @@
 
   /* Central Niyanta node */
   .cmd-core {
-    fill: rgba(11, 11, 11, 0.96);
+    fill: rgb(11, 11, 18);
     stroke: rgba(120, 175, 255, 0.3);
     stroke-width: 1.8;
     opacity: 0;
@@ -1104,7 +1104,7 @@
 
   .command-scene.is-deciding .cmd-core {
     stroke: rgba(120, 175, 255, 0.7);
-    fill: rgba(120, 175, 255, 0.07);
+    fill: rgb(24, 34, 56);
     animation: cmdCorePulse 1.6s ease-in-out 2;
   }
 
@@ -1212,25 +1212,25 @@
   }
 
   /* Incoming intent card (top-left) */
+  /* Incoming intent card (top-left, stacked below bridge tile) */
   .cmd-intent-card {
     position: absolute;
-    top: 10%;
+    top: calc(8% + 90px);
     left: 3%;
     width: 230px;
     padding: 1.2rem 1.4rem 1.1rem;
-    border: 1px solid rgba(255, 255, 255, 0.07);
-    border-radius: 18px;
-    background: linear-gradient(160deg, rgba(18, 22, 28, 0.9), rgba(10, 12, 16, 0.94));
-    box-shadow: 0 8px 36px rgba(0, 0, 0, 0.48);
+    border: 1px solid rgba(120, 175, 255, 0.6);
+    border-radius: 14px;
+    background: linear-gradient(160deg, rgba(28, 36, 52, 0.98), rgba(16, 20, 32, 0.98));
+    box-shadow: 0 0 32px rgba(120, 175, 255, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.08);
     opacity: 0;
     transform: translateX(-24px);
-    transition: opacity 0.8s ease, transform 0.9s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.6s ease;
+    transition: opacity 0.8s ease, transform 0.9s cubic-bezier(0.22, 1, 0.36, 1);
   }
 
   .command-scene.input-visible .cmd-intent-card {
     opacity: 1;
     transform: translateX(0);
-    border-color: rgba(120, 175, 255, 0.16);
   }
 
   .cmd-card-head {
@@ -1263,10 +1263,9 @@
   /* "Routing to" status badge (below intent card) */
   .cmd-routing {
     position: absolute;
-    top: 10%;
+    top: calc(8% + 290px);
     left: 3%;
     width: 230px;
-    margin-top: calc(10% + 170px);
     display: flex;
     align-items: center;
     gap: 10px;
@@ -3432,8 +3431,8 @@
   }
   .s3-tile-bridge.is-flying {
     opacity: 1;
-    /* land: matches cmd-intent-card position */
-    top: 10%;
+    /* land: top-left above intent card */
+    top: 8%;
     left: 3%;
   }
   .s3-tile-bridge.is-settled {
@@ -3442,13 +3441,57 @@
     transition: opacity 0.6s ease;
   }
   /* Bridge tile stays visible through Scene 4 — only fades when Scene 5 starts */
-  .s3-tile-bridge.is-flying {
-    opacity: 1;
-    top: 10%;
-    left: 3%;
-  }
-
   /* (secondary agent styles removed) */
+
+  /* ── Playbar ────────────────────────────────────────────── */
+  /* ── Scene 4/5 persistent bridge tiles ─────────────────── */
+  .s4-tile-bridge,
+  .s4-wf-bridge {
+    position: fixed;
+    z-index: 200;
+    width: 230px;
+    padding: 0.9rem 1.3rem 0.85rem;
+    border: 1px solid rgba(120, 175, 255, 0.6);
+    border-radius: 14px;
+    background: linear-gradient(160deg, rgba(28, 36, 52, 0.98), rgba(16, 20, 32, 0.98));
+    box-shadow: 0 0 32px rgba(120, 175, 255, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    pointer-events: none;
+    opacity: 0;
+    transform: translateY(12px);
+    transition: opacity 0.5s ease, transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .s4-tile-bridge { top: calc(8% + 90px); left: 3%; }
+  .s4-wf-bridge   { top: calc(8% + 280px); left: 3%; }
+  .s4-tile-bridge.is-visible,
+  .s4-wf-bridge.is-visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  .s4-tile-bridge.is-settled,
+  .s4-wf-bridge.is-settled {
+    opacity: 0;
+    transform: translateY(0);
+    transition: opacity 0.6s ease;
+  }
+  .s4-bridge-head {
+    color: rgba(255, 255, 255, 0.38);
+    font-size: 0.54rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    font-family: Consolas, "SFMono-Regular", monospace;
+    margin-bottom: 0.72rem;
+  }
+  .s4-bridge-row {
+    display: grid;
+    grid-template-columns: 68px 1fr;
+    gap: 8px;
+    margin-bottom: 0.4rem;
+    font-family: Consolas, "SFMono-Regular", monospace;
+    font-size: 0.68rem;
+    letter-spacing: 0.05em;
+  }
+  .s4-bk { color: rgba(255, 255, 255, 0.4); }
+  .s4-bv { color: rgba(220, 238, 255, 0.92); }
 
   /* ── Playbar ────────────────────────────────────────────── */
   .playbar {
@@ -3751,83 +3794,78 @@
 
       <!-- Main SVG composition -->
       <section class="cmd-canvas" aria-hidden="true">
-        <svg class="cmd-svg" viewBox="0 0 1000 680" role="img" aria-label="Niyanta command centre">
+        <svg class="cmd-svg" viewBox="0 0 1000 700" role="img" aria-label="Niyanta command centre">
           <defs>
             <!-- Particle motion paths: core → IT agent → workflow -->
-            <path id="cmdMotionCore"    d="M 500 340 L 626 166"></path>
-            <path id="cmdMotionAgent"   d="M 626 166 L 820 165"></path>
+            <path id="cmdMotionCore"    d="M 500 340 L 641 172"></path>
+            <path id="cmdMotionAgent"   d="M 641 172 L 850 174"></path>
           </defs>
 
-          <!-- Dim connection lines: core → all 10 agents -->
-          <line class="cmd-line" id="cmdLineHR"       x1="500" y1="340" x2="500" y2="125"  style="--ld:0.04s;"></line>
-          <line class="cmd-line" id="cmdLineIT"        x1="500" y1="340" x2="626" y2="166"  style="--ld:0.08s;"></line>
-          <line class="cmd-line" id="cmdLineFinance"   x1="500" y1="340" x2="705" y2="274"  style="--ld:0.12s;"></line>
-          <line class="cmd-line" id="cmdLineProcure"   x1="500" y1="340" x2="705" y2="407"  style="--ld:0.16s;"></line>
-          <line class="cmd-line" id="cmdLineComply"    x1="500" y1="340" x2="626" y2="514"  style="--ld:0.20s;"></line>
-          <line class="cmd-line" id="cmdLineWorkflow"  x1="500" y1="340" x2="500" y2="555"  style="--ld:0.24s;"></line>
-          <line class="cmd-line" id="cmdLineMeeting"   x1="500" y1="340" x2="374" y2="514"  style="--ld:0.28s;"></line>
-          <line class="cmd-line" id="cmdLineInvoice"   x1="500" y1="340" x2="296" y2="407"  style="--ld:0.32s;"></line>
-          <line class="cmd-line" id="cmdLineSecurity"  x1="500" y1="340" x2="296" y2="274"  style="--ld:0.36s;"></line>
-          <line class="cmd-line" id="cmdLineDocs"      x1="500" y1="340" x2="374" y2="166"  style="--ld:0.40s;"></line>
+          <!-- Dim connection lines: core → 9 agents (Security removed, 40° spacing) -->
+          <line class="cmd-line" id="cmdLineHR"       x1="500" y1="340" x2="500" y2="120"  style="--ld:0.04s;"></line>
+          <line class="cmd-line" id="cmdLineIT"        x1="500" y1="340" x2="641" y2="172"  style="--ld:0.08s;"></line>
+          <line class="cmd-line" id="cmdLineFinance"   x1="500" y1="340" x2="717" y2="302"  style="--ld:0.13s;"></line>
+          <line class="cmd-line" id="cmdLineProcure"   x1="500" y1="340" x2="691" y2="450"  style="--ld:0.17s;"></line>
+          <line class="cmd-line" id="cmdLineComply"    x1="500" y1="340" x2="575" y2="547"  style="--ld:0.21s;"></line>
+          <line class="cmd-line" id="cmdLineWorkflow"  x1="500" y1="340" x2="425" y2="547"  style="--ld:0.25s;"></line>
+          <line class="cmd-line" id="cmdLineMeeting"   x1="500" y1="340" x2="310" y2="450"  style="--ld:0.29s;"></line>
+          <line class="cmd-line" id="cmdLineInvoice"   x1="500" y1="340" x2="283" y2="302"  style="--ld:0.33s;"></line>
+          <line class="cmd-line" id="cmdLineDocs"      x1="500" y1="340" x2="359" y2="172"  style="--ld:0.37s;"></line>
 
           <!-- Chosen path: IT Agent highlighted line -->
-          <line class="cmd-line is-chosen-line"    id="cmdChosenLine" x1="500" y1="340" x2="626" y2="166"></line>
+          <line class="cmd-line is-chosen-line"    id="cmdChosenLine" x1="500" y1="340" x2="641" y2="172"></line>
 
           <!-- Workflow connection from IT Agent -->
-          <line class="cmd-line is-workflow-line" id="cmdWFLine" x1="626" y1="166" x2="820" y2="165"></line>
+          <line class="cmd-line is-workflow-line" id="cmdWFLine" x1="641" y1="172" x2="850" y2="174"></line>
 
           <!-- Outer pulse rings on Niyanta core -->
-          <circle class="cmd-core-ring"        cx="500" cy="340" r="72"></circle>
-          <circle class="cmd-core-ring ring-2" cx="500" cy="340" r="96"></circle>
+          <circle class="cmd-core-ring"        cx="500" cy="340" r="86"></circle>
+          <circle class="cmd-core-ring ring-2" cx="500" cy="340" r="112"></circle>
 
           <!-- Niyanta central node -->
-          <circle class="cmd-core" id="cmdCore" cx="500" cy="340" r="52"></circle>
+          <circle class="cmd-core" id="cmdCore" cx="500" cy="340" r="62"></circle>
           <text class="cmd-core-label" id="cmdCoreLabel" x="500" y="344">NIYANTA</text>
 
-          <!-- ── 10 agent nodes in a circle (r=215 from centre 500,340) ── -->
-          <!-- 0°  top -->
-          <circle class="cmd-agent" id="agentHR"       cx="500" cy="125" r="28"></circle>
-          <text   class="cmd-label" id="labelHR"        x="500" y="129">HR</text>
+          <!-- ── 9 agent nodes at 40° intervals (Security removed) ── -->
+          <!-- 0° top -->
+          <circle class="cmd-agent" id="agentHR"        cx="500" cy="120" r="36"></circle>
+          <text   class="cmd-label" id="labelHR"         x="500" y="124">HR</text>
 
-          <!-- 36° upper-right — IT (primary chosen) -->
-          <circle class="cmd-agent is-chosen-agent" id="agentIT" cx="626" cy="166" r="30"></circle>
-          <text   class="cmd-label is-chosen-label"  id="labelIT" x="626" y="170">IT</text>
+          <!-- 40° upper-right — IT (primary chosen) -->
+          <circle class="cmd-agent is-chosen-agent" id="agentIT" cx="641" cy="172" r="36"></circle>
+          <text   class="cmd-label is-chosen-label"  id="labelIT" x="641" y="176">IT</text>
 
-          <!-- 72° right -->
-          <circle class="cmd-agent" id="agentFinance"  cx="705" cy="274" r="28"></circle>
-          <text   class="cmd-label" id="labelFinance"   x="705" y="278">Finance</text>
+          <!-- 80° right -->
+          <circle class="cmd-agent" id="agentFinance"   cx="717" cy="302" r="36"></circle>
+          <text   class="cmd-label" id="labelFinance"    x="717" y="306">Finance</text>
 
-          <!-- 108° lower-right -->
-          <circle class="cmd-agent" id="agentProcure"  cx="705" cy="407" r="28"></circle>
-          <text   class="cmd-label" id="labelProcure"   x="705" y="411">Procure</text>
+          <!-- 120° lower-right -->
+          <circle class="cmd-agent" id="agentProcure"   cx="691" cy="450" r="36"></circle>
+          <text   class="cmd-label" id="labelProcure"    x="691" y="454">Procure</text>
 
-          <!-- 144° lower-right -->
-          <circle class="cmd-agent" id="agentComply"   cx="626" cy="514" r="28"></circle>
-          <text   class="cmd-label" id="labelComply"    x="626" y="518">Comply</text>
+          <!-- 160° lower-right -->
+          <circle class="cmd-agent" id="agentComply"    cx="575" cy="547" r="36"></circle>
+          <text   class="cmd-label" id="labelComply"     x="575" y="551">Comply</text>
 
-          <!-- 180° bottom -->
-          <circle class="cmd-agent" id="agentWorkflowA" cx="500" cy="555" r="28"></circle>
-          <text   class="cmd-label" id="labelWorkflowA" x="500" y="559">Workflow</text>
+          <!-- 200° bottom-left -->
+          <circle class="cmd-agent" id="agentWorkflowA" cx="425" cy="547" r="36"></circle>
+          <text   class="cmd-label" id="labelWorkflowA"  x="425" y="551">Workflow</text>
 
-          <!-- 216° lower-left -->
-          <circle class="cmd-agent" id="agentMeeting"  cx="374" cy="514" r="28"></circle>
-          <text   class="cmd-label" id="labelMeeting"   x="374" y="518">Meeting</text>
+          <!-- 240° lower-left -->
+          <circle class="cmd-agent" id="agentMeeting"   cx="310" cy="450" r="36"></circle>
+          <text   class="cmd-label" id="labelMeeting"    x="310" y="454">Meeting</text>
 
-          <!-- 252° left -->
-          <circle class="cmd-agent" id="agentInvoice"  cx="296" cy="407" r="28"></circle>
-          <text   class="cmd-label" id="labelInvoice"   x="296" y="411">Invoice</text>
+          <!-- 280° left -->
+          <circle class="cmd-agent" id="agentInvoice"   cx="283" cy="302" r="36"></circle>
+          <text   class="cmd-label" id="labelInvoice"    x="283" y="306">Invoice</text>
 
-          <!-- 288° upper-left — Security -->
-          <circle class="cmd-agent" id="agentSecurity" cx="296" cy="274" r="30"></circle>
-          <text   class="cmd-label" id="labelSecurity"  x="296" y="278">Security</text>
-
-          <!-- 324° upper-left -->
-          <circle class="cmd-agent" id="agentDocs"     cx="374" cy="166" r="28"></circle>
-          <text   class="cmd-label" id="labelDocs"      x="374" y="170">DocIntel</text>
+          <!-- 320° upper-left -->
+          <circle class="cmd-agent" id="agentDocs"      cx="359" cy="172" r="36"></circle>
+          <text   class="cmd-label" id="labelDocs"       x="359" y="176">DocIntel</text>
 
           <!-- Workflow block (right of IT Agent) -->
-          <rect class="cmd-wf is-chosen-wf" id="cmdWF" x="820" y="140" width="120" height="56"></rect>
-          <text class="cmd-label is-chosen-label" id="labelWF" x="880" y="172">Workflow</text>
+          <rect class="cmd-wf is-chosen-wf" id="cmdWF" x="840" y="148" width="118" height="52"></rect>
+          <text class="cmd-label is-chosen-label" id="labelWF" x="899" y="178">Workflow</text>
 
           <!-- Animated flow particle -->
           <circle class="cmd-particle" id="cmdParticle" cx="500" cy="340" r="5"></circle>
@@ -4376,6 +4414,21 @@
     <span class="s3-dot"></span>security alert triggered
   </div>
 
+  <!-- S4 intent card bridge — persists through Scene 5 -->
+  <div id="s4TileBridge" class="s4-tile-bridge" aria-hidden="true">
+    <div class="s4-bridge-head">Structured intent</div>
+    <div class="s4-bridge-row"><span class="s4-bk">intent</span><span class="s4-bv">approve_request</span></div>
+    <div class="s4-bridge-row"><span class="s4-bk">entity</span><span class="s4-bv">access</span></div>
+    <div class="s4-bridge-row"><span class="s4-bk">priority</span><span class="s4-bv">high</span></div>
+  </div>
+
+  <!-- S4 → S5 workflow tile — appears at S4→S5 transition -->
+  <div id="s4WorkflowBridge" class="s4-wf-bridge" aria-hidden="true">
+    <div class="s4-bridge-head">Workflow · dispatch</div>
+    <div class="s4-bridge-row"><span class="s4-bk">agent</span><span class="s4-bv">IT Agent</span></div>
+    <div class="s4-bridge-row"><span class="s4-bk">action</span><span class="s4-bv">validate access</span></div>
+  </div>
+
   <nav class="playbar" id="playbar" aria-label="Scene navigation">
     <div class="pb-playbtn" id="pbPlayBtn" title="Pause">
       <!-- pause icon by default (animation is playing) -->
@@ -4410,7 +4463,7 @@
     var SCENE_TWO_START = 9000;
     var SCENE_THREE_START = 13500;
     var SCENE_FOUR_START = 28600;
-    var SCENE_FIVE_START = 38000;
+    var SCENE_FIVE_START = 45000;
     var SCENE_SIX_START   = 50000;
     var SCENE_SEVEN_START = 62000;
     var SCENE_EIGHT_START = 76000;
@@ -4436,7 +4489,7 @@
       agents:  2600,   /* dim agent ring reveals */
       decide:  4200,   /* decision pulse + chosen line + IT highlight */
       handoff: 5800,   /* particle travels, workflow lights up */
-      final:   7800    /* "One system decides everything" */
+      final:   9600    /* "One system decides everything" — after particle finishes */
     };
 
     var SCENE_FIVE_TIMINGS = {
@@ -4709,6 +4762,7 @@
     var didCmdDecide = false;
     var didCmdHandoff = false;
     var didCmdFinal = false;
+    var cmdFinalAt = 0;
     var cmdParticlePhase = 0; /* 0=idle 1=core->agent 2=agent->wf */
     var cmdParticleStart = 0;
 
@@ -5603,6 +5657,11 @@
       wfeStartedAt = performance.now();
       sceneAgent.classList.add('is-exiting');
       sceneWFE.classList.add('is-visible');
+      /* Settle persistent s4 bridge tiles */
+      var s4tile = document.getElementById('s4TileBridge');
+      if (s4tile) { s4tile.classList.add('is-settled'); }
+      var s4wf = document.getElementById('s4WorkflowBridge');
+      if (s4wf) { s4wf.classList.add('is-settled'); }
     }
 
     function tickWFEScene(timestamp) {
@@ -5768,9 +5827,12 @@
       agentStartedAt = performance.now();
       sceneCommand.classList.add('is-exiting');
       sceneAgent.classList.add('is-visible');
-      /* Now fade bridge tile away */
+      /* Fade s3 bridge tile */
       var bridge = document.getElementById('s3TileBridge');
       if (bridge) { bridge.classList.add('is-settled'); }
+      /* Show workflow bridge tile below existing tiles */
+      var s4wf = document.getElementById('s4WorkflowBridge');
+      if (s4wf) { s4wf.classList.remove('is-settled'); s4wf.classList.add('is-visible'); }
     }
 
     function tickAgentScene(timestamp) {
@@ -5846,13 +5908,17 @@
       cmdStartedAt = performance.now();
       sceneIntent.classList.add('is-exiting');
       sceneCommand.classList.add('is-visible');
-      /* Ensure bridge tile is visible (may not have come from Scene 3) */
+      /* Ensure s3 bridge tile is visible (may not have come from Scene 3) */
       var bridge = document.getElementById('s3TileBridge');
       if (bridge) {
         bridge.classList.remove('is-settled');
         bridge.classList.add('is-flying');
       }
+      /* Show s4 intent card bridge tile */
+      var s4tile = document.getElementById('s4TileBridge');
+      if (s4tile) { s4tile.classList.remove('is-settled'); s4tile.classList.add('is-visible'); }
     }
+
 
     function activateCmdCore() {
       if (didCmdCore) { return; }
@@ -5889,6 +5955,7 @@
     function activateCmdFinal() {
       if (didCmdFinal) { return; }
       didCmdFinal = true;
+      cmdFinalAt = performance.now();
       sceneCommand.classList.add('cmd-final-visible');
     }
 
@@ -6062,7 +6129,10 @@
           revealSceneFour();
         }
 
-        if (!agentStarted && t >= SCENE_FIVE_START) {
+        /* Scene 5 starts 2s after Scene 4 final text, or SCENE_FIVE_START fallback */
+        var s5Ready = (cmdFinalAt > 0 && (performance.now() - cmdFinalAt) >= 2000) ||
+                      t >= SCENE_FIVE_START;
+        if (!agentStarted && s5Ready) {
           revealSceneFive();
         }
 
@@ -6206,6 +6276,15 @@
           var bridgeClean = document.getElementById('s3TileBridge');
           if (bridgeClean) { bridgeClean.classList.remove('is-flying', 'is-settled'); }
         }
+        /* S4/S5 bridge tiles */
+        if (n <= 4) {
+          var s4tileClean = document.getElementById('s4TileBridge');
+          if (s4tileClean) { s4tileClean.classList.remove('is-visible', 'is-settled'); }
+        }
+        if (n <= 5) {
+          var s4wfClean = document.getElementById('s4WorkflowBridge');
+          if (s4wfClean) { s4wfClean.classList.remove('is-visible', 'is-settled'); }
+        }
         /* S8 canvas + tiles */
         if (n <= 8) {
           var s8c = document.getElementById('s8Canvas');
@@ -6268,7 +6347,7 @@
           intentFinalAt = 0;
         }
         if (n <= 4) {
-          cmdStarted = false; cmdStartedAt = null;
+          cmdStarted = false; cmdStartedAt = null; cmdFinalAt = 0;
           didCmdCore = false; didCmdInput = false; didCmdAgents = false;
           didCmdDecide = false; didCmdHandoff = false; didCmdFinal = false;
           cmdParticlePhase = 0; cmdParticleStart = 0;
@@ -6315,7 +6394,7 @@
         cleanSceneDom(n);
 
         /* 5. Restore transitions, shift animation clock, reveal target, then unblock */
-        var sceneStartTimes = [0,0,9000,13500,28600,38000,50000,62000,76000,90000,105000];
+        var sceneStartTimes = [0,0,9000,13500,28600,45000,50000,62000,76000,90000,105000];
         requestAnimationFrame(function () {
           /* Shift the clock so effective time = sceneStartTimes[n] right now.
              This prevents future-scene auto-starts for SCENE_(n+1)..SCENE_10. */
